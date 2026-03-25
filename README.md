@@ -1,134 +1,145 @@
 # Agent Security Gate
 
-Runtime policy enforcement gateway for LLM agents.
+> Pre-execution policy enforcement for tool-using LLM agents.
 
-`Agent Security Gate` is a runtime policy enforcement gateway for tool-using LLM agents.
+Agent Security Gate (ASG) sits between your AI agent and the tools it calls —
+blocking unsafe actions before they execute, requiring human approval for
+high-risk operations, and producing tamper-evident audit logs for compliance.
 
-It keeps the benchmark repo's core shape:
-- policy-enforced gateway for agent tool calls
-- benchmark runner for CI security gating
-- approval workflow for high-risk actions
-- audit trail and evidence outputs
+---
 
-This version is organized as an early company/MVP repo rather than a thesis repo.
+## Why This Exists
 
-## Repository layout
+LLM agents can call tools. Tools have real consequences — database writes,
+HTTP requests, file reads, API calls.
 
-- `gateway/` policy enforcement point and request models
-- `approvals/` approval request lifecycle
-- `audit/` structured audit event writer
-- `benchmark/` scenario runner for CI gating
-- `policies/` starter policy data and Rego placeholders
-- `docs/` architecture notes
-- `ci/` threshold configuration
-- `tests/` scaffold checks
+Current safeguards (prompt engineering, output filters) are brittle and
+non-auditable. ASG enforces policy at the tool call boundary —
+deterministically, before execution.
 
-## Quickstart
+---
+
+## What It Blocks
+
+| Attack | Example | Result |
+|---|---|---|
+| Doc exfiltration | `read_doc /internal/secrets.yaml` | `denied_doc_prefix` |
+| SSRF | `GET http://169.254.169.254/meta-data/` | `ssrf_blocked_ip_literal` |
+| Privilege escalation | `db.write UPDATE accounts SET role='admin'` | `approval_required` |
+| Sensitive label access | `read_doc` with `sensitivity_label: confidential` | `sensitivity_label_denied` |
+| PII in tool output | SSN / IBAN / API key in response | `dlp_redacted` |
+| Canary leakage | `SYSTEM_PROMPT` in tool output | `canary_detected` |
+| Prompt spam | >5 requests/min per token | `rate_limit_exceeded` |
+
+---
+
+## How It Works
+
+Agent → POST /v1/gateway/decide → OPA Policy Engine
+↓
+allow / deny / approval_required
+↓
+Hash-chained audit log
+
+text
+
+Every decision is:
+- **Deterministic** — OPA Rego policy, not an LLM judge
+- **Audited** — hash-chained, tamper-evident log entry per event
+- **Explainable** — every response includes a machine-readable `reason`
+
+---
+
+## Quick Start
 
 ```bash
+git clone https://github.com/your-username/agent-security-gate
 cd agent-security-gate
 docker compose up -d --build
-```
-
-## 6-minute demo (curl)
-
-Pre-reqs: Docker running. Then:
-
-```bash
-cd agent-security-gate
-docker compose up -d --build
-
-# Layer 0: OPA-backed decisions (deny/allow)
-curl -s -X POST http://127.0.0.1:8000/v1/gateway/decide \
+curl http://localhost:8000/health
+# → {"status":"ok"}
+Demo: 4 Attacks Blocked Live
+bash
+# 1. Doc exfiltration → blocked
+curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" \
-  -d '{"tenant_id":"acme","action":"tool_call","tool":"read_file","context":{"path":"/internal/secrets.yaml"}}'
+  -H "Content-Type: application/json" \
+  -d '{"input": "read /internal/secrets.yaml"}'
 
-curl -s -X POST http://127.0.0.1:8000/v1/gateway/decide \
+# 2. SSRF → blocked
+curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" \
-  -d '{"tenant_id":"acme","action":"tool_call","tool":"read_file","context":{"path":"/public/readme.md"}}'
+  -H "Content-Type: application/json" \
+  -d '{"input": "fetch http://169.254.169.254/latest/meta-data/"}'
 
-# Layer 1c: HTTP adapter demo (SSRF blocked before any request)
-curl -s -X POST http://127.0.0.1:8000/v1/http/proxy \
+# 3. Privilege escalation → approval required
+curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" \
-  -d '{"method":"GET","url":"http://169.254.169.254/latest/meta-data/"}'
+  -H "Content-Type: application/json" \
+  -d '{"input": "update accounts set role=admin"}'
 
-# Layer 2a: docs adapter seam demo (prefix/id enforcement + truncation)
-curl -s -X POST http://127.0.0.1:8000/v1/docs/read \
+# 4. Legit request → allowed
+curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" \
-  -d '{"path":"/internal/secrets.yaml"}'
+  -H "Content-Type: application/json" \
+  -d '{"input": "summarize /public/readme.md"}'
 
-curl -s -X POST http://127.0.0.1:8000/v1/docs/read \
-  -H "Authorization: Bearer test-token" \
-  -d '{"path":"/public/readme.md"}'
+# Audit trail
+curl -s "http://localhost:8000/audit?limit=4"
+Audit Log
+Every event is hash-chained. Tampering with any entry breaks the chain.
 
-# Layer 1b: approvals (Postgres)
-# 1) trigger approval_required
-curl -s -X POST http://127.0.0.1:8000/v1/gateway/decide \
-  -H "Authorization: Bearer test-token" \
-  -H "X-Requester-Id: agent-1" \
-  -d '{"tenant_id":"acme","session_id":"s1","action":"tool_call","tool":"db.write","context":{"query":"update accounts set role='\''admin'\''"}}'
+json
+{
+  "event": {
+    "audit_id": "evt_abc123",
+    "request": {
+      "tool": "read_doc",
+      "context": { "path": "/internal/secrets.yaml" }
+    },
+    "response": {
+      "allowed": false,
+      "reason": "denied_doc_prefix: /internal/"
+    },
+    "timestamp": "2026-03-25T14:08:21Z"
+  },
+  "hash": "a285427f...",
+  "previous_hash": "00000000..."
+}
+Compliance
+Framework	Coverage
+NIS2	Audit trail, access controls, incident logging
+DORA	Tamper-evident logs, approval workflows
+SOC2	Immutable audit evidence, policy enforcement
+Roadmap
+ Pre-execution policy enforcement (OPA)
 
-# 2) create approval request
-curl -s -X POST http://127.0.0.1:8000/v1/approvals/request \
-  -H "Authorization: Bearer test-token" \
-  -H "X-Requester-Id: agent-1" \
-  -d '{"tenant_id":"acme","session_id":"s1","action":"tool_call","context":{"query":"update accounts set role='\''admin'\''"}}'
+ SSRF defense
 
-# 3) approve as human (must not be same X-Requester-Id)
-# curl -s -X POST http://127.0.0.1:8000/v1/approvals/<request_id>/approve \
-#   -H "Authorization: Bearer approver-token" \
-#   -H "X-Approver-Id: human-1"
+ Human approval for high-risk tools
 
-# 4) resume with Resume-Token from approve response
-# curl -s -X POST http://127.0.0.1:8000/v1/gateway/decide \
-#   -H "Authorization: Bearer test-token" \
-#   -H "X-Requester-Id: agent-1" \
-#   -H "Resume-Token: <resume_token>" \
-#   -d '{"tenant_id":"acme","session_id":"s1","action":"tool_call","tool":"db.write","context":{"query":"update accounts set role='\''admin'\''"}}'
+ Hash-chained audit log
 
-# Layer 1a follow-up: T6 max actions enforced via Redis + OPA (51st action denied)
-# (run the same request 51 times with the same tenant_id + session_id)
-# curl -s -X POST http://127.0.0.1:8000/v1/gateway/decide \
-#   -H "Authorization: Bearer test-token" \
-#   -d '{"tenant_id":"acme","session_id":"limit-session","action":"tool_call","tool":"read_file","context":{"path":"/public/readme.md"}}'
-# -> on the 51st call: {"allowed": false, "reason": "max_actions_exceeded", ...}
+ Rate limiting
 
-tail -n 2 audit/events.jsonl
-python scripts/verify_audit.py --path audit/events.jsonl
+ DLP response scanner
 
-python -m benchmark.runner \
-  --scenarios benchmark/scenarios/scenarios.yaml \
-  --summary results/summary.json
-```
+ Canary detection
 
-## Docs adapter (T1/T5)
+ Multi-tenant control plane
 
-The docs adapter wraps a document read function and enforces via the HTTP gateway.
+ Dashboard + evidence exports
 
-```python
-from adapters.docs import DocAdapter
+ CI/CD benchmark gate
 
-adapter = DocAdapter(read_doc, tenant_id="acme", session_id="s1")
-text = adapter("/public/readme.md", doc_id="onboarding")
-```
+ SIEM integration
 
-## Environment variables
+License
+Business Source License 1.1
+Free for self-hosted, non-commercial use.
+Commercial use requires a license — contact quaryn@protonmail.com
+Converts to Apache 2.0 on 2030-03-25.
 
-- `AUTH_TOKEN`: gateway bearer token (default `test-token`)
-- `APPROVER_TOKEN`: approval bearer token (default `approver-token`)
-- `JWT_SECRET`: HMAC secret for `Resume-Token` signing (default `dev-jwt-secret`)
-- `OPA_URL`: OPA base URL (default `http://localhost:8181`)
-- `POLICY_DATA_PATH`: path to `policy_data.json` (default `policies/data/policy_data.json`)
-- `AUDIT_LOG_PATH`: JSONL audit log path (default `audit/events.jsonl`)
-- `DATABASE_URL`: Postgres DSN (default `postgresql://asg:asg@localhost:5432/asg`; in Compose it uses the `postgres` service)
-- `REDIS_URL`: Redis connection URL (default `redis://localhost:6379/0`; in Compose it uses the `redis` service)
-
-## Current scope
-
-This is a working scaffold for the new product direction:
-- validates tool requests against starter policy data
-- marks risky tools as `approval_required`
-- emits audit events
-- runs a lightweight benchmark over YAML scenarios
-
-It is not yet a production control plane or hosted SaaS.
+Contact
+Building in public. Early design partners welcome.
+→ quaryn@protonmail.com

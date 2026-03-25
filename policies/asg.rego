@@ -5,6 +5,7 @@ import rego.v1
 # PDP: hard denies (prefix/doc_id/output/max_actions) + approval gate.
 
 default allow := false
+default hard_deny := false
 default approval_required := false
 default allow_after_approval := false
 default http_allowed := false
@@ -12,6 +13,12 @@ default http_allowed := false
 path := object.get(input.context, "path", "")
 
 out_len := object.get(input.context, "output_length", 0)
+
+sensitivity_label := lower(object.get(input.context, "sensitivity_label", ""))
+
+sensitivity_denied if {
+	sensitivity_label == "confidential" or sensitivity_label == "secret"
+}
 
 denied_prefix_match if {
 	some prefix in input.config.denied_doc_prefixes
@@ -46,6 +53,7 @@ hard_deny if { denied_prefix_match }
 hard_deny if { denied_doc_id_match }
 hard_deny if { output_too_long }
 hard_deny if { max_actions_exceeded }
+hard_deny if { sensitivity_denied }
 
 approval_required if {
 	some t in input.config.approval_required_tools
@@ -69,7 +77,9 @@ http_allowed if {
 
 default deny_reason := "policy_denied"
 
-deny_reason := "max_actions_exceeded" if {
+deny_reason := "sensitivity_label_denied" if {
+	sensitivity_denied
+} else := "max_actions_exceeded" if {
 	max_actions_exceeded
 } else := sprintf("denied_doc_prefix: %s", [denied_prefix]) if {
 	denied_prefix_match
