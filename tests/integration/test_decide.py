@@ -8,6 +8,7 @@ and the gateway (8000) are reachable. Then: `pytest tests/integration/test_decid
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 
 import httpx
@@ -98,7 +99,7 @@ def test_audit_jsonl_records_matching_audit_ids(client: httpx.Client) -> None:
 @pytest.mark.integration
 def test_max_actions_exceeded_on_51st_call_and_session_resets(client: httpx.Client) -> None:
     tenant_id = "acme-max-actions"
-    session_id = "s-max-actions"
+    session_id = f"s-max-actions-{uuid.uuid4().hex}"
     body = {
         "tenant_id": tenant_id,
         "session_id": session_id,
@@ -122,7 +123,7 @@ def test_max_actions_exceeded_on_51st_call_and_session_resets(client: httpx.Clie
 
     # New session_id should reset counter.
     body2 = dict(body)
-    body2["session_id"] = "s-max-actions-2"
+    body2["session_id"] = f"s-max-actions-{uuid.uuid4().hex}"
     r_new = client.post("/v1/gateway/decide", json=body2)
     r_new.raise_for_status()
     d_new = r_new.json()

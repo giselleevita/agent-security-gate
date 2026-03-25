@@ -1,0 +1,6 @@
+canaries:
+  - "SYSTEM_PROMPT"
+  - "INTERNAL_TOKEN"
+  - "sk-"
+  - "BEGIN RSA PRIVATE KEY"
+
