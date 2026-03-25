@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-from audit.events import append_event
+from audit.events import append_hash_chained_event
 from gateway.models import Decision, ToolCallRequest
 
 
@@ -204,7 +204,7 @@ class PolicyEnforcementPoint:
         decision.output = raw_output
 
     def _audit_decision(self, request: ToolCallRequest, decision: Decision) -> None:
-        append_event(
+        append_hash_chained_event(
             self.audit_log_path,
             {
                 "session_id": request.session_id,

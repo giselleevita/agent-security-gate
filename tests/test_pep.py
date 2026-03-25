@@ -11,7 +11,14 @@ def build_pep(tmp_path: Path) -> tuple[PolicyEnforcementPoint, Path]:
 
 
 def read_audit_events(audit_path: Path) -> list[dict[str, object]]:
-    return [json.loads(line) for line in audit_path.read_text().splitlines()]
+    events: list[dict[str, object]] = []
+    for line in audit_path.read_text().splitlines():
+        entry = json.loads(line)
+        if isinstance(entry, dict) and isinstance(entry.get("event"), dict):
+            events.append(entry["event"])
+        else:
+            events.append(entry)
+    return events
 
 
 def test_output_within_limit_passes_unchanged(tmp_path: Path) -> None:
