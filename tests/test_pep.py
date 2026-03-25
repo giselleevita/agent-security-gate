@@ -162,3 +162,16 @@ def test_new_session_starts_fresh_counter(tmp_path: Path) -> None:
         ToolCallRequest(tool="docs.read", session_id="fresh-session", params={"doc_id": "doc-1"})
     )
     assert decision.outcome == "allow"
+
+
+def test_canary_in_output_is_denied(tmp_path: Path) -> None:
+    pep, _ = build_pep(tmp_path)
+    decision = pep.decide(
+        ToolCallRequest(
+            tool="docs.read",
+            session_id="canary-session",
+            params={"path": "/public/readme.md", "output": "FORBIDDEN:secret-token"},
+        )
+    )
+    assert decision.outcome == "deny"
+    assert decision.reason == "canary_detected"

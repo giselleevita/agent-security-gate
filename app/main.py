@@ -672,6 +672,11 @@ def docs_read(
             return DocsReadResponse(allowed=False, reason=str(reason_raw))
 
     output = _fake_read_doc(path=body.path, doc_id=body.doc_id)
+    reason_or_none, scanned_output, _extras = _scan_tool_output(tool_output=output)
+    if reason_or_none is not None:
+        return DocsReadResponse(allowed=False, reason=reason_or_none)
+
+    output = scanned_output
     limit = int(policy.get("output_max_chars", 2000))
     truncated = len(output) > limit
     if truncated:

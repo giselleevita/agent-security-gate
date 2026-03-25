@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import urlparse
+
+import yaml
 
 from audit.events import append_event
 from gateway.models import Decision, ToolCallRequest
@@ -15,6 +18,7 @@ class PolicyEnforcementPoint:
         self.audit_log_path = Path(audit_log_path)
         self.policy_data = json.loads(self.policy_path.read_text())
         self._session_action_counts: dict[str, int] = {}
+        self.canaries_path = Path(os.environ.get("CANARIES_PATH", "policies/data/canaries.yaml"))
 
     def decide(self, request: ToolCallRequest) -> Decision:
         session_count = self._increment_session_counter(request.session_id)
@@ -85,6 +89,17 @@ class PolicyEnforcementPoint:
             self._audit_decision(request, decision)
             return decision
 
+        matched_canary = self._matched_canary(request)
+        if matched_canary is not None:
+            decision = Decision(
+                outcome="deny",
+                reason="canary_detected",
+                policy_id="canary-detection",
+            )
+            decision.output = self._redact_canaries_in_output(request)
+            self._audit_decision(request, decision)
+            return decision
+
         decision = Decision(
             outcome="allow",
             reason="request satisfies starter policy checks",
@@ -139,6 +154,41 @@ class PolicyEnforcementPoint:
         current = self._session_action_counts.get(session_id, 0) + 1
         self._session_action_counts[session_id] = current
         return current
+
+    def _load_canaries(self) -> list[str]:
+        if not self.canaries_path.exists():
+            return []
+        raw = yaml.safe_load(self.canaries_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            return []
+        canaries = raw.get("canaries", [])
+        if not isinstance(canaries, list):
+            return []
+        return [str(item) for item in canaries if isinstance(item, (str, int, float)) and str(item)]
+
+    def _matched_canary(self, request: ToolCallRequest) -> str | None:
+        outputs: list[str] = []
+        for candidate in (request.params.get("output"), request.context.get("tool_output")):
+            if isinstance(candidate, str) and candidate:
+                outputs.append(candidate)
+        if not outputs:
+            return None
+        for canary in self._load_canaries():
+            for output in outputs:
+                if canary in output:
+                    return canary
+        return None
+
+    def _redact_canaries_in_output(self, request: ToolCallRequest) -> str | None:
+        raw_output = request.params.get("output")
+        if not isinstance(raw_output, str):
+            return None
+        redacted = raw_output
+        for canary in self._load_canaries():
+            if canary:
+                redacted = redacted.replace(canary, "[REDACTED]")
+        limit = self._get_limit("output_max_chars", request, default=2000)
+        return redacted[:limit]
 
     def _apply_output_limit(self, request: ToolCallRequest, decision: Decision) -> None:
         raw_output = request.params.get("output")
