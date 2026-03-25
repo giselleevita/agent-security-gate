@@ -16,7 +16,6 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from audit.events import append_event, append_hash_chained_event
-from adapters.docs import gate_read_doc
 from adapters.http import GatedHttpClient, HttpDecision
 
 AUTH_TOKEN_ENV = "AUTH_TOKEN"
@@ -374,19 +373,25 @@ def docs_read(
         # Demo adapter: in real integrations, this wraps your actual doc store read.
         return f"doc({doc_id or 'none'}):{path}\n" + ("x" * 5000)
 
-    decision = gate_read_doc(
-        read_fn=_fake_read_doc,
-        opa_url=opa_url,
-        policy_config=policy,
-        path=body.path,
-        doc_id=body.doc_id,
-    )
-    return DocsReadResponse(
-        allowed=decision.allowed,
-        reason=decision.reason,
-        output=decision.output,
-        truncated=decision.truncated,
-    )
+    # Keep this endpoint independent of the DocAdapter (which calls the gateway).
+    # We check OPA directly to avoid recursion.
+    ctx: dict[str, Any] = {"path": body.path}
+    if body.doc_id is not None:
+        ctx["doc_id"] = body.doc_id
+    opa_input = {"tool": "read_doc", "context": ctx, "config": policy}
+
+    with httpx.Client(timeout=10.0) as client:
+        allowed = bool(_opa_post(client, "/v1/data/asg/allow", opa_input))
+        if not allowed:
+            reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
+            return DocsReadResponse(allowed=False, reason=str(reason_raw))
+
+    output = _fake_read_doc(path=body.path, doc_id=body.doc_id)
+    limit = int(policy.get("output_max_chars", 2000))
+    truncated = len(output) > limit
+    if truncated:
+        output = output[:limit]
+    return DocsReadResponse(allowed=True, reason="allow", output=output, truncated=truncated)
 
 
 @app.post("/v1/gateway/decide", response_model=DecideResponse)
