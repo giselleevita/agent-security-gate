@@ -12,7 +12,7 @@ import httpx
 import jwt
 import psycopg
 import redis
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from audit.events import append_event, append_hash_chained_event
@@ -43,6 +43,23 @@ class DecideResponse(BaseModel):
     audit_id: str
     latency_ms: float
     approval_url: str | None = None
+
+
+class AgentRequest(BaseModel):
+    input: str
+    tenant_id: str = "acme"
+    session_id: str = "s1"
+    mode: str = "demo"
+
+
+class AgentResponse(BaseModel):
+    allowed: bool
+    reason: str
+    audit_id: str
+    latency_ms: float
+    approval_url: str | None = None
+    action: str
+    tool: str
 
 
 def _policy_data_path() -> Path:
@@ -100,6 +117,17 @@ def _opa_post(client: httpx.Client, path: str, opa_input: dict[str, Any]) -> Any
     if "result" not in data:
         raise HTTPException(status_code=502, detail="OPA response missing result")
     return data["result"]
+
+
+def _append_audit_event(audit_id: str, event: dict[str, Any]) -> None:
+    append_hash_chained_event(
+        _audit_log_path(),
+        {
+            "audit_id": audit_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **event,
+        },
+    )
 
 
 def verify_bearer(authorization: str | None = Header(default=None)) -> None:
@@ -204,6 +232,24 @@ app = FastAPI(title="Agent Security Gate", version="0.1.0")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
+
+@app.get("/audit")
+def audit_tail(limit: int = Query(default=20, ge=1, le=200)) -> dict[str, Any]:
+    """
+    Demo façade: return last N hash-chained audit entries.
+    """
+    path = _audit_log_path()
+    if not path.exists():
+        return {"events": []}
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    tail = lines[-limit:]
+    out: list[dict[str, Any]] = []
+    for ln in tail:
+        try:
+            out.append(json.loads(ln))
+        except json.JSONDecodeError:
+            continue
+    return {"events": out}
 
 @app.get("/health/ready")
 def health_ready() -> dict[str, str]:
@@ -394,12 +440,11 @@ def docs_read(
     return DocsReadResponse(allowed=True, reason="allow", output=output, truncated=truncated)
 
 
-@app.post("/v1/gateway/decide", response_model=DecideResponse)
-def gateway_decide(
+def _decide_tool_call(
+    *,
     body: DecideRequest,
-    _: None = Depends(verify_bearer),
-    resume_token: str | None = Header(default=None, alias="Resume-Token"),
-    x_requester_id: str | None = Header(default=None, alias="X-Requester-Id"),
+    resume_token: str | None,
+    x_requester_id: str | None,
 ) -> DecideResponse:
     policy_config = _load_policy_config()
     redis_key = f"sessions:{body.tenant_id}:{body.session_id}:count"
@@ -422,8 +467,6 @@ def gateway_decide(
         if allowed:
             reason = "allow"
         elif approval_required:
-            # If a resume token is present, it may override approval_required,
-            # but it must match an approved DB record.
             if resume_token is not None:
                 requester_id = _require_header(x_requester_id, "X-Requester-Id")
                 claims = _verify_resume_token(resume_token)
@@ -455,20 +498,14 @@ def gateway_decide(
                     allowed = True
                     reason = "allow"
                 else:
-                    try:
-                        reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
-                        reason = str(reason_raw) if reason_raw is not None else "policy_denied"
-                    except httpx.HTTPError:
-                        reason = "policy_denied"
+                    reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
+                    reason = str(reason_raw) if reason_raw is not None else "policy_denied"
             else:
                 allowed = False
                 reason = "approval_required"
         else:
-            try:
-                reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
-                reason = str(reason_raw) if reason_raw is not None else "policy_denied"
-            except httpx.HTTPError:
-                reason = "policy_denied"
+            reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
+            reason = str(reason_raw) if reason_raw is not None else "policy_denied"
 
     latency_ms = (time.perf_counter() - t0) * 1000.0
     response = DecideResponse(
@@ -478,14 +515,90 @@ def gateway_decide(
         latency_ms=round(latency_ms, 3),
         approval_url="/v1/approvals/request" if (reason == "approval_required" and not allowed) else None,
     )
-
-    append_hash_chained_event(
-        _audit_log_path(),
-        {
-            "audit_id": audit_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "request": body.model_dump(),
-            "response": response.model_dump(),
-        },
-    )
+    _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
     return response
+
+
+@app.post("/agent", response_model=AgentResponse)
+def agent_facade(body: AgentRequest, _: None = Depends(verify_bearer)) -> AgentResponse:
+    """
+    Demo façade: take a plain-text prompt and map it to a representative tool call
+    that is enforced by the gateway/OPA seam.
+    """
+    text = body.input.lower()
+
+    # Heuristic mapping for demos: pick one representative action/tool.
+    if "169.254.169.254" in text or "meta-data" in text:
+        policy = _load_policy_config()
+        opa_url = os.environ.get(OPA_URL_ENV, "http://localhost:8181")
+        client = GatedHttpClient(
+            opa_url=opa_url,
+            http_allowlist=[str(u) for u in policy.get("http_allowlist", [])],
+            output_max_chars=int(policy.get("output_max_chars", 2000)),
+        )
+        audit_id = f"evt_{uuid.uuid4().hex}"
+        t0 = time.perf_counter()
+        try:
+            decision, _ = client.request("GET", "http://169.254.169.254/latest/meta-data/")
+        finally:
+            client.close()
+        latency_ms = (time.perf_counter() - t0) * 1000.0
+        resp = AgentResponse(
+            allowed=decision.allowed,
+            reason=decision.reason,
+            audit_id=audit_id,
+            latency_ms=round(latency_ms, 3),
+            approval_url=None,
+            action="tool_call",
+            tool="http",
+        )
+        _append_audit_event(audit_id, {"agent_input": body.model_dump(), "response": resp.model_dump()})
+        return resp
+
+    if "drop table" in text or "select * from users" in text or "db.write" in text:
+        decide = DecideRequest(
+            tenant_id=body.tenant_id,
+            session_id=body.session_id,
+            action="tool_call",
+            tool="db.write",
+            context={"query": body.input, "output_length": 0},
+            mode=body.mode,
+        )
+    elif "ignore previous instructions" in text or "system prompt" in text or "secrets" in text:
+        decide = DecideRequest(
+            tenant_id=body.tenant_id,
+            session_id=body.session_id,
+            action="tool_call",
+            tool="read_doc",
+            context={"path": "/internal/secrets.yaml", "output_length": 0},
+            mode=body.mode,
+        )
+    else:
+        decide = DecideRequest(
+            tenant_id=body.tenant_id,
+            session_id=body.session_id,
+            action="tool_call",
+            tool="read_doc",
+            context={"path": "/public/readme.md", "output_length": 0},
+            mode=body.mode,
+        )
+
+    d = _decide_tool_call(body=decide, resume_token=None, x_requester_id=None)
+    return AgentResponse(
+        allowed=d.allowed,
+        reason=d.reason,
+        audit_id=d.audit_id,
+        latency_ms=d.latency_ms,
+        approval_url=d.approval_url,
+        action=decide.action,
+        tool=decide.tool,
+    )
+
+@app.post("/v1/gateway/decide", response_model=DecideResponse)
+def gateway_decide(
+    body: DecideRequest,
+    _: None = Depends(verify_bearer),
+    resume_token: str | None = Header(default=None, alias="Resume-Token"),
+    x_requester_id: str | None = Header(default=None, alias="X-Requester-Id"),
+) -> DecideResponse:
+    return _decide_tool_call(body=body, resume_token=resume_token, x_requester_id=x_requester_id)
