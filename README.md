@@ -197,6 +197,18 @@ Task success — higher is better
 
 bash
 python -m benchmark.runner --scenarios benchmark/scenarios/scenarios.yaml --summary results/summary.json
+
+**Verified results (M-series / local Docker):**
+
+| Metric | Result |
+|---|---|
+| Attack Success Rate (ASR) | 0.0 |
+| Leakage Rate | 0.0 |
+| False Positive Rate | 0.0 |
+| Task Success Rate | 1.0 |
+| Latency p50 | 0.096ms |
+| Latency p99 | 0.335ms |
+
 CI fails if ASR or leakage exceed configured thresholds in ci_thresholds.yaml.
 
 After editing, run:
