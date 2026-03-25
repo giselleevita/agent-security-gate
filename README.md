@@ -196,7 +196,7 @@ Leakage rate — lower is better
 Task success — higher is better
 
 bash
-python scripts/run_benchmark.py
+python -m benchmark.runner --scenarios benchmark/scenarios/scenarios.yaml --summary results/summary.json
 CI fails if ASR or leakage exceed configured thresholds in ci_thresholds.yaml.
 
 After editing, run:
