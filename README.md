@@ -223,7 +223,7 @@ Hit enter, accept all changes, run the git commands at the bottom.
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/agent-security-gate
+git clone https://github.com/giselleevita/agent-security-gate
 cd agent-security-gate
 docker compose up -d --build
 curl http://localhost:8000/health

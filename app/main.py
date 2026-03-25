@@ -700,6 +700,25 @@ def _decide_tool_call(
     except redis.RedisError as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
+    tool_output = body.context.get("tool_output")
+    if isinstance(tool_output, str) and tool_output:
+        reason_or_none, redacted, extras = _scan_tool_output(tool_output=tool_output)
+        if reason_or_none is not None:
+            safe_body = body.model_dump()
+            safe_ctx = dict(safe_body.get("context", {}))
+            safe_ctx["tool_output"] = redacted
+            safe_body["context"] = safe_ctx
+            audit_id = f"evt_{uuid.uuid4().hex}"
+            response = DecideResponse(
+                allowed=False,
+                reason=reason_or_none,
+                audit_id=audit_id,
+                latency_ms=0.0,
+                approval_url=None,
+            )
+            _append_audit_event(audit_id, {"request": safe_body, "response": response.model_dump(), "scan": extras})
+            return response
+
     # Sensitivity label enforcement (also encoded in OPA policy).
     sensitivity = str(body.context.get("sensitivity_label", "")).lower().strip()
     if sensitivity in {"confidential", "secret"}:
@@ -852,12 +871,16 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
             mode=body.mode,
         )
     else:
+        context = {"path": "/public/readme.md", "output_length": 0}
+        if body.input:
+            context["tool_output"] = body.input
+            context["output_length"] = len(body.input)
         decide = DecideRequest(
             tenant_id=body.tenant_id,
             session_id=body.session_id,
             action="tool_call",
             tool="read_doc",
-            context={"path": "/public/readme.md", "output_length": 0},
+            context=context,
             mode=body.mode,
         )
 

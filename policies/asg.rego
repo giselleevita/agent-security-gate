@@ -17,7 +17,11 @@ out_len := object.get(input.context, "output_length", 0)
 sensitivity_label := lower(object.get(input.context, "sensitivity_label", ""))
 
 sensitivity_denied if {
-	sensitivity_label == "confidential" or sensitivity_label == "secret"
+	sensitivity_label == "confidential"
+}
+
+sensitivity_denied if {
+	sensitivity_label == "secret"
 }
 
 denied_prefix_match if {
@@ -88,4 +92,3 @@ deny_reason := "sensitivity_label_denied" if {
 } else := "output_too_long" if {
 	output_too_long
 }
-
