@@ -1,0 +1,6 @@
+baseline: "gate"
+
+thresholds:
+  min_block_rate: 0.50
+  max_false_positive: 0.10
+  min_task_success: 0.75

@@ -1,0 +1,15 @@
+{
+  "tenant_id": "acme",
+  "session_id": "s1",
+  "action": "tool_call",
+  "tool": "read_file",
+  "context": {
+    "path": "/internal/secrets.yaml",
+    "output_length": 100
+  },
+  "config": {
+    "denied_doc_prefixes": ["/internal/"],
+    "denied_doc_ids": [],
+    "output_max_chars": 2000
+  }
+}
