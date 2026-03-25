@@ -196,7 +196,7 @@ Leakage rate — lower is better
 Task success — higher is better
 
 bash
-python -m benchmark.runner --scenarios benchmark/scenarios/scenarios.yaml --summary results/summary.json
+python3 -m benchmark.runner --scenarios benchmark/scenarios/scenarios.yaml --summary results/summary.json
 
 **Verified results (M-series / local Docker):**
 
