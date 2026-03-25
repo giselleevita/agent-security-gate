@@ -3,4 +3,4 @@ canaries:
   - "INTERNAL_TOKEN"
   - "sk-"
   - "BEGIN RSA PRIVATE KEY"
-
+  - "FORBIDDEN:"
