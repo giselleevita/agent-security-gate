@@ -50,6 +50,135 @@ Every decision is:
 
 ---
 
+## API Reference
+
+### Gateway
+
+**POST /v1/gateway/decide**
+
+Request:
+```json
+{
+  "tenant_id": "acme",
+  "session_id": "s1",
+  "action": "tool_call",
+  "tool": "read_doc",
+  "context": {
+    "path": "/internal/secrets.yaml",
+    "tool_output": "optional — scanned for DLP + canaries",
+    "sensitivity_label": "confidential",
+    "output_length": 0
+  }
+}
+Headers:
+
+Authorization: Bearer <token> — required
+
+X-Requester-Id: agent-1 — required for approval flows (prevents self-approval)
+
+Resume-Token: <token> — required to resume an approved action
+
+Response:
+
+json
+{
+  "allowed": false,
+  "reason": "denied_doc_prefix: /internal/",
+  "audit_id": "evt_abc123",
+  "latency_ms": 12.4,
+  "approval_url": null
+}
+Decisions: allow · deny · approval_required
+
+Approvals
+
+POST /v1/approvals/request — request approval for a blocked action
+POST /v1/approvals/{id}/approve — approve a pending request
+POST /v1/approvals/{id}/deny — deny a pending request
+GET /v1/approvals/{tenant_id} — list pending approvals for a tenant
+
+Rules:
+
+Agents cannot approve their own requests (X-Requester-Id must differ from approver)
+
+Approval state is persisted in Postgres
+
+Approved actions return a Resume-Token to include in the next gateway call
+
+HTTP Adapter
+
+POST /v1/http/proxy
+
+Request:
+
+json
+{ "method": "GET", "url": "https://allowed-host.com/path" }
+Requests are checked against an allowlist before proxying
+
+IP literals, metadata endpoints (169.254.x.x, 100.64.x.x), and internal ranges are blocked
+
+Returns ssrf_blocked_ip_literal or ssrf_not_allowlisted on denial
+
+Docs
+
+POST /v1/docs/read
+
+Performs OPA policy check before reading
+
+Truncates output to output_max_chars (configurable)
+
+Returns denied_doc_prefix or denied_doc_id if path/ID is blocked
+
+Demo Facade
+
+POST /agent — accepts {"input": "..."}, maps to gateway decision, returns result
+GET /audit?limit=N — returns last N hash-chained audit events (default 20, max 200)
+GET /health — returns {"status":"ok"}
+
+Configuration
+File	Purpose
+policies/data/policy_data.json	Core policy: denied prefixes, approved tools, approval rules
+policies/data/dlp_patterns.yaml	DLP regex patterns (SSN, IBAN, API keys, emails)
+policies/data/canaries.yaml	Canary strings to detect in tool outputs
+Environment variables:
+
+Variable	Default	Purpose
+DLP_PATTERNS_PATH	policies/data/dlp_patterns.yaml	Path to DLP config
+CANARIES_PATH	policies/data/canaries.yaml	Path to canaries config
+RATE_LIMIT_MAX	5	Max requests per token per window
+RATE_LIMIT_WINDOW	60	Window size in seconds
+REDIS_URL	redis://redis:6379	Redis connection for rate limiting
+Audit Log
+All decisions are written to audit/events.jsonl as hash-chained entries.
+
+Every block, allow, approval request, DLP redaction, canary detection, and rate limit breach produces an audit entry.
+
+Verify integrity:
+
+bash
+python scripts/verify_audit.py --path audit/events.jsonl
+Benchmark Runner
+Runs adversarial and benign scenarios against the gateway and scores:
+
+ASR (Attack Success Rate) — lower is better
+
+Leakage rate — lower is better
+
+Task success — higher is better
+
+bash
+python scripts/run_benchmark.py
+CI fails if ASR or leakage exceed configured thresholds in ci_thresholds.yaml.
+
+After editing, run:
+git add README.md && git commit -m "docs: add full API reference, config, audit, and benchmark sections" && git push
+
+text
+
+***
+
+Hit enter, accept all changes, run the git commands at the bottom.
+
 ## Quick Start
 
 ```bash
