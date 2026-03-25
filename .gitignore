@@ -3,3 +3,8 @@ __pycache__/
 .pytest_cache/
 *.pyc
 results/
+audit/
+audit/events.jsonl
+
+!audit/
+!audit/*.py
