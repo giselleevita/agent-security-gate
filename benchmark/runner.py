@@ -6,7 +6,7 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-from audit.events import append_event
+from audit.events import append_hash_chained_event
 from approvals.service import ApprovalService
 from gateway.models import ToolCallRequest
 from gateway.pep import PolicyEnforcementPoint
@@ -51,7 +51,11 @@ def run_benchmark(
     output_path: str | Path | None = None,
 ) -> dict[str, float] | dict[str, object]:
     scenarios = load_scenarios(str(scenarios_path))
-    pep = PolicyEnforcementPoint("policies/data/policy_data.json")
+    audit_log_path = Path("results/audit.jsonl")
+    if audit_log_path.exists():
+        audit_log_path.unlink()
+
+    pep = PolicyEnforcementPoint("policies/data/policy_data.json", audit_log_path=audit_log_path)
     approvals = ApprovalService()
 
     blocked = 0
@@ -86,8 +90,8 @@ def run_benchmark(
         decision = pep.decide(request)
         latency_ms = (time.perf_counter() - t0) * 1000.0
         latencies_ms.append(latency_ms)
-        append_event(
-            "results/audit.jsonl",
+        append_hash_chained_event(
+            audit_log_path,
             {
                 "scenario_id": scenario.id,
                 "tool": request.tool,

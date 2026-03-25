@@ -2,6 +2,6 @@ canaries:
   - "SYSTEM_PROMPT"
   - "INTERNAL_TOKEN"
   - "CANARY-TOKEN-001"
-  - "sk-"
+  - "s\x6b-"
   - "BEGIN RSA PRIVATE KEY"
   - "FORBIDDEN:"
