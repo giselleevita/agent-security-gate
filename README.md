@@ -6,6 +6,35 @@ Agent Security Gate (ASG) sits between your AI agent and the tools it calls —
 blocking unsafe actions before they execute, requiring human approval for
 high-risk operations, and producing tamper-evident audit logs for compliance.
 
+## Why ASG?
+
+> ASG is the only open source agent security gateway with OPA policy enforcement, tamper-evident audit, and a built-in approval workflow — deployable in one `docker compose up`.
+
+Most agent security tools protect at the **prompt layer**. ASG enforces at the **tool-call decision boundary** — before execution, not after damage.
+
+### How ASG compares
+
+| Capability | ASG | AgentGateway | SENTINEL | NeMo Guardrails |
+|---|---|---|---|---|
+| Pre-execution tool-call enforcement | ✅ | ✅ | ✅ | ❌ |
+| OPA policy-as-code (editable files) | ✅ | ❌ | ❌ | ❌ |
+| Human-in-the-loop approval workflow | ✅ | ❌ | ❌ | ❌ |
+| Hash-chained tamper-evident audit | ✅ | ❌ | ❌ | ❌ |
+| DLP + canary detection (YAML config) | ✅ | ❌ | partial | ❌ |
+| Self-hostable, single compose file | ✅ | ❌ | ❌ | ❌ |
+| No cloud dependency | ✅ | ❌ | ❌ | ❌ |
+
+### Who needs this
+
+- Teams building **internal enterprise agents** that touch sensitive data (docs, databases, APIs)
+- Companies under **compliance pressure** (SOC2, GDPR, ISO27001) who need a verifiable audit trail
+- Platform engineers who want to enforce security **centrally across all agents** instead of per-agent
+
+---
+
+After editing, run:
+git add README.md && git commit -m "docs: add Why ASG positioning and comparison table" && git push
+
 ---
 
 ## Why This Exists
