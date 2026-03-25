@@ -16,7 +16,10 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
   opa:
-    image: openpolicyagent/opa:0.65.0
+    # Apple Silicon note: use an image tag with a linux/arm64 manifest.
+    # `openpolicyagent/opa:0.65.1` does not currently publish an arm64 manifest.
+    image: openpolicyagent/opa:0.65.0-static
+    platform: linux/arm64
     command: run --server --addr :8181 /policies
     volumes:
       - ./policies:/policies:ro
