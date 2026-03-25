@@ -1,0 +1,10 @@
+{
+  "allowed_tools": ["docs.read", "tickets.create", "http.get"],
+  "approval_required_tools": ["tickets.delete", "db.write"],
+  "allowed_http_domains": ["api.example.com", "docs.example.com"],
+  "http_allowlist": [],
+  "output_max_chars": 2000,
+  "denied_doc_prefixes": ["/internal/"],
+  "denied_doc_ids": [],
+  "max_actions": 50
+}

@@ -1,0 +1,51 @@
+services:
+  redis:
+    image: redis:7.2-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: asg
+      POSTGRES_PASSWORD: asg
+      POSTGRES_DB: asg
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  opa:
+    image: openpolicyagent/opa:0.65.0
+    command: run --server --addr :8181 /policies
+    volumes:
+      - ./policies:/policies:ro
+    ports:
+      - "8181:8181"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      AUTH_TOKEN: test-token
+      APPROVER_TOKEN: approver-token
+      JWT_SECRET: dev-jwt-secret
+      OPA_URL: http://opa:8181
+      POLICY_DATA_PATH: /app/policies/data/policy_data.json
+      AUDIT_LOG_PATH: /app/audit/events.jsonl
+      DATABASE_URL: postgresql://asg:asg@postgres:5432/asg
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./audit:/app/audit
+      - ./policies/data:/app/policies/data:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      - opa
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
