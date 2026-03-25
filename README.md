@@ -2,7 +2,7 @@
 
 Runtime policy enforcement gateway for LLM agents.
 
-`Agent Security Gate` is a productized scaffold derived from the `llm-agent-security-benchmark` repository and the company brief in `/Users/yusaf/Downloads/From LLM Agent Security Benchmark to Agent Security Gate Company.md`.
+`Agent Security Gate` is a runtime policy enforcement gateway for tool-using LLM agents.
 
 It keeps the benchmark repo's core shape:
 - policy-enforced gateway for agent tool calls
@@ -19,7 +19,7 @@ This version is organized as an early company/MVP repo rather than a thesis repo
 - `audit/` structured audit event writer
 - `benchmark/` scenario runner for CI gating
 - `policies/` starter policy data and Rego placeholders
-- `docs/` product, architecture, and roadmap notes
+- `docs/` architecture notes
 - `ci/` threshold configuration
 - `tests/` scaffold checks
 
