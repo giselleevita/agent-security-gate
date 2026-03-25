@@ -15,10 +15,6 @@ The repo follows the same high-level split as the benchmark project, but with pr
 - `benchmark/`
   - replays scenarios and summarizes block rate, approval rate, and task success
 
-## Near-term evolution
+## Notes
 
-- replace local policy data with OPA-backed PDP calls
-- add authenticated API surfaces
-- add tenant, project, and environment isolation
-- connect approvals to an external workflow backend
-- export evidence bundles for SOC2, NIS2, and DORA workflows
+- This repo contains a working reference implementation (gateway + OPA + adapters + audit).

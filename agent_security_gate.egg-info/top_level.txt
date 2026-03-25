@@ -1,7 +1,0 @@
-adapters
-app
-approvals
-audit
-benchmark
-gateway
-scripts
