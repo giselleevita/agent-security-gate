@@ -2,6 +2,7 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+*.egg-info/
 results/
 audit/
 audit/events.jsonl
