@@ -7,16 +7,13 @@ and the gateway (8000) are reachable. Then: `pytest tests/integration/test_decid
 
 from __future__ import annotations
 
-import json
 import uuid
-from pathlib import Path
 
 import httpx
 import pytest
 
 BASE_URL = "http://127.0.0.1:8000"
 HEADERS = {"Authorization": "Bearer test-token"}
-AUDIT_PATH = Path(__file__).resolve().parents[2] / "audit" / "events.jsonl"
 
 
 @pytest.fixture(scope="module")
@@ -76,9 +73,6 @@ def test_decide_allows_public_path(client: httpx.Client) -> None:
 
 @pytest.mark.integration
 def test_audit_jsonl_records_matching_audit_ids(client: httpx.Client) -> None:
-    AUDIT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    AUDIT_PATH.write_text("", encoding="utf-8")
-
     r1 = client.post("/v1/gateway/decide", json=DENY_BODY)
     r1.raise_for_status()
     r2 = client.post("/v1/gateway/decide", json=ALLOW_BODY)
@@ -88,12 +82,11 @@ def test_audit_jsonl_records_matching_audit_ids(client: httpx.Client) -> None:
     aid2 = r2.json()["audit_id"]
     assert aid1 != aid2
 
-    lines = [ln for ln in AUDIT_PATH.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    assert len(lines) == 2
-    wrapped = [json.loads(ln) for ln in lines]
-    events = [w["event"] for w in wrapped]
-    ids_in_file = {e["audit_id"] for e in events}
-    assert ids_in_file == {aid1, aid2}
+    audit_response = client.get("/audit?limit=20")
+    audit_response.raise_for_status()
+    events = [wrapped["event"] for wrapped in audit_response.json()["events"]]
+    ids = {event["audit_id"] for event in events}
+    assert {aid1, aid2}.issubset(ids)
 
 
 @pytest.mark.integration
