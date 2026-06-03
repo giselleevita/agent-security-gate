@@ -15,7 +15,7 @@ high-risk operations, and producing tamper-evident audit logs for compliance.
 
 ## Why ASG?
 
-> ASG is the only open source agent security gateway with OPA policy enforcement, tamper-evident audit, and a built-in approval workflow — deployable in one `docker compose up`.
+> ASG is an open source agent security gateway with OPA policy enforcement, tamper-evident audit, and a built-in approval workflow — deployable in one `docker compose up`.
 
 Most agent security tools protect at the **prompt layer**. ASG enforces at the **tool-call decision boundary** — before execution, not after damage.
 
