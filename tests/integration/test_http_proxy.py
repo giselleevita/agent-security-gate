@@ -22,7 +22,7 @@ def client() -> httpx.Client:
     deadline = time.time() + 20.0
     while time.time() < deadline:
         try:
-            httpx.get(f"{BASE_URL}/health", timeout=2.0).raise_for_status()
+            httpx.get(f"{BASE_URL}/health/ready", timeout=2.0).raise_for_status()
             last_exc = None
             break
         except httpx.HTTPError as exc:
@@ -43,4 +43,3 @@ def test_http_proxy_blocks_metadata_ip_literal_ssrf(client: httpx.Client) -> Non
     data = r.json()
     assert data["allowed"] is False
     assert "ssrf_blocked" in data["reason"]
-
