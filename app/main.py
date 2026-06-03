@@ -498,6 +498,10 @@ def health_ready() -> dict[str, str]:
         r.raise_for_status()
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail=f"OPA not ready: {exc}") from exc
+    try:
+        redis.Redis.from_url(_redis_url(), decode_responses=True).ping()
+    except redis.RedisError as exc:
+        raise HTTPException(status_code=503, detail=f"redis not ready: {exc}") from exc
     return {"status": "ready"}
 
 

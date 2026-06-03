@@ -15,7 +15,7 @@ def client() -> httpx.Client:
     deadline = time.time() + 20.0
     while time.time() < deadline:
         try:
-            httpx.get(f"{BASE_URL}/health", timeout=2.0).raise_for_status()
+            httpx.get(f"{BASE_URL}/health/ready", timeout=2.0).raise_for_status()
             last_exc = None
             break
         except httpx.HTTPError as exc:

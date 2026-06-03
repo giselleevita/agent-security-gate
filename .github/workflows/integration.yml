@@ -19,9 +19,10 @@ jobs:
       - name: Wait for gateway ready
         run: |
           for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:8000/health && break
+            curl -sf http://127.0.0.1:8000/health/ready && break
             sleep 2
           done
+          curl -sf http://127.0.0.1:8000/health/ready
 
       - name: Run all tests including integration
         run: |
@@ -32,4 +33,3 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
-
