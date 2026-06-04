@@ -1,6 +1,7 @@
 # Agent Security Gate
 
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
+![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-BSL--1.1-orange)
 ![Version](https://img.shields.io/badge/version-0.1.0-informational)
@@ -36,6 +37,19 @@ Most agent security tools protect at the **prompt layer**. ASG enforces at the *
 - Teams building **internal enterprise agents** that touch sensitive data (docs, databases, APIs)
 - Companies under **compliance pressure** (SOC2, GDPR, ISO27001) who need a verifiable audit trail
 - Platform engineers who want to enforce security **centrally across all agents** instead of per-agent
+
+---
+
+## Reviewer Quick Start
+
+For a fast technical review:
+
+1. Start the stack with `docker compose up -d --build`.
+2. Run the four demo requests below to see doc exfiltration, SSRF, privilege escalation, and normal access decisions.
+3. Inspect `/audit?limit=4` and run `python scripts/verify_audit.py --path audit/events.jsonl`.
+4. Review `policies/data/policy_data.json`, `policies/data/dlp_patterns.yaml`, and the integration workflow to see how policy behavior is tested.
+
+The project is intended to show deterministic agent security controls at the tool-call boundary: OPA policy-as-code, human approval for high-risk tools, DLP/canary scanning, rate limiting, and tamper-evident audit.
 
 ---
 
@@ -291,9 +305,9 @@ CI fails if ASR or leakage exceed configured thresholds in `ci_thresholds.yaml`.
 - [x] Rate limiting
 - [x] DLP response scanner
 - [x] Canary detection
+- [x] CI benchmark/security gate
 - [ ] Multi-tenant control plane
 - [ ] Dashboard + evidence exports
-- [ ] CI/CD benchmark gate
 - [ ] SIEM integration
 
 ---
