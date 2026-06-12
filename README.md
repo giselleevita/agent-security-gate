@@ -345,5 +345,5 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for branch naming, issue labels, and th
 
 Business Source License 1.1
 Free for self-hosted, non-commercial use.
-Commercial use requires a license — contact quaryn@protonmail.com
+Commercial use requires a separate license from Giselle Evita Koch. Contact: https://github.com/giselleevita
 Converts to Apache 2.0 on 2030-03-25.
