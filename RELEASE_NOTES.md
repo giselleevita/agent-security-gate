@@ -1,29 +1,37 @@
-## Agent Security Gate v0.2.0
+## Agent Security Gate v0.3.0
 
-This release hardens the runtime enforcement path and adds portable benchmark evidence.
+This release adds explicit, reproducible measurement of the policy gate's effect and
+consolidates the strongest evaluation capability from the archived predecessor
+benchmark.
 
-### Security Hardening
+### Benchmark Evidence
 
-- Runtime OPA policy fails closed for unknown tools and unsupported actions.
-- Approval resume tokens are bound to the exact approved operation and can be used once.
-- Approval resolution uses database row locking to prevent concurrent resolution races.
-- Resume JWTs validate issuer and audience; bearer-token checks use constant-time comparison.
-- Audit reads require approver authentication.
-- HTTP adapters block unsafe methods, redirects, IP literals, and private DNS resolutions.
-- Evidence verification rejects path traversal and malformed manifests.
+- Executes `no_gate` and `gate` baselines instead of presenting an implicit delta.
+- Replays 18 deterministic scenarios across eight policy-relevant attack classes.
+- Supports repeated runs and per-attack-class ASR, leakage, and pass-rate reporting.
+- Generates a reviewer-readable Markdown comparison report.
+- Includes comparison JSON and the report in the CI evidence bundle.
 
-### Engineering Improvements
+### Repository Hardening
 
-- FastAPI code is split into focused auth, config, DLP, policy, schema, and audit modules.
-- Existing Postgres deployments receive idempotent schema migrations on startup.
-- Hash-chained audit appends are concurrency-safe.
-- Document adapters authorize before reading.
-- Runtime tool names now match policy and benchmark identifiers.
+- Added a repository-grounded threat model, vulnerability-reporting policy, and
+  contribution templates.
+- Pinned container versions and GitHub Actions to immutable references.
+- Added exact runtime and development dependency constraints.
+- Removed the public OPA port and development dependencies from the gateway image.
+- Added checksum-tracked database migrations.
 
-### Verification
+### Verified Results
 
-- CI enforces benchmark thresholds and uploads optionally signed evidence bundles.
-- CodeQL, Dependabot, and dependency auditing are configured.
-- The benchmark covers nine scenarios with `ASR 0.0`, `leakage_rate 0.0`, and `task_success_rate 1.0`.
+Across 18 deterministic scenarios with five runs each:
 
-See [CHANGELOG.md](CHANGELOG.md) for the full change list.
+- No-gate baseline: `ASR 100%`, `leakage 100%`
+- Policy-gate baseline: `ASR 0%`, `leakage 0%`, `false positives 0%`
+
+The benchmark measures only the declared deterministic scenarios. Hosted CI, Docker
+integration tests, CodeQL, dependency auditing, and the benchmark threshold gate pass
+for this release.
+
+See [CHANGELOG.md](CHANGELOG.md) and
+[docs/benchmark-methodology.md](docs/benchmark-methodology.md) for details and
+limitations.
