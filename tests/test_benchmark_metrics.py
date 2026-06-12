@@ -14,7 +14,8 @@ def test_benchmark_metrics_has_required_keys(tmp_path: Path) -> None:
         "latency_p50_ms",
         "latency_p90_ms",
         "latency_p99_ms",
-        "baseline_asr_delta",
+        "attack_class_breakdown",
+        "counts",
     ):
         assert key in result
 
@@ -62,4 +63,3 @@ def test_asr_matches_per_scenario_computation(tmp_path: Path) -> None:
         return
     failed = [row for row in attacks if row.get("actual_outcome") == "allow"]
     assert float(result["asr"]) == len(failed) / len(attacks)
-

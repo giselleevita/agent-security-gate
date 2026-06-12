@@ -37,7 +37,8 @@ flowchart LR
 - `adapters/`
   - wraps tool integrations so policy checks happen before side effects
 - `benchmark/`
-  - replays scenarios and summarizes block rate, approval rate, and task success
+  - replays deterministic scenarios against explicit `no_gate` and `gate` baselines
+  - reports attack success, leakage, utility, latency, and per-attack-class results
 
 ## Notes
 

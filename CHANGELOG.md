@@ -16,11 +16,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed development dependencies and the public OPA port from the gateway image/Compose stack
 - Added checksum-tracked database migration history
 - Removed an abandoned placeholder Rego policy and obsolete scaffold wording
+- Replaced the implicit benchmark delta with executed `no_gate` and `gate` baselines
 
 ### Added
 - Repository-grounded threat model and private vulnerability reporting policy
 - Pull request, bug report, and feature request templates
 - Code of conduct and architecture diagram
+- Repeated benchmark runs, per-attack-class metrics, and a Markdown comparison report
+- CI evidence artifacts for the complete baseline comparison and reviewer report
 
 ---
 
