@@ -7,13 +7,15 @@ and the gateway (8000) are reachable. Then: `pytest tests/integration/test_decid
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import httpx
 import pytest
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.environ.get("ASG_BASE_URL", "http://127.0.0.1:8000")
 HEADERS = {"Authorization": "Bearer test-token"}
+APPROVER_HEADERS = {"Authorization": "Bearer approver-token"}
 
 
 @pytest.fixture(scope="module")
@@ -38,14 +40,14 @@ def client() -> httpx.Client:
 DENY_BODY = {
     "tenant_id": "acme",
     "action": "tool_call",
-    "tool": "read_file",
+    "tool": "docs.read",
     "context": {"path": "/internal/secrets.yaml"},
 }
 
 ALLOW_BODY = {
     "tenant_id": "acme",
     "action": "tool_call",
-    "tool": "read_file",
+    "tool": "docs.read",
     "context": {"path": "/public/readme.md"},
 }
 
@@ -72,6 +74,22 @@ def test_decide_allows_public_path(client: httpx.Client) -> None:
 
 
 @pytest.mark.integration
+def test_decide_denies_unknown_tool(client: httpx.Client) -> None:
+    response = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "acme",
+            "action": "tool_call",
+            "tool": "shell.exec",
+            "context": {},
+        },
+    )
+    response.raise_for_status()
+    assert response.json()["allowed"] is False
+    assert response.json()["reason"] == "tool_not_allowed"
+
+
+@pytest.mark.integration
 def test_audit_jsonl_records_matching_audit_ids(client: httpx.Client) -> None:
     r1 = client.post("/v1/gateway/decide", json=DENY_BODY)
     r1.raise_for_status()
@@ -82,7 +100,7 @@ def test_audit_jsonl_records_matching_audit_ids(client: httpx.Client) -> None:
     aid2 = r2.json()["audit_id"]
     assert aid1 != aid2
 
-    audit_response = client.get("/audit?limit=20")
+    audit_response = client.get("/audit?limit=20", headers=APPROVER_HEADERS)
     audit_response.raise_for_status()
     events = [wrapped["event"] for wrapped in audit_response.json()["events"]]
     ids = {event["audit_id"] for event in events}
@@ -97,7 +115,7 @@ def test_max_actions_exceeded_on_51st_call_and_session_resets(client: httpx.Clie
         "tenant_id": tenant_id,
         "session_id": session_id,
         "action": "tool_call",
-        "tool": "read_file",
+        "tool": "docs.read",
         "context": {"path": "/public/readme.md"},
     }
 

@@ -1,41 +1,29 @@
-## Agent Security Gate v0.1.0
+## Agent Security Gate v0.2.0
 
-Runtime policy enforcement layer for LLM agents. Sits between your agent framework and tool calls — every action is checked against OPA policies before execution.
+This release hardens the runtime enforcement path and adds portable benchmark evidence.
 
-### What’s Included
+### Security Hardening
 
-- **FastAPI gateway** — `POST /v1/gateway/decide` enforcement endpoint
-- **OPA integration** — Open Policy Agent as Policy Decision Point (PDP)
-- **Tool allowlisting** — only registered tools can be called by agents
-- **SSRF defense** — blocks IP literals, metadata endpoints, internal ranges
-- **Human-in-the-loop approvals** — Postgres-persisted approval workflow
-- **Tamper-evident audit log** — hash-chained `audit/events.jsonl`
-- **DLP response scanner** — detects SSN, IBAN, API keys, emails via YAML config
-- **Canary token detection** in tool outputs
-- **Rate limiting** via Redis
-- **Benchmark runner** — ASR, leakage rate, task success, latency metrics
-- **Compliance mapping** — NIS2, DORA, SOC2
-- **Single-command deploy** — `docker compose up`
+- Runtime OPA policy fails closed for unknown tools and unsupported actions.
+- Approval resume tokens are bound to the exact approved operation and can be used once.
+- Approval resolution uses database row locking to prevent concurrent resolution races.
+- Resume JWTs validate issuer and audience; bearer-token checks use constant-time comparison.
+- Audit reads require approver authentication.
+- HTTP adapters block unsafe methods, redirects, IP literals, and private DNS resolutions.
+- Evidence verification rejects path traversal and malformed manifests.
 
-### Quick Start
+### Engineering Improvements
 
-```bash
-git clone https://github.com/giselleevita/agent-security-gate
-cd agent-security-gate
-cp .env.example .env
-docker compose up -d --build
-```
+- FastAPI code is split into focused auth, config, DLP, policy, schema, and audit modules.
+- Existing Postgres deployments receive idempotent schema migrations on startup.
+- Hash-chained audit appends are concurrency-safe.
+- Document adapters authorize before reading.
+- Runtime tool names now match policy and benchmark identifiers.
 
-Gateway runs at `http://localhost:8000`. Demo facade at `POST /agent` and `GET /audit`.
+### Verification
 
-### Compliance Coverage
+- CI enforces benchmark thresholds and uploads optionally signed evidence bundles.
+- CodeQL, Dependabot, and dependency auditing are configured.
+- The benchmark covers nine scenarios with `ASR 0.0`, `leakage_rate 0.0`, and `task_success_rate 1.0`.
 
-| Framework | Coverage |
-|---|---|
-| NIS2 | Article 21 — technical security measures |
-| DORA | ICT risk management |
-| SOC2 | CC6 logical access, CC7 monitoring |
-
----
-
-See [CHANGELOG.md](CHANGELOG.md) for full details.
+See [CHANGELOG.md](CHANGELOG.md) for the full change list.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 from pathlib import Path
@@ -22,9 +23,11 @@ def append_hash_chained_event(path: str | Path, event: dict[str, Any]) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    previous_hash = "0" * 64
-    if output_path.exists():
-        lines = [ln for ln in output_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    with output_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        handle.seek(0)
+        lines = [ln for ln in handle.read().splitlines() if ln.strip()]
+        previous_hash = "0" * 64
         if lines:
             try:
                 last = json.loads(lines[-1])
@@ -32,8 +35,9 @@ def append_hash_chained_event(path: str | Path, event: dict[str, Any]) -> None:
             except json.JSONDecodeError:
                 previous_hash = previous_hash
 
-    canonical_event = json.dumps(event, sort_keys=True, separators=(",", ":"))
-    digest = hashlib.sha256((previous_hash + canonical_event).encode("utf-8")).hexdigest()
-    wrapper = {"previous_hash": previous_hash, "hash": digest, "event": event}
-    with output_path.open("a", encoding="utf-8") as handle:
+        canonical_event = json.dumps(event, sort_keys=True, separators=(",", ":"))
+        digest = hashlib.sha256((previous_hash + canonical_event).encode("utf-8")).hexdigest()
+        wrapper = {"previous_hash": previous_hash, "hash": digest, "event": event}
+        handle.seek(0, 2)
         handle.write(json.dumps(wrapper, sort_keys=True) + "\n")
+        handle.flush()

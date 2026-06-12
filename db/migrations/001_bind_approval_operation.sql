@@ -1,0 +1,9 @@
+ALTER TABLE approvals
+  ADD COLUMN IF NOT EXISTS tool TEXT;
+
+UPDATE approvals
+SET tool = ''
+WHERE tool IS NULL;
+
+ALTER TABLE approvals
+  ALTER COLUMN tool SET NOT NULL;

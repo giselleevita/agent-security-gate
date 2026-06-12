@@ -1,241 +1,59 @@
 from __future__ import annotations
 
+import hashlib
 import json
-import os
-import re
 import time
 import uuid
-import hashlib
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import httpx
-import jwt
 import psycopg
 import redis
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-import yaml
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from audit.events import append_event, append_hash_chained_event
-from adapters.http import GatedHttpClient, HttpDecision
-
-AUTH_TOKEN_ENV = "AUTH_TOKEN"
-APPROVER_TOKEN_ENV = "APPROVER_TOKEN"
-JWT_SECRET_ENV = "JWT_SECRET"
-OPA_URL_ENV = "OPA_URL"
-POLICY_DATA_PATH_ENV = "POLICY_DATA_PATH"
-AUDIT_LOG_PATH_ENV = "AUDIT_LOG_PATH"
-DATABASE_URL_ENV = "DATABASE_URL"
-REDIS_URL_ENV = "REDIS_URL"
-AGENT_RATE_LIMIT_MAX_ENV = "AGENT_RATE_LIMIT_MAX"
-AGENT_RATE_LIMIT_WINDOW_S_ENV = "AGENT_RATE_LIMIT_WINDOW_S"
-DLP_PATTERNS_PATH_ENV = "DLP_PATTERNS_PATH"
-CANARIES_PATH_ENV = "CANARIES_PATH"
-
-
-class DecideRequest(BaseModel):
-    tenant_id: str
-    session_id: str = "default-session"
-    action: str
-    tool: str
-    context: dict[str, Any] = Field(default_factory=dict)
-    mode: str = "default"
-
-
-class DecideResponse(BaseModel):
-    allowed: bool
-    reason: str
-    audit_id: str
-    latency_ms: float
-    approval_url: str | None = None
-
-
-class AgentRequest(BaseModel):
-    input: str
-    tenant_id: str = "acme"
-    session_id: str = "s1"
-    mode: str = "demo"
-
-
-class AgentResponse(BaseModel):
-    allowed: bool
-    reason: str
-    audit_id: str
-    latency_ms: float
-    approval_url: str | None = None
-    action: str
-    tool: str
-
-
-class RateLimitExceededResponse(BaseModel):
-    allowed: bool = False
-    reason: str = "rate_limit_exceeded"
-    retry_after_seconds: int
-
-
-def _dlp_patterns_path() -> Path:
-    return Path(os.environ.get(DLP_PATTERNS_PATH_ENV, "policies/data/dlp_patterns.yaml"))
-
-
-def _canaries_path() -> Path:
-    return Path(os.environ.get(CANARIES_PATH_ENV, "policies/data/canaries.yaml"))
-
-
-def _policy_data_path() -> Path:
-    return Path(os.environ.get(POLICY_DATA_PATH_ENV, "policies/data/policy_data.json"))
-
-
-def _audit_log_path() -> Path:
-    return Path(os.environ.get(AUDIT_LOG_PATH_ENV, "audit/events.jsonl"))
-
-def _database_url() -> str:
-    return os.environ.get(DATABASE_URL_ENV, "postgresql://asg:asg@localhost:5432/asg")
-
-def _redis_url() -> str:
-    return os.environ.get(REDIS_URL_ENV, "redis://localhost:6379/0")
-
-
-def _load_policy_config() -> dict[str, Any]:
-    raw = json.loads(_policy_data_path().read_text(encoding="utf-8"))
-    return {
-        "denied_doc_prefixes": list(raw.get("denied_doc_prefixes", [])),
-        "denied_doc_ids": list(raw.get("denied_doc_ids", [])),
-        "output_max_chars": int(raw.get("output_max_chars", 2000)),
-        "approval_required_tools": list(raw.get("approval_required_tools", [])),
-        "http_allowlist": list(raw.get("http_allowlist", [])),
-        "max_actions": int(raw.get("max_actions", 50)),
-    }
-
-
-def _build_opa_input(body: DecideRequest, policy_config: dict[str, Any], *, action_count: int) -> dict[str, Any]:
-    ctx = dict(body.context)
-    if "output_length" not in ctx:
-        ctx["output_length"] = 0
-    return {
-        "tenant_id": body.tenant_id,
-        "session_id": body.session_id,
-        "action": body.action,
-        "tool": body.tool,
-        "mode": body.mode,
-        "context": ctx,
-        "session": {"action_count": action_count},
-        "config": policy_config,
-    }
-
-
-def _opa_post(client: httpx.Client, path: str, opa_input: dict[str, Any]) -> Any:
-    opa_url = os.environ.get(OPA_URL_ENV, "http://localhost:8181").rstrip("/")
-    r = client.post(
-        f"{opa_url}{path}",
-        json={"input": opa_input},
-        headers={"Content-Type": "application/json"},
-        timeout=10.0,
-    )
-    r.raise_for_status()
-    data = r.json()
-    if "result" not in data:
-        raise HTTPException(status_code=502, detail="OPA response missing result")
-    return data["result"]
-
-
-def _append_audit_event(audit_id: str, event: dict[str, Any]) -> None:
-    append_hash_chained_event(
-        _audit_log_path(),
-        {
-            "audit_id": audit_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            **event,
-        },
-    )
-
-
-def require_bearer_token(authorization: str | None = Header(default=None)) -> str:
-    if authorization is None or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing or invalid Authorization")
-    token = authorization.removeprefix("Bearer ").strip()
-    expected = os.environ.get(AUTH_TOKEN_ENV, "test-token")
-    if token != expected:
-        raise HTTPException(status_code=401, detail="invalid token")
-    return token
-
-
-def verify_bearer(token: str = Depends(require_bearer_token)) -> None:
-    # Exists for backwards compatibility with existing endpoints.
-    _ = token
-
-
-def verify_approver(authorization: str | None = Header(default=None)) -> None:
-    if authorization is None or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing or invalid Authorization")
-    token = authorization.removeprefix("Bearer ").strip()
-    expected = os.environ.get(APPROVER_TOKEN_ENV, "approver-token")
-    if token != expected:
-        raise HTTPException(status_code=401, detail="invalid token")
-
-
-class ApprovalCreateRequest(BaseModel):
-    tenant_id: str
-    session_id: str
-    action: str
-    context: dict[str, Any] = Field(default_factory=dict)
-
-
-class ApprovalCreateResponse(BaseModel):
-    request_id: str
-
-
-class ApprovalResolveResponse(BaseModel):
-    request_id: str
-    status: str
-    resume_token: str | None = None
-
-
-class HttpProxyRequest(BaseModel):
-    url: str
-    method: str = "GET"
-
-
-class HttpProxyResponse(BaseModel):
-    allowed: bool
-    reason: str
-    status_code: int | None = None
-    body: str | None = None
-
-
-class DocsReadRequest(BaseModel):
-    path: str
-    doc_id: str | None = None
-
-
-class DocsReadResponse(BaseModel):
-    allowed: bool
-    reason: str
-    output: str | None = None
-    truncated: bool = False
+from adapters.http import GatedHttpClient
+from app.audit_log import append_audit_event as _append_audit_event
+from app.auth import (
+    require_bearer_token,
+    require_header as _require_header,
+    sign_resume_token as _sign_resume_token,
+    verify_approver,
+    verify_bearer,
+    verify_resume_token as _verify_resume_token,
+)
+from app.config import audit_log_path as _audit_log_path
+from app.config import database_url as _database_url
+from app.config import agent_rate_limit_max as _agent_rate_limit_max
+from app.config import agent_rate_limit_window_s as _agent_rate_limit_window_s
+from app.config import opa_url as _opa_url
+from app.config import redis_url as _redis_url
+from app.dlp import load_canaries as _load_canaries
+from app.dlp import scan_tool_output as _scan_tool_output
+from app.policy import build_opa_input as _build_opa_input
+from app.policy import load_policy_config as _load_policy_config
+from app.policy import opa_post as _opa_post
+from app.schemas import (
+    AgentRequest,
+    AgentResponse,
+    ApprovalCreateRequest,
+    ApprovalCreateResponse,
+    ApprovalResolveResponse,
+    DecideRequest,
+    DecideResponse,
+    DocsReadRequest,
+    DocsReadResponse,
+    HttpProxyRequest,
+    HttpProxyResponse,
+    RateLimitExceededResponse,
+)
 
 
 def _db_connect():
     return psycopg.connect(_database_url())
-
-
-def _agent_rate_limit_max() -> int:
-    try:
-        return int(os.environ.get(AGENT_RATE_LIMIT_MAX_ENV, "5"))
-    except ValueError:
-        return 5
-
-
-def _agent_rate_limit_window_s() -> int:
-    try:
-        return int(os.environ.get(AGENT_RATE_LIMIT_WINDOW_S_ENV, "60"))
-    except ValueError:
-        return 60
 
 
 def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
@@ -275,153 +93,19 @@ def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return raw if isinstance(raw, dict) else {}
-
-
-def _load_dlp_patterns() -> list[dict[str, str]]:
-    data = _load_yaml(_dlp_patterns_path())
-    patterns = data.get("patterns", [])
-    if isinstance(patterns, list):
-        out: list[dict[str, str]] = []
-        for p in patterns:
-            if isinstance(p, dict) and isinstance(p.get("name"), str) and isinstance(p.get("regex"), str):
-                out.append({"name": p["name"], "regex": p["regex"]})
-        return out
-    return []
-
-
-def _load_canaries() -> list[str]:
-    data = _load_yaml(_canaries_path())
-    canaries = data.get("canaries", [])
-    if isinstance(canaries, list):
-        return [str(x) for x in canaries if isinstance(x, (str, int, float)) and str(x)]
-    return []
-
-
-def _scan_tool_output(*, tool_output: str) -> tuple[str | None, str, dict[str, Any]]:
-    """
-    Returns: (reason_or_none, redacted_output, audit_extras)
-    - reason_or_none: "canary_detected" or "dlp_redacted" or None
-    - redacted_output: tool_output with matches replaced
-    - audit_extras: safe metadata, never includes raw canary strings
-    """
-    redacted = tool_output
-
-    # Canary detection first (strongest signal).
-    canaries = _load_canaries()
-    for c in canaries:
-        if c and c in redacted:
-            # Redact the canary value in audit; do not log raw canary strings.
-            redacted = redacted.replace(c, "[REDACTED]")
-            return (
-                "canary_detected",
-                redacted,
-                {"matched": "[REDACTED_CANARY]", "canaries_source": str(_canaries_path())},
-            )
-
-    patterns = _load_dlp_patterns()
-    matched_names: list[str] = []
-    for p in patterns:
-        try:
-            rgx = re.compile(p["regex"])
-        except re.error:
-            continue
-        if rgx.search(redacted):
-            matched_names.append(p["name"])
-            redacted = rgx.sub("[REDACTED]", redacted)
-
-    if matched_names:
-        return (
-            "dlp_redacted",
-            redacted,
-            {"matched_patterns": matched_names, "dlp_source": str(_dlp_patterns_path())},
-        )
-
-    return (None, redacted, {})
-
-
-def _require_header(value: str | None, name: str) -> str:
-    if value is None or not value.strip():
-        raise HTTPException(status_code=400, detail=f"missing {name} header")
-    return value.strip()
-
-
-def _jwt_secret() -> str:
-    return os.environ.get(JWT_SECRET_ENV, "dev-jwt-secret")
-
-
-def _sign_resume_token(*, request_id: str, tenant_id: str, session_id: str, requester_id: str) -> str:
-    payload = {
-        "typ": "asg_resume",
-        "request_id": request_id,
-        "tenant_id": tenant_id,
-        "session_id": session_id,
-        "requester_id": requester_id,
-        "iat": int(time.time()),
-        "exp": int(time.time()) + 600,
-    }
-    return jwt.encode(payload, _jwt_secret(), algorithm="HS256")
-
-
-def _verify_resume_token(token: str) -> dict[str, Any]:
-    try:
-        decoded = jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=401, detail=f"invalid resume token: {exc}") from exc
-    if decoded.get("typ") != "asg_resume":
-        raise HTTPException(status_code=401, detail="invalid resume token type")
-    return decoded
-
-
-app = FastAPI(title="Agent Security Gate", version="0.1.0")
+app = FastAPI(title="Agent Security Gate", version="0.2.0")
 
 
 class _ToolOutputScanMiddleware(BaseHTTPMiddleware):
     """
-    Enforce DLP + canary scanning at the boundary.
+    Enforce DLP + canary scanning on agent responses.
 
-    - Scans inbound `/v1/gateway/decide` JSON context.tool_output (if present) and blocks early.
-    - Scans outbound `/agent` responses for canaries (defense-in-depth).
+    Inbound tool output is scanned in the authenticated decision handler so unauthenticated
+    requests cannot trigger audit writes or learn scan behavior.
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
-
-        if path == "/v1/gateway/decide" and request.method.upper() == "POST":
-            body_bytes = await request.body()
-            # Re-inject body for downstream.
-            request._body = body_bytes  # type: ignore[attr-defined]
-            try:
-                payload = json.loads(body_bytes.decode("utf-8") or "{}")
-            except Exception:
-                payload = {}
-            ctx = payload.get("context") if isinstance(payload, dict) else None
-            tool_output = None
-            if isinstance(ctx, dict):
-                tool_output = ctx.get("tool_output")
-            if isinstance(tool_output, str) and tool_output:
-                reason_or_none, redacted, extras = _scan_tool_output(tool_output=tool_output)
-                if reason_or_none is not None:
-                    # Replace tool_output with redacted version for audit safety.
-                    safe_payload = dict(payload) if isinstance(payload, dict) else {}
-                    safe_ctx = dict(ctx) if isinstance(ctx, dict) else {}
-                    safe_ctx["tool_output"] = redacted
-                    safe_payload["context"] = safe_ctx
-
-                    audit_id = f"evt_{uuid.uuid4().hex}"
-                    resp = {
-                        "allowed": False,
-                        "reason": reason_or_none,
-                        "audit_id": audit_id,
-                        "latency_ms": 0.0,
-                        "approval_url": None,
-                    }
-                    _append_audit_event(audit_id, {"request": safe_payload, "response": resp, "scan": extras})
-                    return JSONResponse(status_code=200, content=resp)
 
         response = await call_next(request)
 
@@ -472,7 +156,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/audit")
+@app.get("/audit", dependencies=[Depends(verify_approver)])
 def audit_tail(limit: int = Query(default=20, ge=1, le=200)) -> dict[str, Any]:
     """
     Demo façade: return last N hash-chained audit entries.
@@ -492,9 +176,8 @@ def audit_tail(limit: int = Query(default=20, ge=1, le=200)) -> dict[str, Any]:
 
 @app.get("/health/ready")
 def health_ready() -> dict[str, str]:
-    opa_url = os.environ.get(OPA_URL_ENV, "http://localhost:8181").rstrip("/")
     try:
-        r = httpx.get(f"{opa_url}/health", timeout=2.0)
+        r = httpx.get(f"{_opa_url()}/health", timeout=2.0)
         r.raise_for_status()
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail=f"OPA not ready: {exc}") from exc
@@ -516,11 +199,18 @@ def approvals_request(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO approvals (tenant_id, session_id, action, context, status, requester_id)
-                VALUES (%s, %s, %s, %s::jsonb, 'pending', %s)
+                INSERT INTO approvals (tenant_id, session_id, action, tool, context, status, requester_id)
+                VALUES (%s, %s, %s, %s, %s::jsonb, 'pending', %s)
                 RETURNING id
                 """,
-                (body.tenant_id, body.session_id, body.action, json.dumps(body.context), requester_id),
+                (
+                    body.tenant_id,
+                    body.session_id,
+                    body.action,
+                    body.tool,
+                    json.dumps(body.context),
+                    requester_id,
+                ),
             )
             request_id = str(cur.fetchone()[0])
     return ApprovalCreateResponse(request_id=request_id)
@@ -536,7 +226,12 @@ def approvals_approve(
     with _db_connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT tenant_id, session_id, requester_id, status FROM approvals WHERE id = %s",
+                """
+                SELECT tenant_id, session_id, requester_id, status
+                FROM approvals
+                WHERE id = %s
+                FOR UPDATE
+                """,
                 (request_id,),
             )
             row = cur.fetchone()
@@ -574,7 +269,7 @@ def approvals_deny(
     approver_id = _require_header(x_approver_id, "X-Approver-Id")
     with _db_connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT status FROM approvals WHERE id = %s", (request_id,))
+            cur.execute("SELECT status FROM approvals WHERE id = %s FOR UPDATE", (request_id,))
             row = cur.fetchone()
             if row is None:
                 raise HTTPException(status_code=404, detail="approval request not found")
@@ -602,7 +297,7 @@ def approvals_list(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, tenant_id, session_id, action, context, status, created_at, resolved_at, approver_id, requester_id
+                SELECT id, tenant_id, session_id, action, tool, context, status, created_at, resolved_at, approver_id, requester_id
                 FROM approvals
                 WHERE tenant_id = %s AND status = %s
                 ORDER BY created_at DESC
@@ -618,12 +313,13 @@ def approvals_list(
                 "tenant_id": r[1],
                 "session_id": r[2],
                 "action": r[3],
-                "context": r[4],
-                "status": r[5],
-                "created_at": r[6].isoformat() if r[6] else None,
-                "resolved_at": r[7].isoformat() if r[7] else None,
-                "approver_id": r[8],
-                "requester_id": r[9],
+                "tool": r[4],
+                "context": r[5],
+                "status": r[6],
+                "created_at": r[7].isoformat() if r[7] else None,
+                "resolved_at": r[8].isoformat() if r[8] else None,
+                "approver_id": r[9],
+                "requester_id": r[10],
             }
         )
     return {"approvals": items}
@@ -635,9 +331,8 @@ def http_proxy(
     _: None = Depends(verify_bearer),
 ) -> HttpProxyResponse:
     policy = _load_policy_config()
-    opa_url = os.environ.get(OPA_URL_ENV, "http://localhost:8181")
     client = GatedHttpClient(
-        opa_url=opa_url,
+        opa_url=_opa_url(),
         http_allowlist=[str(u) for u in policy.get("http_allowlist", [])],
         output_max_chars=int(policy.get("output_max_chars", 2000)),
     )
@@ -656,7 +351,6 @@ def docs_read(
     _: None = Depends(verify_bearer),
 ) -> DocsReadResponse:
     policy = _load_policy_config()
-    opa_url = os.environ.get(OPA_URL_ENV, "http://localhost:8181")
 
     def _fake_read_doc(*, path: str, doc_id: str | None = None) -> str:
         # Demo adapter: in real integrations, this wraps your actual doc store read.
@@ -667,7 +361,7 @@ def docs_read(
     ctx: dict[str, Any] = {"path": body.path}
     if body.doc_id is not None:
         ctx["doc_id"] = body.doc_id
-    opa_input = {"tool": "read_doc", "context": ctx, "config": policy}
+    opa_input = {"action": "tool_call", "tool": "docs.read", "context": ctx, "config": policy}
 
     with httpx.Client(timeout=10.0) as client:
         allowed = bool(_opa_post(client, "/v1/data/asg/allow", opa_input))
@@ -771,22 +465,44 @@ def _decide_tool_call(
                 with _db_connect() as conn:
                     with conn.cursor() as cur:
                         cur.execute(
-                            "SELECT status, tenant_id, session_id, requester_id FROM approvals WHERE id = %s",
+                            """
+                            SELECT status, tenant_id, session_id, requester_id, action, tool, context
+                            FROM approvals
+                            WHERE id = %s
+                            """,
                             (request_id,),
                         )
                         row = cur.fetchone()
                         if row is None:
                             raise HTTPException(status_code=401, detail="resume token request_id not found")
-                        status, tenant_id, session_id, db_requester_id = row
+                        status, tenant_id, session_id, db_requester_id, action, tool, context = row
                         if status != "approved":
                             raise HTTPException(status_code=403, detail="approval not granted")
                         if str(tenant_id) != body.tenant_id or str(session_id) != body.session_id:
                             raise HTTPException(status_code=401, detail="approval record does not match request")
                         if db_requester_id is not None and str(db_requester_id) != requester_id:
                             raise HTTPException(status_code=401, detail="approval requester mismatch")
+                        if str(action) != body.action or str(tool) != body.tool or dict(context) != body.context:
+                            raise HTTPException(
+                                status_code=401,
+                                detail="approval record does not match requested operation",
+                            )
 
                 allowed_after_approval = bool(_opa_post(client, "/v1/data/asg/allow_after_approval", opa_input))
                 if allowed_after_approval:
+                    with _db_connect() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                """
+                                UPDATE approvals
+                                SET status = 'consumed'
+                                WHERE id = %s AND status = 'approved'
+                                RETURNING id
+                                """,
+                                (request_id,),
+                            )
+                            if cur.fetchone() is None:
+                                raise HTTPException(status_code=403, detail="approval already consumed")
                     allowed = True
                     reason = "allow"
                 else:
@@ -831,9 +547,8 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
     # Heuristic mapping for demos: pick one representative action/tool.
     if "169.254.169.254" in text or "meta-data" in text:
         policy = _load_policy_config()
-        opa_url = os.environ.get(OPA_URL_ENV, "http://localhost:8181")
         client = GatedHttpClient(
-            opa_url=opa_url,
+            opa_url=_opa_url(),
             http_allowlist=[str(u) for u in policy.get("http_allowlist", [])],
             output_max_chars=int(policy.get("output_max_chars", 2000)),
         )
@@ -851,7 +566,7 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
             latency_ms=round(latency_ms, 3),
             approval_url=None,
             action="tool_call",
-            tool="http",
+            tool="http.get",
         )
         _append_audit_event(audit_id, {"agent_input": body.model_dump(), "response": resp.model_dump()})
         return resp
@@ -870,7 +585,7 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
             tenant_id=body.tenant_id,
             session_id=body.session_id,
             action="tool_call",
-            tool="read_doc",
+            tool="docs.read",
             context={"path": "/internal/secrets.yaml", "output_length": 0},
             mode=body.mode,
         )
@@ -883,7 +598,7 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
             tenant_id=body.tenant_id,
             session_id=body.session_id,
             action="tool_call",
-            tool="read_doc",
+            tool="docs.read",
             context=context,
             mode=body.mode,
         )

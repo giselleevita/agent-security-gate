@@ -4,7 +4,7 @@
 ![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-BSL--1.1-orange)
-![Version](https://img.shields.io/badge/version-0.1.0-informational)
+![Version](https://img.shields.io/badge/version-0.2.0-informational)
 
 > Pre-execution policy enforcement for tool-using LLM agents.
 
@@ -16,21 +16,13 @@ high-risk operations, and producing tamper-evident audit logs for compliance.
 
 ## Why ASG?
 
-> ASG is an open source agent security gateway with OPA policy enforcement, tamper-evident audit, and a built-in approval workflow — deployable in one `docker compose up`.
+> ASG is an open source reference implementation for an agent security gateway with OPA policy enforcement, hash-chained audit events, and a built-in approval workflow — deployable in one `docker compose up`.
 
 Most agent security tools protect at the **prompt layer**. ASG enforces at the **tool-call decision boundary** — before execution, not after damage.
 
-### How ASG compares
+### Scope
 
-| Capability | ASG | AgentGateway | SENTINEL | NeMo Guardrails |
-|---|---|---|---|---|
-| Pre-execution tool-call enforcement | ✅ | ✅ | ✅ | ❌ |
-| OPA policy-as-code (editable files) | ✅ | ❌ | ❌ | ❌ |
-| Human-in-the-loop approval workflow | ✅ | ❌ | ❌ | ❌ |
-| Hash-chained tamper-evident audit | ✅ | ❌ | ❌ | ❌ |
-| DLP + canary detection (YAML config) | ✅ | ❌ | partial | ❌ |
-| Self-hostable, single compose file | ✅ | ❌ | ❌ | ❌ |
-| No cloud dependency | ✅ | ❌ | ❌ | ❌ |
+ASG is a portfolio-grade reference implementation, not a production-hardened security appliance. The demo shows the control points and failure modes that matter: policy-as-code, approval gates, rate limits, DLP/canary scanning, and verifiable audit-chain integrity. Production use would require external identity, secret management, immutable audit storage, deployment hardening, and operational monitoring.
 
 ### Who needs this
 
@@ -46,7 +38,7 @@ For a fast technical review:
 
 1. Start the stack with `docker compose up -d --build`.
 2. Run the four demo requests below to see doc exfiltration, SSRF, privilege escalation, and normal access decisions.
-3. Inspect `/audit?limit=4` and run `python scripts/verify_audit.py --path audit/events.jsonl`.
+3. Inspect `/audit?limit=4` with the approver token and run `python scripts/verify_audit.py --path audit/events.jsonl`.
 4. Review `policies/data/policy_data.json`, `policies/data/dlp_patterns.yaml`, and the integration workflow to see how policy behavior is tested.
 
 The project is intended to show deterministic agent security controls at the tool-call boundary: OPA policy-as-code, human approval for high-risk tools, DLP/canary scanning, rate limiting, and tamper-evident audit.
@@ -85,12 +77,12 @@ Agent → POST /v1/gateway/decide → OPA Policy Engine
                                         ↓
                           allow / deny / approval_required
                                         ↓
-                            Hash-chained audit log
+                            Hash-chained audit event log
 ```
 
 Every decision is:
 - **Deterministic** — OPA Rego policy, not an LLM judge
-- **Audited** — hash-chained, tamper-evident log entry per event
+- **Audited** — hash-chained event per decision, verifiable with `scripts/verify_audit.py`
 - **Explainable** — every response includes a machine-readable `reason`
 
 ---
@@ -134,7 +126,8 @@ curl -s -X POST http://localhost:8000/agent \
   -d '{"input": "summarize /public/readme.md"}'
 
 # Audit trail
-curl -s "http://localhost:8000/audit?limit=4"
+curl -s "http://localhost:8000/audit?limit=4" \
+  -H "Authorization: Bearer approver-token"
 ```
 
 ---
@@ -151,7 +144,7 @@ Request:
   "tenant_id": "acme",
   "session_id": "s1",
   "action": "tool_call",
-  "tool": "read_doc",
+  "tool": "docs.read",
   "context": {
     "path": "/internal/secrets.yaml",
     "tool_output": "optional — scanned for DLP + canaries",
@@ -164,7 +157,7 @@ Request:
 Headers:
 - `Authorization: Bearer <token>` — required
 - `X-Requester-Id: agent-1` — required for approval flows (prevents self-approval)
-- `Resume-Token: <token>` — required to resume an approved action
+- `Resume-Token: <token>` — single-use token required to resume the exact approved action/tool/context
 
 Response:
 ```json
@@ -181,7 +174,7 @@ Decisions: `allow` · `deny` · `approval_required`
 
 ### Approvals
 
-- `POST /v1/approvals/request` — request approval for a blocked action
+- `POST /v1/approvals/request` — request approval for a specific blocked action, tool, and context
 - `POST /v1/approvals/{id}/approve` — approve a pending request
 - `POST /v1/approvals/{id}/deny` — deny a pending request
 - `GET /v1/approvals/{tenant_id}` — list pending approvals for a tenant
@@ -189,7 +182,7 @@ Decisions: `allow` · `deny` · `approval_required`
 Rules:
 - Agents cannot approve their own requests (`X-Requester-Id` must differ from approver)
 - Approval state is persisted in Postgres
-- Approved actions return a `Resume-Token` to include in the next gateway call
+- Approved actions return a single-use `Resume-Token` for the exact approved operation
 
 ### HTTP Adapter
 
@@ -197,7 +190,8 @@ Rules:
 
 - Requests are checked against an allowlist before proxying
 - IP literals, metadata endpoints (`169.254.x.x`, `100.64.x.x`), and internal ranges are blocked
-- Returns `ssrf_blocked_ip_literal` or `ssrf_not_allowlisted` on denial
+- Returns `ssrf_blocked_ip_literal`, `ssrf_blocked_resolved_ip`, or `http_not_allowlisted` on denial
+- Production deployments still require an egress proxy/firewall to eliminate DNS-rebinding time-of-check/time-of-use risk
 
 ### Docs
 
@@ -210,7 +204,7 @@ Rules:
 ### Demo Facade
 
 - `POST /agent` — accepts `{"input": "..."}`, maps to gateway decision, returns result
-- `GET /audit?limit=N` — returns last N hash-chained audit events (default 20, max 200)
+- `GET /audit?limit=N` — returns last N hash-chained audit events for approvers (default 20, max 200)
 - `GET /health` — returns `{"status":"ok"}`
 
 ---
@@ -229,9 +223,13 @@ Environment variables:
 |---|---|---|
 | `DLP_PATTERNS_PATH` | `policies/data/dlp_patterns.yaml` | Path to DLP config |
 | `CANARIES_PATH` | `policies/data/canaries.yaml` | Path to canaries config |
-| `RATE_LIMIT_MAX` | `5` | Max requests per token per window |
-| `RATE_LIMIT_WINDOW` | `60` | Window size in seconds |
+| `AGENT_RATE_LIMIT_MAX` | `5` | Max requests per token per window |
+| `AGENT_RATE_LIMIT_WINDOW_S` | `60` | Window size in seconds |
 | `REDIS_URL` | `redis://redis:6379` | Redis connection for rate limiting |
+| `ASG_DEMO_MODE` | `false` | Enables documented demo credentials for local compose |
+| `AUTH_TOKEN` | required unless demo mode | Agent/API bearer token |
+| `APPROVER_TOKEN` | required unless demo mode | Approver bearer token |
+| `JWT_SECRET` | required unless demo mode | HS256 signing secret for approval resume tokens |
 
 ---
 
@@ -239,14 +237,16 @@ Environment variables:
 
 All decisions are written to `audit/events.jsonl` as hash-chained entries.
 
-Every block, allow, approval request, DLP redaction, canary detection, and rate limit breach produces an audit entry.
+Every gateway decision, DLP/canary block, and rate-limit breach produces an audit entry.
+
+The local JSONL audit log is tamper-evident, not tamper-proof: `scripts/verify_audit.py` detects modification of recorded events or chain links. Production deployments should write the same event model to append-only storage and restrict reader access.
 
 ```json
 {
   "event": {
     "audit_id": "evt_abc123",
     "request": {
-      "tool": "read_doc",
+      "tool": "docs.read",
       "context": { "path": "/internal/secrets.yaml" }
     },
     "response": {
@@ -273,6 +273,27 @@ python scripts/verify_audit.py --path audit/events.jsonl
 python3 -m benchmark.runner --scenarios benchmark/scenarios/scenarios.yaml --summary results/summary.json
 ```
 
+### Portable Benchmark Evidence
+
+Package benchmark outputs into a portable evidence bundle containing copied artifacts,
+SHA-256 hashes, and an optional HMAC signature:
+
+```bash
+python3 -m benchmark.evidence create \
+  --artifact results/summary.json \
+  --output results/evidence \
+  --signing-key-env ASG_EVIDENCE_SIGNING_KEY
+
+python3 -m benchmark.evidence verify \
+  --bundle results/evidence \
+  --signing-key-env ASG_EVIDENCE_SIGNING_KEY
+```
+
+The verifier detects modified or missing artifacts and manifest tampering. HMAC proves
+that the bundle holder possessed the shared signing key; production deployments should
+store that key in a secret manager and use asymmetric signing when independent
+third-party verification is required.
+
 | Metric | Result |
 |---|---|
 | Attack Success Rate (ASR) | 0.0 |
@@ -282,7 +303,8 @@ python3 -m benchmark.runner --scenarios benchmark/scenarios/scenarios.yaml --sum
 | Latency p50 | 0.2ms |
 | Latency p99 | 0.763ms |
 
-CI fails if ASR or leakage exceed configured thresholds in `ci_thresholds.yaml`.
+CI fails if benchmark metrics violate the thresholds in `ci/thresholds.yaml` and
+uploads the resulting evidence bundle as a workflow artifact.
 
 ---
 
@@ -307,7 +329,8 @@ CI fails if ASR or leakage exceed configured thresholds in `ci_thresholds.yaml`.
 - [x] Canary detection
 - [x] CI benchmark/security gate
 - [ ] Multi-tenant control plane
-- [ ] Dashboard + evidence exports
+- [x] Portable benchmark evidence exports
+- [ ] Dashboard
 - [ ] SIEM integration
 
 ---

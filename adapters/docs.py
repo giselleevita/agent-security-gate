@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import httpx
 
@@ -14,10 +13,9 @@ class DocAdapter:
     Wrap a `read_doc(path, doc_id)` callable and enforce via the HTTP gateway.
 
     Contract:
-      - Calls the underlying function to get the result (string).
-      - POSTs /v1/gateway/decide with tool=read_doc and output_length=len(result).
+      - POSTs /v1/gateway/decide before reading the document.
       - If denied: raises PermissionError(reason).
-      - If allowed: truncates to output_max_chars and returns.
+      - If allowed: calls the underlying function, truncates to output_max_chars, and returns.
     """
 
     def __init__(
@@ -55,16 +53,12 @@ class DocAdapter:
             self._http.close()
 
     def __call__(self, path: str, doc_id: str | None = None) -> str:
-        result = self._read_doc(path, doc_id)
-        if not isinstance(result, str):
-            result = str(result)
-
         body = {
             "tenant_id": self._tenant_id,
             "session_id": self._session_id,
             "action": "tool_call",
-            "tool": "read_doc",
-            "context": {"path": path, "doc_id": doc_id, "output_length": len(result)},
+            "tool": "docs.read",
+            "context": {"path": path, "doc_id": doc_id, "output_length": 0},
         }
         headers = {"Authorization": f"Bearer {self._auth_token}"}
         r = self._http.post("/v1/gateway/decide", json=body, headers=headers)
@@ -73,7 +67,10 @@ class DocAdapter:
         if not data.get("allowed", False):
             raise PermissionError(str(data.get("reason", "policy_denied")))
 
+        result = self._read_doc(path, doc_id)
+        if not isinstance(result, str):
+            result = str(result)
+
         if len(result) > self._output_max_chars:
             return result[: self._output_max_chars]
         return result
-

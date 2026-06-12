@@ -7,12 +7,13 @@ and OPA are reachable. Then: `pytest tests/integration/test_http_proxy.py`.
 
 from __future__ import annotations
 
+import os
 import time
 
 import httpx
 import pytest
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.environ.get("ASG_BASE_URL", "http://127.0.0.1:8000")
 HEADERS = {"Authorization": "Bearer test-token"}
 
 

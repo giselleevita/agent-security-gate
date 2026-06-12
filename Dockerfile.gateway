@@ -11,6 +11,7 @@ COPY gateway ./gateway
 COPY approvals ./approvals
 COPY benchmark ./benchmark
 COPY scripts ./scripts
+COPY db ./db
 
 RUN pip install --no-cache-dir -e ".[dev]"
 
