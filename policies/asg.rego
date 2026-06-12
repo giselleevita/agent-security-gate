@@ -24,6 +24,24 @@ sensitivity_denied if {
 	sensitivity_label == "secret"
 }
 
+known_tool if {
+	some tool in input.config.allowed_tools
+	input.tool == tool
+}
+
+known_tool if {
+	some tool in input.config.approval_required_tools
+	input.tool == tool
+}
+
+unknown_tool if {
+	not known_tool
+}
+
+unsupported_action if {
+	object.get(input, "action", "") != "tool_call"
+}
+
 denied_prefix_match if {
 	some prefix in input.config.denied_doc_prefixes
 	startswith(path, prefix)
@@ -58,6 +76,8 @@ hard_deny if { denied_doc_id_match }
 hard_deny if { output_too_long }
 hard_deny if { max_actions_exceeded }
 hard_deny if { sensitivity_denied }
+hard_deny if { unknown_tool }
+hard_deny if { unsupported_action }
 
 approval_required if {
 	some t in input.config.approval_required_tools
@@ -74,7 +94,7 @@ allow_after_approval if {
 }
 
 http_allowed if {
-	input.tool == "http"
+	input.tool == "http.get"
 	some u in input.config.http_allowlist
 	object.get(input.context, "url", "") == u
 }
@@ -85,6 +105,10 @@ deny_reason := "sensitivity_label_denied" if {
 	sensitivity_denied
 } else := "max_actions_exceeded" if {
 	max_actions_exceeded
+} else := "tool_not_allowed" if {
+	unknown_tool
+} else := "action_not_allowed" if {
+	unsupported_action
 } else := sprintf("denied_doc_prefix: %s", [denied_prefix]) if {
 	denied_prefix_match
 } else := "denied_doc_id" if {

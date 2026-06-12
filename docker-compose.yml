@@ -2,8 +2,6 @@ services:
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "no"]
-    ports:
-      - "6379:6379"
 
   postgres:
     image: postgres:16
@@ -27,11 +25,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.gateway
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: sh -c "python -m scripts.migrate_db && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     environment:
       AUTH_TOKEN: test-token
       APPROVER_TOKEN: approver-token
-      JWT_SECRET: dev-jwt-secret
+      JWT_SECRET: asg-demo-jwt-secret-minimum-32-bytes
+      ASG_DEMO_MODE: "true"
       OPA_URL: http://opa:8181
       POLICY_DATA_PATH: /app/policies/data/policy_data.json
       AUDIT_LOG_PATH: /app/audit/events.jsonl
@@ -41,7 +40,7 @@ services:
       - ./audit:/app/audit
       - ./policies/data:/app/policies/data:ro
     ports:
-      - "8000:8000"
+      - "${GATEWAY_PORT:-8000}:8000"
     depends_on:
       - opa
       - postgres
