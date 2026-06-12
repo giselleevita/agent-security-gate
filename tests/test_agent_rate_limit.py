@@ -6,6 +6,8 @@ import app.main as main
 
 
 def test_agent_rate_limit_6th_request_429(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+
     # Fake Redis for rate limiting and session counters.
     class FakeRedis:
         def __init__(self):
@@ -78,4 +80,3 @@ def test_agent_rate_limit_6th_request_429(monkeypatch) -> None:
 
     # Ensure we audit blocked rate-limit events.
     assert audit_events
-

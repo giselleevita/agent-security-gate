@@ -17,14 +17,18 @@ def _mock_gateway(allowed: bool, reason: str) -> httpx.MockTransport:
 
 def test_docs_adapter_blocks_denied_prefix() -> None:
     http_client = httpx.Client(transport=_mock_gateway(False, "denied_doc_prefix: /internal/"), base_url="http://test")
+    read_called = False
 
     def read_doc(path: str, doc_id: str | None) -> str:
+        nonlocal read_called
+        read_called = True
         return "secret"
 
     adapter = DocAdapter(read_doc, http_client=http_client, output_max_chars=2000)
     with pytest.raises(PermissionError) as exc:
         adapter("/internal/secrets.yaml", None)
     assert str(exc.value) == "denied_doc_prefix: /internal/"
+    assert read_called is False
 
 
 def test_docs_adapter_allows_and_truncates() -> None:
@@ -40,12 +44,15 @@ def test_docs_adapter_allows_and_truncates() -> None:
 
 def test_docs_adapter_blocks_denied_doc_id() -> None:
     http_client = httpx.Client(transport=_mock_gateway(False, "denied_doc_id"), base_url="http://test")
+    read_called = False
 
     def read_doc(path: str, doc_id: str | None) -> str:
+        nonlocal read_called
+        read_called = True
         return "secret"
 
     adapter = DocAdapter(read_doc, http_client=http_client, output_max_chars=2000)
     with pytest.raises(PermissionError) as exc:
         adapter("/public/readme.md", "secret-doc")
     assert str(exc.value) == "denied_doc_id"
-
+    assert read_called is False

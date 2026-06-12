@@ -4,6 +4,7 @@ import pytest
 import httpx
 
 
+@pytest.mark.integration
 def test_rego_max_actions_exceeded_reason() -> None:
     opa_url = "http://127.0.0.1:8181"
     try:
@@ -13,7 +14,8 @@ def test_rego_max_actions_exceeded_reason() -> None:
 
     payload = {
         "input": {
-            "tool": "read_file",
+            "action": "tool_call",
+            "tool": "docs.read",
             "context": {"path": "/public/readme.md", "output_length": 0},
             "session": {"action_count": 51},
             "config": {
@@ -21,6 +23,7 @@ def test_rego_max_actions_exceeded_reason() -> None:
                 "denied_doc_ids": [],
                 "output_max_chars": 2000,
                 "approval_required_tools": [],
+                "allowed_tools": ["docs.read"],
                 "http_allowlist": [],
                 "max_actions": 50,
             },
@@ -29,4 +32,3 @@ def test_rego_max_actions_exceeded_reason() -> None:
     r = httpx.post(f"{opa_url}/v1/data/asg/deny_reason", json=payload, timeout=2.0)
     r.raise_for_status()
     assert r.json()["result"] == "max_actions_exceeded"
-
