@@ -16,7 +16,7 @@ high-risk operations, and producing tamper-evident audit logs for compliance.
 
 ## Why ASG?
 
-> ASG is an open source reference implementation for an agent security gateway with OPA policy enforcement, hash-chained audit events, and a built-in approval workflow — deployable in one `docker compose up`.
+> ASG is a source-available reference implementation for an agent security gateway with OPA policy enforcement, hash-chained audit events, and a built-in approval workflow - deployable in one `docker compose up`.
 
 Most agent security tools protect at the **prompt layer**. ASG enforces at the **tool-call decision boundary** — before execution, not after damage.
 
@@ -41,6 +41,9 @@ For a fast technical review:
 3. Inspect `/audit?limit=4` with the approver token and run `python scripts/verify_audit.py --path audit/events.jsonl`.
 4. Review `policies/data/policy_data.json`, `policies/data/dlp_patterns.yaml`, and the integration workflow to see how policy behavior is tested.
 
+The benchmark uses a lightweight local policy model for deterministic scenario replay.
+The Docker integration workflow is authoritative for the FastAPI + OPA runtime path.
+
 The project is intended to show deterministic agent security controls at the tool-call boundary: OPA policy-as-code, human approval for high-risk tools, DLP/canary scanning, rate limiting, and tamper-evident audit.
 
 ---
@@ -60,10 +63,10 @@ deterministically, before execution.
 
 | Attack | Example | Result |
 |---|---|---|
-| Doc exfiltration | `read_doc /internal/secrets.yaml` | `denied_doc_prefix` |
+| Doc exfiltration | `docs.read /internal/secrets.yaml` | `denied_doc_prefix` |
 | SSRF | `GET http://169.254.169.254/meta-data/` | `ssrf_blocked_ip_literal` |
 | Privilege escalation | `db.write UPDATE accounts SET role='admin'` | `approval_required` |
-| Sensitive label access | `read_doc` with `sensitivity_label: confidential` | `sensitivity_label_denied` |
+| Sensitive label access | `docs.read` with `sensitivity_label: confidential` | `sensitivity_label_denied` |
 | PII in tool output | SSN / IBAN / API key in response | `dlp_redacted` |
 | Canary leakage | `SYSTEM_PROMPT` in tool output | `canary_detected` |
 | Prompt spam | >5 requests/min per token | `rate_limit_exceeded` |
@@ -98,7 +101,7 @@ curl http://localhost:8000/health
 # → {"status":"ok"}
 ```
 
-### Demo: 4 Attacks Blocked Live
+### Demo: 3 Attacks Blocked and 1 Legitimate Request Allowed
 
 ```bash
 # 1. Doc exfiltration → blocked
@@ -294,27 +297,29 @@ that the bundle holder possessed the shared signing key; production deployments 
 store that key in a secret manager and use asymmetric signing when independent
 third-party verification is required.
 
-| Metric | Result |
+| Outcome metric | Latest verified result |
 |---|---|
 | Attack Success Rate (ASR) | 0.0 |
 | Leakage Rate | 0.0 |
 | False Positive Rate | 0.0 |
 | Task Success Rate | 1.0 |
-| Latency p50 | 0.2ms |
-| Latency p99 | 0.763ms |
 
-CI fails if benchmark metrics violate the thresholds in `ci/thresholds.yaml` and
-uploads the resulting evidence bundle as a workflow artifact.
+Latency is environment-dependent and is recorded in each CI evidence artifact rather
+than presented here as a durable performance claim. CI fails if benchmark metrics
+violate the thresholds in `ci/thresholds.yaml`.
 
 ---
 
-## Compliance
+## Illustrative Control Mapping
+
+This mapping identifies controls that may support a wider compliance program. It is
+not a certification, legal opinion, or claim that deploying ASG makes a system compliant.
 
 | Framework | Coverage |
 |---|---|
 | NIS2 | Audit trail, access controls, incident logging |
 | DORA | Tamper-evident logs, approval workflows |
-| SOC2 | Immutable audit evidence, policy enforcement |
+| SOC2 | Policy decisions and tamper-evident audit records |
 
 ---
 
@@ -341,9 +346,18 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for branch naming, issue labels, and th
 
 ---
 
+## Security
+
+See [SECURITY.md](./SECURITY.md) for vulnerability reporting and
+[the threat model](./docs/agent-security-gate-threat-model.md) for trust boundaries,
+known limitations, and prioritized abuse paths.
+
+---
+
 ## License
 
-Business Source License 1.1
-Free for self-hosted, non-commercial use.
-Commercial use requires a separate license from Giselle Evita Koch. Contact: https://github.com/giselleevita
-Converts to Apache 2.0 on 2030-03-25.
+Agent Security Gate is source-available under the Business Source License 1.1.
+Non-production use is permitted; production use is additionally permitted for your
+own internal security research and evaluation. Other production use requires a
+separate license from Giselle Evita Koch. The project converts to Apache 2.0 on
+2030-03-25. See [LICENSE](./LICENSE) for the controlling terms.

@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Replaced recruiter-facing compliance and performance overclaims with bounded, verifiable language
+- Added complete BUSL-1.1 terms and clarified the source-available licensing model
+- Added exact runtime and development dependency constraints
+- Pinned container versions and GitHub Actions to immutable commits
+- Removed development dependencies and the public OPA port from the gateway image/Compose stack
+- Added checksum-tracked database migration history
+- Removed an abandoned placeholder Rego policy and obsolete scaffold wording
+
+### Added
+- Repository-grounded threat model and private vulnerability reporting policy
+- Pull request, bug report, and feature request templates
+- Code of conduct and architecture diagram
+
+---
+
 ## [0.2.0] — 2026-06-12
 
 ### Added
