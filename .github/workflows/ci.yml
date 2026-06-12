@@ -31,6 +31,15 @@ jobs:
             --summary results/summary.json \
             --format sarif \
             --output results/benchmark.sarif
+      - name: Compare enforcement baselines
+        run: |
+          python -m benchmark.runner \
+            --scenarios benchmark/scenarios/scenarios.yaml \
+            --baseline compare \
+            --runs 5 \
+            --summary results/summary.json \
+            --comparison results/comparison.json \
+            --report results/benchmark-report.md
       - name: Enforce benchmark thresholds
         run: python -m benchmark.gate --summary results/summary.json --thresholds ci/thresholds.yaml
       - name: Build benchmark evidence bundle
@@ -39,6 +48,8 @@ jobs:
         run: |
           python -m benchmark.evidence create \
             --artifact results/summary.json \
+            --artifact results/comparison.json \
+            --artifact results/benchmark-report.md \
             --artifact results/benchmark.sarif \
             --output results/evidence \
             --signing-key-env ASG_EVIDENCE_SIGNING_KEY
