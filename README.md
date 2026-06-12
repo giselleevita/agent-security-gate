@@ -4,7 +4,7 @@
 ![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-BSL--1.1-orange)
-![Version](https://img.shields.io/badge/version-0.2.0-informational)
+![Version](https://img.shields.io/badge/version-0.3.0-informational)
 
 > Pre-execution policy enforcement for tool-using LLM agents.
 

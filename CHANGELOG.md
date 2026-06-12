@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] — 2026-06-12
+
 ### Changed
 - Replaced recruiter-facing compliance and performance overclaims with bounded, verifiable language
 - Added complete BUSL-1.1 terms and clarified the source-available licensing model
