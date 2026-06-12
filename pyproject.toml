@@ -5,9 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-security-gate"
 version = "0.2.0"
-description = "Product scaffold for a policy-enforced agent security gate with CI benchmark support."
+description = "Policy-enforced security gateway for tool-using AI agents."
 readme = "README.md"
 requires-python = ">=3.11"
+license = "BUSL-1.1"
 dependencies = [
   "pydantic>=2.6",
   "PyYAML>=6.0",
@@ -21,10 +22,20 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "httpx2>=2.4.0",
   "pytest>=8.0",
   "pytest-timeout>=2.3.0",
   "ruff>=0.6.0",
 ]
+security = [
+  "bandit>=1.9.0",
+  "pip-audit>=2.10.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/giselleevita/agent-security-gate"
+Documentation = "https://github.com/giselleevita/agent-security-gate#readme"
+Issues = "https://github.com/giselleevita/agent-security-gate/issues"
 
 [tool.setuptools]
 packages = ["adapters", "app", "approvals", "audit", "benchmark", "gateway", "scripts"]

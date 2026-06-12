@@ -1,6 +1,11 @@
 .venv
 __pycache__
 .pytest_cache
+.ruff_cache
 *.pyc
 .git
+.env
 agent-security-gate.egg-info
+audit/events.jsonl
+results
+tests

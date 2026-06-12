@@ -225,7 +225,7 @@ def build_sarif_report(failed_scenarios: list[dict[str, str]]) -> dict[str, obje
                 "tool": {
                     "driver": {
                         "name": "agent-security-gate",
-                        "informationUri": "https://github.com/example/agent-security-gate",
+                        "informationUri": "https://github.com/giselleevita/agent-security-gate",
                         "rules": rules,
                     }
                 },
@@ -236,7 +236,7 @@ def build_sarif_report(failed_scenarios: list[dict[str, str]]) -> dict[str, obje
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Agent Security Gate benchmark scaffold.")
+    parser = argparse.ArgumentParser(description="Run the Agent Security Gate benchmark.")
     parser.add_argument("--scenarios", required=True, help="Path to scenario YAML file.")
     parser.add_argument("--summary", help="Path to summary JSON output.")
     parser.add_argument("--format", choices=["summary", "sarif"], default="summary")
