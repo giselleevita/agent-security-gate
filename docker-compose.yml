@@ -1,10 +1,10 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.9-alpine3.21
     command: ["redis-server", "--appendonly", "no"]
 
   postgres:
-    image: postgres:16
+    image: postgres:16.14-bookworm
     environment:
       POSTGRES_USER: asg
       POSTGRES_PASSWORD: asg
@@ -18,9 +18,6 @@ services:
     command: run --server --addr :8181 /policies
     volumes:
       - ./policies:/policies:ro
-    ports:
-      - "8181:8181"
-
   gateway:
     build:
       context: .

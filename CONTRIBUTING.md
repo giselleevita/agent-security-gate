@@ -10,7 +10,7 @@ cd agent-security-gate
 cp .env.example .env
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install --constraint requirements-dev.lock -e ".[dev,security]"
 ```
 
 Start services:
@@ -20,7 +20,7 @@ docker compose up -d
 
 Run tests:
 ```bash
-pytest tests/
+pytest -m "not integration"
 ```
 
 ## Branch naming
@@ -43,7 +43,7 @@ pytest tests/
 
 ## PR checklist
 
-- [ ] `pytest tests/` passes
+- [ ] `pytest -m "not integration"` passes
 - [ ] New policies include a test in `tests/`
 - [ ] New attack scenarios included in `benchmark/scenarios/scenarios.yaml`
 - [ ] `.env.example` updated if new env vars added

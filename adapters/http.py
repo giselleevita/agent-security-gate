@@ -86,10 +86,6 @@ class GatedHttpClient:
         self._client.close()
 
     def _opa_allowed(self, *, url: str, method: str) -> bool:
-        # Minimal policy: allow only exact allowlist match via OPA, but keep a local fast-path.
-        if url in self._allowlist:
-            # Still go through OPA for consistent auditing semantics.
-            pass
         r = self._client.post(
             f"{self._opa_url}/v1/data/asg/http_allowed",
             json={
