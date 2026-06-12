@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.0] — 2026-06-12
+
+### Added
+- Portable benchmark evidence bundles with SHA-256 integrity checks and optional HMAC signatures
+- CI benchmark threshold enforcement, dependency audit, CodeQL, and Dependabot configuration
+- Idempotent Postgres migrations for approval schema upgrades
+- DNS-resolution SSRF checks and regression coverage for redirects and unsafe HTTP methods
+
+### Changed
+- Split the FastAPI service into focused auth, config, DLP, policy, schema, and audit modules
+- Standardized runtime tool identifiers with policy and benchmark identifiers
+- Protected audit reads with approver authentication
+- Authorized document access before invoking the underlying read operation
+- Made hash-chained audit appends concurrency-safe
+
+### Security
+- Runtime OPA policy now fails closed for unknown tools and unsupported actions
+- Approval tokens are bound to the exact action, tool, context, requester, tenant, and session
+- Approved operations are single-use and approval resolution is concurrency-safe
+- Resume JWTs validate issuer and audience; static token comparisons use constant-time checks
+- Unauthenticated requests can no longer trigger inbound DLP scans or audit writes
+- Evidence verification rejects path traversal and malformed signature metadata
+
+---
+
 ## [0.1.0] — 2026-03-25
 
 ### Added

@@ -7,13 +7,16 @@ and dependencies are reachable. Then: `pytest tests/integration/test_approvals_f
 
 from __future__ import annotations
 
+import os
 import time
 
 import jwt
 import httpx
 import pytest
 
-BASE_URL = "http://127.0.0.1:8000"
+from app.auth import RESUME_TOKEN_AUDIENCE, RESUME_TOKEN_ISSUER
+
+BASE_URL = os.environ.get("ASG_BASE_URL", "http://127.0.0.1:8000")
 AGENT_HEADERS = {"Authorization": "Bearer test-token", "X-Requester-Id": "agent-1"}
 APPROVER_HEADERS = {"Authorization": "Bearer approver-token", "X-Approver-Id": "human-1"}
 
@@ -59,6 +62,7 @@ def test_approval_required_flow_allows_after_approval(client: httpx.Client) -> N
         "tenant_id": tenant_id,
         "session_id": session_id,
         "action": decide_body["action"],
+        "tool": decide_body["tool"],
         "context": decide_body["context"],
     }
     r1 = client.post("/v1/approvals/request", json=req_body, headers=AGENT_HEADERS)
@@ -80,6 +84,14 @@ def test_approval_required_flow_allows_after_approval(client: httpx.Client) -> N
     assert d3["allowed"] is True
     assert d3["reason"] == "allow"
 
+    replay = client.post(
+        "/v1/gateway/decide",
+        json=decide_body,
+        headers={**AGENT_HEADERS, "Resume-Token": resume_token},
+    )
+    assert replay.status_code == 403
+    assert replay.json()["detail"] == "approval not granted"
+
 
 @pytest.mark.integration
 def test_resume_without_approval_is_denied(client: httpx.Client) -> None:
@@ -98,6 +110,7 @@ def test_resume_without_approval_is_denied(client: httpx.Client) -> None:
         "tenant_id": tenant_id,
         "session_id": session_id,
         "action": decide_body["action"],
+        "tool": decide_body["tool"],
         "context": decide_body["context"],
     }
     r1 = client.post("/v1/approvals/request", json=req_body, headers=AGENT_HEADERS)
@@ -106,6 +119,8 @@ def test_resume_without_approval_is_denied(client: httpx.Client) -> None:
 
     token = jwt.encode(
         {
+            "iss": RESUME_TOKEN_ISSUER,
+            "aud": RESUME_TOKEN_AUDIENCE,
             "typ": "asg_resume",
             "request_id": request_id,
             "tenant_id": tenant_id,
@@ -114,7 +129,7 @@ def test_resume_without_approval_is_denied(client: httpx.Client) -> None:
             "iat": int(time.time()),
             "exp": int(time.time()) + 600,
         },
-        "dev-jwt-secret",
+        "asg-demo-jwt-secret-minimum-32-bytes",
         algorithm="HS256",
     )
 
@@ -138,6 +153,7 @@ def test_self_approval_is_blocked(client: httpx.Client) -> None:
             "tenant_id": tenant_id,
             "session_id": session_id,
             "action": "tool_call",
+            "tool": "db.write",
             "context": {"query": "update accounts set role='admin'"},
         },
         headers=headers,
@@ -150,3 +166,43 @@ def test_self_approval_is_blocked(client: httpx.Client) -> None:
         headers={"Authorization": "Bearer approver-token", "X-Approver-Id": "same-person"},
     )
     assert r2.status_code == 403
+
+
+@pytest.mark.integration
+def test_approved_operation_cannot_be_replayed_for_different_tool(client: httpx.Client) -> None:
+    tenant_id = f"t{int(time.time())}z"
+    session_id = f"s{int(time.time())}z"
+    context = {"query": "delete one ticket"}
+
+    r1 = client.post(
+        "/v1/approvals/request",
+        json={
+            "tenant_id": tenant_id,
+            "session_id": session_id,
+            "action": "tool_call",
+            "tool": "tickets.delete",
+            "context": context,
+        },
+        headers=AGENT_HEADERS,
+    )
+    r1.raise_for_status()
+
+    r2 = client.post(
+        f"/v1/approvals/{r1.json()['request_id']}/approve",
+        headers=APPROVER_HEADERS,
+    )
+    r2.raise_for_status()
+
+    replay = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": tenant_id,
+            "session_id": session_id,
+            "action": "tool_call",
+            "tool": "db.write",
+            "context": context,
+        },
+        headers={**AGENT_HEADERS, "Resume-Token": r2.json()["resume_token"]},
+    )
+    assert replay.status_code == 401
+    assert replay.json()["detail"] == "approval record does not match requested operation"

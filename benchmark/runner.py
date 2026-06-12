@@ -10,7 +10,7 @@ from audit.events import append_hash_chained_event
 from approvals.service import ApprovalService
 from gateway.models import ToolCallRequest
 from gateway.pep import PolicyEnforcementPoint
-from benchmark.scenarios.schema import ScenarioSchema, load_scenarios
+from benchmark.scenarios.schema import load_scenarios
 
 
 def _percentile(values: list[float], p: float) -> float:
