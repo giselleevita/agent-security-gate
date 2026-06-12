@@ -352,7 +352,7 @@ def docs_read(
 ) -> DocsReadResponse:
     policy = _load_policy_config()
 
-    def _fake_read_doc(*, path: str, doc_id: str | None = None) -> str:
+    def _demo_read_doc(*, path: str, doc_id: str | None = None) -> str:
         # Demo adapter: in real integrations, this wraps your actual doc store read.
         return f"doc({doc_id or 'none'}):{path}\n" + ("x" * 5000)
 
@@ -369,7 +369,7 @@ def docs_read(
             reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
             return DocsReadResponse(allowed=False, reason=str(reason_raw))
 
-    output = _fake_read_doc(path=body.path, doc_id=body.doc_id)
+    output = _demo_read_doc(path=body.path, doc_id=body.doc_id)
     reason_or_none, scanned_output, _extras = _scan_tool_output(tool_output=output)
     if reason_or_none is not None:
         return DocsReadResponse(allowed=False, reason=reason_or_none)

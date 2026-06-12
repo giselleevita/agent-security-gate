@@ -2,6 +2,18 @@
 
 Agent Security Gate is a reference implementation of a policy enforcement point for tool-using agents. The service path is FastAPI + OPA; the older local `gateway/` module is retained for benchmark/unit scenarios and is not the authoritative runtime policy engine.
 
+```mermaid
+flowchart LR
+  Agent["Agent client"] --> API["FastAPI enforcement service"]
+  Approver["Human approver"] --> API
+  API --> OPA["OPA policy engine"]
+  API --> Redis["Redis counters"]
+  API --> Postgres["Postgres approvals"]
+  API --> Audit["Hash chained audit file"]
+  API --> Adapters["Tool adapters"]
+  Adapters --> External["External services"]
+```
+
 ## Core modules
 
 - `gateway/`
@@ -31,3 +43,6 @@ Agent Security Gate is a reference implementation of a policy enforcement point 
 
 - The local JSONL audit log is tamper-evident, not tamper-proof. Production use should move this behind an append-only audit sink.
 - Demo credentials are accepted only when `ASG_DEMO_MODE=true`.
+- The benchmark-only `gateway/` path can drift from runtime OPA behavior; runtime integration tests remain authoritative.
+- Database migrations are recorded with checksums in `schema_migrations`; changing an applied migration fails startup.
+- See `docs/agent-security-gate-threat-model.md` for trust boundaries and known security limitations.

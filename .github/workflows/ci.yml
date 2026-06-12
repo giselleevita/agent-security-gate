@@ -12,14 +12,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.11"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e '.[dev]' pip-audit
+          pip install --constraint requirements-dev.lock -e '.[dev,security]'
       - name: Audit dependencies
         run: pip-audit --skip-editable --progress-spinner off
       - name: Run tests
@@ -46,11 +46,11 @@ jobs:
             --bundle results/evidence \
             --signing-key-env ASG_EVIDENCE_SIGNING_KEY
       - name: Upload benchmark evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-evidence
           path: results/evidence
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@411bbbe57033eedfc1a82d68c01345aa96c737d7 # v4
         with:
           sarif_file: results/benchmark.sarif

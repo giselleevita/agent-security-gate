@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused enhancement or policy capability.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete user or security problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe scope, expected behavior, and relevant tradeoffs.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security considerations
+      description: Identify affected trust boundaries, policies, or abuse cases.

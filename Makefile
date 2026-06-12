@@ -1,7 +1,7 @@
 SCENARIOS=benchmark/scenarios/scenarios.yaml
 EVIDENCE_DIR=results/evidence
 
-.PHONY: eval gate evidence verify-evidence migrate test lint
+.PHONY: eval gate evidence verify-evidence migrate test integration lint security
 
 eval:
 	python3 -m benchmark.runner --scenarios $(SCENARIOS) --summary results/summary.json
@@ -19,7 +19,14 @@ migrate:
 	python3 -m scripts.migrate_db
 
 test:
-	pytest
+	pytest -m "not integration"
+
+integration:
+	pytest -m integration
 
 lint:
 	ruff check .
+
+security:
+	bandit -r app adapters audit benchmark gateway approvals scripts -ll
+	pip-audit --skip-editable --progress-spinner off
