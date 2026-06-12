@@ -41,8 +41,11 @@ For a fast technical review:
 3. Inspect `/audit?limit=4` with the approver token and run `python scripts/verify_audit.py --path audit/events.jsonl`.
 4. Review `policies/data/policy_data.json`, `policies/data/dlp_patterns.yaml`, and the integration workflow to see how policy behavior is tested.
 
-The benchmark uses a lightweight local policy model for deterministic scenario replay.
+The benchmark uses a lightweight local policy model for deterministic scenario replay,
+including explicit `no_gate` versus `gate` comparison and per-attack-class reporting.
 The Docker integration workflow is authoritative for the FastAPI + OPA runtime path.
+See [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) for metric
+definitions and limitations.
 
 The project is intended to show deterministic agent security controls at the tool-call boundary: OPA policy-as-code, human approval for high-risk tools, DLP/canary scanning, rate limiting, and tamper-evident audit.
 
@@ -273,8 +276,12 @@ python scripts/verify_audit.py --path audit/events.jsonl
 ## Benchmark Results
 
 ```bash
-python3 -m benchmark.runner --scenarios benchmark/scenarios/scenarios.yaml --summary results/summary.json
+make compare
 ```
+
+This runs each scenario five times against an intentionally unprotected `no_gate`
+baseline and the deterministic local policy `gate`. It writes the gate summary used
+by CI, the complete baseline comparison, and a reviewer-readable Markdown report.
 
 ### Portable Benchmark Evidence
 
@@ -284,6 +291,8 @@ SHA-256 hashes, and an optional HMAC signature:
 ```bash
 python3 -m benchmark.evidence create \
   --artifact results/summary.json \
+  --artifact results/comparison.json \
+  --artifact results/benchmark-report.md \
   --output results/evidence \
   --signing-key-env ASG_EVIDENCE_SIGNING_KEY
 
@@ -297,16 +306,18 @@ that the bundle holder possessed the shared signing key; production deployments 
 store that key in a secret manager and use asymmetric signing when independent
 third-party verification is required.
 
-| Outcome metric | Latest verified result |
-|---|---|
-| Attack Success Rate (ASR) | 0.0 |
-| Leakage Rate | 0.0 |
-| False Positive Rate | 0.0 |
-| Task Success Rate | 1.0 |
+Latest local deterministic comparison, using 18 scenarios with 5 runs each:
+
+| Baseline | Attack Success Rate | Leakage Rate | False Positive Rate | Benign Task Success |
+|---|---:|---:|---:|---:|
+| No gate | 100% | 100% | 0% | 100% |
+| Policy gate | 0% | 0% | 0% | 100% |
 
 Latency is environment-dependent and is recorded in each CI evidence artifact rather
 than presented here as a durable performance claim. CI fails if benchmark metrics
-violate the thresholds in `ci/thresholds.yaml`.
+violate the thresholds in `ci/thresholds.yaml`. The no-gate baseline intentionally
+allows every request; this comparison measures the effect of enforcement for the
+declared scenarios, not general agent-security effectiveness.
 
 ---
 

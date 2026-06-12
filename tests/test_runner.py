@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from benchmark.runner import run_benchmark
+from benchmark.runner import run_benchmark, run_comparison
 from benchmark.scenarios.schema import load_scenarios
 
 
@@ -32,7 +32,20 @@ def test_runner_summary_includes_rich_metrics(tmp_path: Path) -> None:
     assert "leakage_rate" in result
     assert "false_positive_rate" in result
     assert "latency_p50_ms" in result
-    assert "baseline_asr_delta" in result
+    assert "attack_class_breakdown" in result
     assert "per_scenario" in result
     ids = {row["id"] for row in result["per_scenario"]}  # type: ignore[index]
     assert ids == {s.id for s in load_scenarios("benchmark/scenarios/scenarios.yaml")}
+
+
+def test_comparison_measures_gate_effect() -> None:
+    comparison = run_comparison("benchmark/scenarios/scenarios.yaml", runs=2)
+    scenario_count = len(load_scenarios("benchmark/scenarios/scenarios.yaml"))
+
+    assert comparison["runs_per_scenario"] == 2
+    no_gate = comparison["baselines"]["no_gate"]
+    gate = comparison["baselines"]["gate"]
+    assert no_gate["asr"] == 1.0
+    assert gate["asr"] == 0.0
+    assert comparison["deltas"]["asr_reduction"] == 1.0
+    assert gate["total_runs"] == scenario_count * 2
