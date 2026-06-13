@@ -10,6 +10,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.4.0] — 2026-06-13
+
+### Added
+- Shareable technical brief for recruiters and security reviewers (`docs/technical-brief.md`)
+- Public blog post on enforcing agent security at the tool-call boundary (`docs/blog/agent-security-at-tool-boundary.md`)
+- README links to brief and blog for faster onboarding
+
+---
+
 ## [0.3.0] — 2026-06-12
 
 ### Changed

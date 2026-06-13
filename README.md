@@ -4,7 +4,7 @@
 ![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-BSL--1.1-orange)
-![Version](https://img.shields.io/badge/version-0.3.0-informational)
+![Version](https://img.shields.io/badge/version-0.4.0-informational)
 
 > Pre-execution policy enforcement for tool-using LLM agents.
 
@@ -48,8 +48,11 @@ See [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) for metric
 definitions and limitations.
 
 **Technical brief (shareable):** [`docs/technical-brief.md`](docs/technical-brief.md) —
-why enforcement belongs at the tool-call boundary, what v0.3.0 proves, and a 15-minute
+why enforcement belongs at the tool-call boundary, what v0.4.0 proves, and a 15-minute
 evaluation path.
+
+**Blog post (public):** [`docs/blog/agent-security-at-tool-boundary.md`](docs/blog/agent-security-at-tool-boundary.md) —
+short technical note for engineers and hiring managers.
 
 The project is intended to show deterministic agent security controls at the tool-call boundary: OPA policy-as-code, human approval for high-risk tools, DLP/canary scanning, rate limiting, and tamper-evident audit.
 
