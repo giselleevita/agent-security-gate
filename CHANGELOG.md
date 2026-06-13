@@ -10,6 +10,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.5.0] — 2026-06-13
+
+### Added
+- Cross-post drafts for LinkedIn and dev.to (`docs/blog/cross-posts/`)
+- Cross-post publishing guide with canonical URL guidance
+
+### Changed
+- README links to cross-post drafts for off-repo publishing
+
+---
+
 ## [0.4.0] — 2026-06-13
 
 ### Added
