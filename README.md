@@ -47,6 +47,10 @@ The Docker integration workflow is authoritative for the FastAPI + OPA runtime p
 See [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) for metric
 definitions and limitations.
 
+**Technical brief (shareable):** [`docs/technical-brief.md`](docs/technical-brief.md) —
+why enforcement belongs at the tool-call boundary, what v0.3.0 proves, and a 15-minute
+evaluation path.
+
 The project is intended to show deterministic agent security controls at the tool-call boundary: OPA policy-as-code, human approval for high-risk tools, DLP/canary scanning, rate limiting, and tamper-evident audit.
 
 ---
