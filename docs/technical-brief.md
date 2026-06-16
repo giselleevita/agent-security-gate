@@ -21,7 +21,7 @@ ASG sits between the agent runtime and tool adapters:
 This is the same boundary enterprise security teams care about for service meshes and
 API gateways — applied to autonomous agents.
 
-## What v0.4.0 demonstrates
+## What ASG demonstrates
 
 The current release is deliberately bounded: a portfolio-grade reference, not a
 certified appliance. It still shows concrete controls recruiters and reviewers can
