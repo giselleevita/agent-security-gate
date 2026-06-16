@@ -48,7 +48,7 @@ See [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) for metric
 definitions and limitations.
 
 **Technical brief (shareable):** [`docs/technical-brief.md`](docs/technical-brief.md) —
-why enforcement belongs at the tool-call boundary, what v0.4.0 proves, and a 15-minute
+why enforcement belongs at the tool-call boundary, what the latest release proves, and a 15-minute
 evaluation path.
 
 **Blog post (public):** [`docs/blog/agent-security-at-tool-boundary.md`](docs/blog/agent-security-at-tool-boundary.md) —

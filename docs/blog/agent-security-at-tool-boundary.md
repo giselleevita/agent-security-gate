@@ -40,7 +40,7 @@ implementation needs verifiable properties:
 3. **Tamper-evident audit** — hash-chained events with an offline verification script.
 4. **Measurable effect** — explicit `no_gate` vs `gate` baselines, not implied deltas.
 
-ASG v0.4.0 documents these properties and ships a 15-minute evaluation path:
+ASG v0.5.0 documents these properties and ships a 15-minute evaluation path:
 
 - [`docs/technical-brief.md`](../technical-brief.md) — recruiter-friendly overview
 - `docker compose up` + four demo requests — live deny/approve/DLP behavior
