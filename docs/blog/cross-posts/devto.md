@@ -45,6 +45,7 @@ docker compose up -d --build
 ```
 
 - [Technical brief](https://github.com/giselleevita/agent-security-gate/blob/main/docs/technical-brief.md)
+- [v0.5.0 release](https://github.com/giselleevita/agent-security-gate/releases/tag/v0.5.0)
 - [Reviewer quick start](https://github.com/giselleevita/agent-security-gate#reviewer-quick-start)
 
 ASG is a **portfolio-grade reference**, not a certified appliance — but it shows where controls belong and how to test them.

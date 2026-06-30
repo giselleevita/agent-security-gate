@@ -2,6 +2,10 @@
 
 *A short technical note for engineers and hiring managers evaluating LLM agent risk.*
 
+> **Canonical URL (for cross-posts):**  
+> `https://github.com/giselleevita/agent-security-gate/blob/main/docs/blog/agent-security-at-tool-boundary.md`  
+> Ready-to-publish drafts: [`docs/blog/cross-posts/`](cross-posts/)
+
 Most LLM security products focus on the **prompt layer**: jailbreak detection, instruction
 hierarchy, output filtering. That work matters, but it stops where the real damage starts —
 when an agent **executes** a tool.
