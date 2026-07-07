@@ -20,6 +20,7 @@ from starlette.responses import Response
 # `main.GatedHttpClient` (single patch/override point); it is not called in this module.
 from adapters.http import GatedHttpClient, evaluate_http_target  # noqa: F401
 from app.audit_log import append_audit_event as _append_audit_event
+from audit import sinks as _audit_sinks
 from app.auth import (
     require_header as _require_header,
     verify_resume_token as _verify_resume_token,
@@ -102,6 +103,7 @@ def _operation_key(action: str, tool: str, context: dict[str, Any]) -> str:
 def _reset_clients() -> None:
     """Dispose shared clients/pools (used by tests for isolation and on shutdown)."""
     global _redis_singleton, _http_singleton, _db_pool_singleton
+    _audit_sinks.reset_external_sink()
     _redis_singleton = None
     if _http_singleton is not None:
         try:
