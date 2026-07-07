@@ -36,6 +36,8 @@ AUDIT_S3_REGION_ENV = "AUDIT_S3_REGION"
 AUDIT_S3_ENDPOINT_URL_ENV = "AUDIT_S3_ENDPOINT_URL"
 AUDIT_S3_RETENTION_DAYS_ENV = "AUDIT_S3_RETENTION_DAYS"
 AUDIT_S3_OBJECT_LOCK_MODE_ENV = "AUDIT_S3_OBJECT_LOCK_MODE"
+ENFORCE_MODE_ENV = "ASG_ENFORCE_MODE"
+ENFORCE_TTL_S_ENV = "ASG_ENFORCE_TTL_S"
 
 DEMO_AUTH_TOKEN = "test-token"
 DEMO_APPROVER_TOKEN = "approver-token"
@@ -210,6 +212,38 @@ def validate_startup_secrets() -> None:
             "missing or demo-valued required secrets (set them, or a *_FILE path, or "
             f"enable ASG_DEMO_MODE for local demos): {', '.join(sorted(missing))}"
         )
+
+
+def enforce_mode() -> str:
+    """
+    Tool-execution enforcement mode:
+
+    - ``off`` (default): tool endpoints run without checking for a prior decide grant
+      (backwards compatible; zero overhead).
+    - ``permissive``: decide records a single-use grant keyed by ``audit_id``; tool
+      endpoints consume it when an ``X-ASG-Audit-Id`` is supplied but still run without
+      one (useful while migrating agents onto the SDK).
+    - ``strict``: tool endpoints refuse (403) unless a valid, matching, unused grant is
+      presented, guaranteeing no side effect executes without a prior allow decision.
+    """
+    mode = os.environ.get(ENFORCE_MODE_ENV, "off").lower()
+    return mode if mode in {"off", "permissive", "strict"} else "off"
+
+
+def enforce_recording_enabled() -> bool:
+    return enforce_mode() in {"permissive", "strict"}
+
+
+def enforce_strict() -> bool:
+    return enforce_mode() == "strict"
+
+
+def enforce_ttl_s() -> int:
+    """How long an unused decide grant remains valid for a follow-up tool call."""
+    try:
+        return max(1, int(os.environ.get(ENFORCE_TTL_S_ENV, "300")))
+    except ValueError:
+        return 300
 
 
 def agent_rate_limit_max() -> int:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 
 from app import main as m
 from app.auth import verify_bearer
@@ -23,7 +23,14 @@ router = APIRouter()
 def http_proxy(
     body: HttpProxyRequest,
     _: None = Depends(verify_bearer),
+    x_asg_audit_id: str | None = Header(default=None, alias="X-ASG-Audit-Id"),
 ) -> HttpProxyResponse:
+    # Refuse to execute this side effect unless a prior /v1/gateway/decide allowed the exact
+    # same operation (strict mode). No-op when enforcement is off.
+    m._enforce_tool_execution(
+        audit_id=x_asg_audit_id,
+        operation_key=m._operation_key("tool_call", "http.get", {"url": body.url, "method": body.method}),
+    )
     policy = _load_policy_config()
     client = m.GatedHttpClient(
         allowed_hosts=[str(h) for h in policy.get("allowed_http_domains", [])],
@@ -47,7 +54,15 @@ def http_proxy(
 def docs_read(
     body: DocsReadRequest,
     _: None = Depends(verify_bearer),
+    x_asg_audit_id: str | None = Header(default=None, alias="X-ASG-Audit-Id"),
 ) -> DocsReadResponse:
+    enforce_ctx: dict[str, Any] = {"path": body.path}
+    if body.doc_id is not None:
+        enforce_ctx["doc_id"] = body.doc_id
+    m._enforce_tool_execution(
+        audit_id=x_asg_audit_id,
+        operation_key=m._operation_key("tool_call", "docs.read", enforce_ctx),
+    )
     policy = _load_policy_config()
 
     def _demo_read_doc(*, path: str, doc_id: str | None = None) -> str:
