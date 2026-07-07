@@ -1,4 +1,8 @@
-FROM python:3.12.13-slim-bookworm
+FROM python:3.12.13-slim-bookworm@sha256:db8e83a44af476c636a6a753adace39ad37863b63c0afd2862db7bbafeeb3944
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/tmp
 
 WORKDIR /app
 
@@ -13,6 +17,14 @@ COPY benchmark ./benchmark
 COPY scripts ./scripts
 COPY db ./db
 
-RUN pip install --no-cache-dir --constraint requirements.lock -e "."
+# Install into the system environment, then create an unprivileged user. Group 0 with
+# group=user permissions lets the container run as an arbitrary non-root UID (e.g. the
+# host UID for bind mounts) while still reading the app tree on a read-only rootfs.
+RUN pip install --no-cache-dir --constraint requirements.lock -e "." \
+    && useradd --system --uid 10001 --gid 0 --no-create-home asg \
+    && chown -R 10001:0 /app \
+    && chmod -R g=u /app
+
+USER 10001
 
 EXPOSE 8000

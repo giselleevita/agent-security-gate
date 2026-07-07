@@ -115,13 +115,14 @@ def evaluate_http_target(
         return HttpDecision(False, "method_not_allowed"), None
 
     try:
-        normalized = normalize_url(url, resolve_dns=resolve_dns)
+        # Structural validation and IP-literal SSRF checks first; allowlist before DNS so
+        # non-allowlisted hosts get a stable denial reason even when the name does not
+        # resolve.
+        normalized = normalize_url(url, resolve_dns=False)
     except ValueError as exc:
         reason = str(exc)
         if reason == "blocked_ip_literal":
             return HttpDecision(False, "ssrf_blocked_ip_literal"), None
-        if reason == "blocked_resolved_ip":
-            return HttpDecision(False, "ssrf_blocked_resolved_ip"), None
         return HttpDecision(False, f"invalid_url:{reason}"), None
 
     parts = urlsplit(normalized)
@@ -131,6 +132,16 @@ def evaluate_http_target(
         return HttpDecision(False, "http_not_allowlisted"), None
     if host not in {h.lower() for h in allowed_hosts}:
         return HttpDecision(False, "http_not_allowlisted"), None
+
+    if resolve_dns:
+        try:
+            resolve_safe_addresses(host, parts.port)
+        except ValueError as exc:
+            reason = str(exc)
+            if reason == "blocked_resolved_ip":
+                return HttpDecision(False, "ssrf_blocked_resolved_ip"), None
+            return HttpDecision(False, f"invalid_url:{reason}"), None
+
     return HttpDecision(True, "allow"), normalized
 
 
