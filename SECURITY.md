@@ -87,3 +87,18 @@ Roles are read from the `roles` claim, Keycloak-style `realm_access.roles`, or t
 service credentials; `JWT_SECRET` is still required for approval resume-token signing. The
 symmetric `HS256` resume-token path is isolated from OIDC verification so a JWKS key can
 never be used to forge resume tokens (and vice versa).
+
+## Tenant Isolation
+
+Each decision is evaluated against the requesting tenant's own policy. If
+`policies/data/tenants/{tenant_id}/policy_data.json` exists it fully replaces the default
+policy for that tenant, so one tenant's allow/deny rules never leak into another's
+decisions. The `tenant_id` used to build that path is validated as a single safe path
+segment (`^[A-Za-z0-9._-]{1,128}$`, with `.`/`..` rejected) so a hostile identifier cannot
+traverse directories or load an arbitrary file.
+
+Set `ASG_TENANT_POLICY_STRICT=true` for multi-tenant production: a request whose tenant has
+no dedicated policy file is denied with `unknown_tenant` before any policy evaluation,
+session accounting, or database access, so an unregistered tenant can never inherit a
+permissive default. With strict mode off (default), unknown tenants fall back to the
+default policy — appropriate for single-tenant/demo deployments.

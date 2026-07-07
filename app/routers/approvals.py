@@ -76,7 +76,6 @@ def approvals_approve(
     x_approver_id: str | None = Header(default=None, alias="X-Approver-Id"),
 ) -> ApprovalResolveResponse:
     approver_id = _require_header(x_approver_id, "X-Approver-Id")
-    dual_approval_tools = set(_load_policy_config().get("dual_approval_tools", []))
     with m._db_connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -93,6 +92,10 @@ def approvals_approve(
             if row is None:
                 raise HTTPException(status_code=404, detail="approval request not found")
             tenant_id, session_id, requester_id, status, tool, first_approver_id, is_expired = row
+            # Dual-control policy is resolved per tenant.
+            dual_approval_tools = set(
+                _load_policy_config(str(tenant_id)).get("dual_approval_tools", [])
+            )
             if requester_id is not None and requester_id == approver_id:
                 raise HTTPException(status_code=403, detail="self-approval is not allowed")
             if status in ("pending", "first_approved") and is_expired:
