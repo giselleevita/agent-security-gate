@@ -71,6 +71,14 @@ class DocAdapter:
         if not isinstance(result, str):
             result = str(result)
 
+        # Post-fetch DLP/canary scan: the pre-execution decision cannot see content that
+        # only exists after the read, so scan the fetched document before returning it.
+        from app.dlp import scan_tool_output
+
+        reason_or_none, _redacted, _extras = scan_tool_output(tool_output=result)
+        if reason_or_none is not None:
+            raise PermissionError(reason_or_none)
+
         if len(result) > self._output_max_chars:
             return result[: self._output_max_chars]
         return result

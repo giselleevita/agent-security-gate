@@ -8,6 +8,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Decide-path SSRF and HTTP allowlist integration tests (`tests/integration/test_decide.py`)
+- Integration test job in main CI workflow (`.github/workflows/ci.yml`)
+- Investment diligence assessment (`docs/investment-assessment.md`)
+- Technical hardening strategy (`docs/hardening-strategy.md`)
+- DLP unit tests (`tests/test_dlp.py`) and decide rate-limit test (`tests/test_decide_rate_limit.py`)
+- Shared HTTP egress evaluator `evaluate_http_target()` used by runtime gateway and benchmark PEP
+- OPA aggregate `decision` rule (single query per decide call)
+- O(1) audit append via `.head` sidecar cache
+- Connection pooling for Redis, httpx, and Postgres (`psycopg-pool`)
+- Post-fetch DLP scanning in `DocAdapter`
+- Canonical approval operation fingerprint (`_operation_key`)
+
+### Changed
+- SSRF and host allowlist enforced on `/v1/gateway/decide` for `http.get`, not only HTTP adapter/proxy
+- Benchmark PEP aligned with runtime HTTP policy semantics (`allowed_http_domains`)
+- Session `max_actions` uses atomic INCR with DECR release on deny (denials do not consume quota)
+- `output_length` derived from actual `tool_output` instead of trusting client-supplied values
+- Separate rate-limit buckets for `/agent` (5/min) and `/v1/gateway/decide` (120/min default)
+- Decide rate-limit 429 returns structured `RateLimitExceededResponse` body
+- Regenerated `requirements.lock` and `requirements-dev.lock` (removed unused `httpx2`, added `psycopg-pool`)
+- Version alignment across `pyproject.toml`, `RELEASE`, `SECURITY.md`, and FastAPI app metadata (0.5.0)
+
+### Fixed
+- Benchmark vs runtime HTTP policy drift
+- O(n) audit append performance on every write
+- Approval context matching brittle on volatile/incidental context fields
+
 ---
 
 ## [0.5.0] — 2026-06-13

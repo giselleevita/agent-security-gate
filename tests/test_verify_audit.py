@@ -22,6 +22,34 @@ def test_verify_audit_ok_and_detects_tamper(tmp_path: Path) -> None:
     assert verify(path) is False
 
 
+def test_truncating_log_starts_a_fresh_chain(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    append_hash_chained_event(path, {"a": 1})
+    append_hash_chained_event(path, {"b": 2})
+
+    # Rotate/truncate the log while a stale `.head` sidecar remains.
+    path.unlink()
+    append_hash_chained_event(path, {"c": 3})
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0])["previous_hash"] == "0" * 64
+    assert verify(path) is True
+
+
+def test_missing_sidecar_is_recovered_by_scan(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    append_hash_chained_event(path, {"a": 1})
+    append_hash_chained_event(path, {"b": 2})
+
+    # Simulate an older log with no sidecar; the next append must recover the chain.
+    path.with_name(path.name + ".head").unlink()
+    append_hash_chained_event(path, {"c": 3})
+
+    assert verify(path) is True
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 3
+
+
 def test_hash_chained_audit_remains_valid_with_concurrent_appends(tmp_path: Path) -> None:
     path = tmp_path / "events.jsonl"
 

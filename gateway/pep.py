@@ -4,10 +4,10 @@ import json
 import os
 from dataclasses import asdict
 from pathlib import Path
-from urllib.parse import urlparse
 
 import yaml
 
+from adapters.http import evaluate_http_target
 from audit.events import append_hash_chained_event
 from gateway.models import Decision, ToolCallRequest
 
@@ -57,11 +57,20 @@ class PolicyEnforcementPoint:
 
         if request.tool == "http.get":
             url = str(request.params.get("url", ""))
-            if not self._is_allowed_http_target(url):
+            # Shared evaluator (also used by the runtime gateway) keeps benchmark and
+            # runtime HTTP semantics identical. DNS resolution is skipped here so offline
+            # scenario replay stays deterministic; the runtime path resolves DNS.
+            http_decision, _ = evaluate_http_target(
+                url=url,
+                method="GET",
+                allowed_hosts=list(self.policy_data.get("allowed_http_domains", [])),
+                resolve_dns=False,
+            )
+            if not http_decision.allowed:
                 decision = Decision(
                     outcome="deny",
-                    reason="target URL is not on the allowed domain list",
-                    policy_id="http-domain-allowlist",
+                    reason=http_decision.reason,
+                    policy_id="http-egress",
                 )
                 self._apply_output_limit(request, decision)
                 self._audit_decision(request, decision)
@@ -108,12 +117,6 @@ class PolicyEnforcementPoint:
         self._apply_output_limit(request, decision)
         self._audit_decision(request, decision)
         return decision
-
-    def _is_allowed_http_target(self, url: str) -> bool:
-        parsed = urlparse(url)
-        if parsed.scheme not in {"http", "https"}:
-            return False
-        return parsed.netloc in set(self.policy_data.get("allowed_http_domains", []))
 
     def _get_limit(self, key: str, request: ToolCallRequest, default: int) -> int:
         value = request.context.get(key, self.policy_data.get(key, default))

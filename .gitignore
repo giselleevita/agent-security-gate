@@ -6,6 +6,7 @@ __pycache__/
 results/
 audit/
 audit/events.jsonl
+audit/*.head
 
 !audit/
 !audit/*.py
