@@ -266,9 +266,19 @@ Canary matches are treated as a hard deny; DLP pattern matches redact and deny t
 
 | File | Purpose |
 |---|---|
-| `policies/data/policy_data.json` | Core policy: denied prefixes, approved tools, approval rules |
+| `policies/data/policy_data.json` | Default policy: denied prefixes, approved tools, approval rules |
+| `policies/data/tenants/{tenant_id}/policy_data.json` | Optional per-tenant policy that fully overrides the default for that tenant |
 | `policies/data/dlp_patterns.yaml` | DLP regex patterns (SSN, IBAN, API keys, emails) |
 | `policies/data/canaries.yaml` | Canary strings to detect in tool outputs |
+
+### Tenant isolation
+
+Each request carries a `tenant_id`. If `policies/data/tenants/{tenant_id}/policy_data.json`
+exists it is used instead of the default policy, so tenants never share allow/deny rules.
+`tenant_id` is validated as a single safe path segment (no directory traversal). With
+`ASG_TENANT_POLICY_STRICT=true`, a request from a tenant that has no dedicated policy file
+is denied with reason `unknown_tenant` before any policy, session, or database work;
+otherwise it falls back to the default policy.
 
 Environment variables:
 
@@ -279,6 +289,7 @@ Environment variables:
 | `AGENT_RATE_LIMIT_MAX` | `5` | Max requests per token per window |
 | `AGENT_RATE_LIMIT_WINDOW_S` | `60` | Window size in seconds |
 | `REDIS_URL` | `redis://redis:6379` | Redis connection for rate limiting |
+| `ASG_TENANT_POLICY_STRICT` | `false` | Deny tenants without a dedicated policy file (`unknown_tenant`) instead of using the default |
 | `ASG_DEMO_MODE` | `false` | Enables documented demo credentials for local compose |
 | `AUTH_TOKEN` | required unless demo mode | Agent/API bearer token |
 | `APPROVER_TOKEN` | required unless demo mode | Approver bearer token |
