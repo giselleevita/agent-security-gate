@@ -47,12 +47,35 @@ def audit_log_path() -> Path:
     return Path(os.environ.get(AUDIT_LOG_PATH_ENV, "audit/events.jsonl"))
 
 
+def _read_env_or_file(env_name: str) -> str | None:
+    """
+    Resolve a secret/config value from `{env_name}` or, if unset, from a file path in
+    `{env_name}_FILE`.
+
+    The `_FILE` convention lets secrets be mounted by Vault/Kubernetes/Docker secrets
+    without ever appearing in the process environment or logs. A direct env value wins;
+    an unreadable `_FILE` path is a hard error so misconfiguration fails loudly.
+    """
+    direct = os.environ.get(env_name)
+    if direct is not None and direct.strip():
+        return direct
+    file_path = os.environ.get(f"{env_name}_FILE")
+    if file_path:
+        try:
+            content = Path(file_path).read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            raise RuntimeError(f"{env_name}_FILE could not be read: {exc}") from exc
+        if content:
+            return content
+    return None
+
+
 def database_url() -> str:
-    return os.environ.get(DATABASE_URL_ENV, "postgresql://asg:asg@localhost:5432/asg")
+    return _read_env_or_file(DATABASE_URL_ENV) or "postgresql://asg:asg@localhost:5432/asg"
 
 
 def redis_url() -> str:
-    return os.environ.get(REDIS_URL_ENV, "redis://localhost:6379/0")
+    return _read_env_or_file(REDIS_URL_ENV) or "redis://localhost:6379/0"
 
 
 def opa_url() -> str:
@@ -64,7 +87,7 @@ def demo_mode_enabled() -> bool:
 
 
 def required_secret(env_name: str, *, demo_value: str) -> str:
-    value = os.environ.get(env_name)
+    value = _read_env_or_file(env_name)
     if demo_mode_enabled():
         return value or demo_value
     if value is None or not value.strip():
@@ -72,6 +95,34 @@ def required_secret(env_name: str, *, demo_value: str) -> str:
     if value == demo_value:
         raise HTTPException(status_code=500, detail=f"{env_name} is using the demo value")
     return value
+
+
+# Secrets that must be present (and not the demo placeholder) when demo mode is off.
+_REQUIRED_SECRETS = (
+    (AUTH_TOKEN_ENV, DEMO_AUTH_TOKEN),
+    (APPROVER_TOKEN_ENV, DEMO_APPROVER_TOKEN),
+    (JWT_SECRET_ENV, DEMO_JWT_SECRET),
+)
+
+
+def validate_startup_secrets() -> None:
+    """
+    Fail loudly at startup if required secrets are missing or still the demo values
+    while running outside demo mode. Raises RuntimeError so the process aborts before
+    serving traffic instead of returning 500s per request.
+    """
+    if demo_mode_enabled():
+        return
+    missing: list[str] = []
+    for env_name, demo_value in _REQUIRED_SECRETS:
+        value = _read_env_or_file(env_name)
+        if value is None or not value.strip() or value == demo_value:
+            missing.append(env_name)
+    if missing:
+        raise RuntimeError(
+            "missing or demo-valued required secrets (set them, or a *_FILE path, or "
+            f"enable ASG_DEMO_MODE for local demos): {', '.join(sorted(missing))}"
+        )
 
 
 def agent_rate_limit_max() -> int:

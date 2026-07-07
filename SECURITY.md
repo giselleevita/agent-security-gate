@@ -53,3 +53,21 @@ official image entrypoint uses `setpriv` to drop to the `redis` user.
 
 For production, add network policies, secret injection (not compose env literals),
 image scanning, and a non-bind-mount audit sink.
+
+## Secret Management
+
+Secrets (`AUTH_TOKEN`, `APPROVER_TOKEN`, `JWT_SECRET`, and the credential-bearing
+`DATABASE_URL` / `REDIS_URL`) can be provided two ways:
+
+- Directly via the environment variable, or
+- Via a file path in a `*_FILE` variable (e.g. `JWT_SECRET_FILE=/run/secrets/jwt`).
+  The file's trimmed contents are used. This supports Docker/Kubernetes secrets and
+  Vault/KMS agents that mount secrets as files, keeping them out of the process
+  environment and logs.
+
+A direct env value takes precedence over its `*_FILE` counterpart. An unreadable
+`*_FILE` path is a hard error.
+
+When `ASG_DEMO_MODE` is not enabled, the gateway validates required secrets at startup
+and refuses to boot if any are missing or still set to the built-in demo values. Secret
+values are never logged.
