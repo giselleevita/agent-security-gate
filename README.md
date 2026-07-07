@@ -366,6 +366,21 @@ python scripts/verify_audit.py --path audit/events.jsonl --hmac-key "$AUDIT_HMAC
 python scripts/verify_audit.py --path ./downloaded-bundle --hmac-key "$AUDIT_HMAC_KEY"
 ```
 
+### Auditor export package
+
+`POST /v1/audit/export` (approver-only, optional `?tenant_id=`) returns a self-verifying
+`.tar.gz` containing the audit chain (or a per-tenant subset), a policy snapshot, a manifest
+with per-file SHA-256 (HMAC-signed when `AUDIT_HMAC_KEY` is set), and an embedded
+dependency-free `verify.py`. A reviewer verifies it offline without this repo:
+
+```bash
+tar xzf asg-audit-export-*.tar.gz -C review/ && cd review
+python verify.py                      # integrity + chain
+python verify.py --hmac-key "$KEY"    # also verify signatures
+```
+
+Generate one from the CLI: `python -m scripts.export_audit_package --out export.tar.gz [--tenant-id acme]`.
+
 ---
 
 ## Backup and restore
