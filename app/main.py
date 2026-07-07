@@ -10,32 +10,24 @@ from typing import Any
 import httpx
 import redis
 from psycopg_pool import ConnectionPool
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from adapters.http import GatedHttpClient, evaluate_http_target
+# GatedHttpClient is re-exported here so route handlers in app/routers can reference it as
+# `main.GatedHttpClient` (single patch/override point); it is not called in this module.
+from adapters.http import GatedHttpClient, evaluate_http_target  # noqa: F401
 from app.audit_log import append_audit_event as _append_audit_event
 from app.auth import (
-    require_bearer_token,
     require_header as _require_header,
-    sign_resume_token as _sign_resume_token,
-    verify_approver,
-    verify_bearer,
     verify_resume_token as _verify_resume_token,
 )
-from app.config import audit_log_path as _audit_log_path
 from app.config import database_url as _database_url
 from app.config import agent_rate_limit_max as _agent_rate_limit_max
 from app.config import agent_rate_limit_window_s as _agent_rate_limit_window_s
-from app.config import decide_rate_limit_max as _decide_rate_limit_max
-from app.config import decide_rate_limit_window_s as _decide_rate_limit_window_s
-from app.config import approval_rate_limit_max as _approval_rate_limit_max
-from app.config import approval_rate_limit_window_s as _approval_rate_limit_window_s
 from app.config import approval_ttl_s as _approval_ttl_s
-from app.config import opa_url as _opa_url
 from app.config import redis_url as _redis_url
 from app.dlp import load_canaries as _load_canaries
 from app.dlp import scan_tool_output as _scan_tool_output
@@ -44,17 +36,8 @@ from app.policy import build_opa_input as _build_opa_input
 from app.policy import load_policy_config as _load_policy_config
 from app.policy import opa_post as _opa_post
 from app.schemas import (
-    AgentRequest,
-    AgentResponse,
-    ApprovalCreateRequest,
-    ApprovalCreateResponse,
-    ApprovalResolveResponse,
     DecideRequest,
     DecideResponse,
-    DocsReadRequest,
-    DocsReadResponse,
-    HttpProxyRequest,
-    HttpProxyResponse,
     RateLimitExceededResponse,
 )
 
@@ -259,279 +242,6 @@ class _ToolOutputScanMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(_ToolOutputScanMiddleware)
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.get("/metrics")
-def metrics() -> Response:
-    """
-    Prometheus exposition endpoint. Unauthenticated by convention for in-cluster
-    scraping; labels never include tenant/session identifiers or free text.
-    """
-    try:
-        with _db_connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT count(*) FROM approvals WHERE status = 'pending'")
-                row = cur.fetchone()
-                _metrics.set_approvals_pending(int(row[0]) if row else 0)
-    except Exception:
-        # Never let a store hiccup fail a scrape; the gauge simply keeps its last value.
-        pass
-    payload, content_type = _metrics.render_latest()
-    return Response(content=payload, media_type=content_type)
-
-
-@app.get("/audit", dependencies=[Depends(verify_approver)])
-def audit_tail(limit: int = Query(default=20, ge=1, le=200)) -> dict[str, Any]:
-    """
-    Demo façade: return last N hash-chained audit entries.
-    """
-    path = _audit_log_path()
-    if not path.exists():
-        return {"events": []}
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    tail = lines[-limit:]
-    out: list[dict[str, Any]] = []
-    for ln in tail:
-        try:
-            out.append(json.loads(ln))
-        except json.JSONDecodeError:
-            continue
-    return {"events": out}
-
-@app.get("/health/ready")
-def health_ready() -> dict[str, str]:
-    try:
-        r = httpx.get(f"{_opa_url()}/health", timeout=2.0)
-        r.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=503, detail="OPA not ready") from exc
-    try:
-        _redis().ping()
-    except redis.RedisError as exc:
-        raise HTTPException(status_code=503, detail="redis not ready") from exc
-    return {"status": "ready"}
-
-
-@app.post("/v1/approvals/request", response_model=ApprovalCreateResponse)
-def approvals_request(
-    body: ApprovalCreateRequest,
-    bearer_token: str = Depends(require_bearer_token),
-    x_requester_id: str | None = Header(default=None, alias="X-Requester-Id"),
-) -> ApprovalCreateResponse:
-    requester_id = _require_header(x_requester_id, "X-Requester-Id")
-    # Bound approval creation per caller to prevent flooding the approver queue.
-    _rate_limit_or_raise(
-        bearer_token=bearer_token,
-        bucket="approvals",
-        max_requests=_approval_rate_limit_max(),
-        window_s=_approval_rate_limit_window_s(),
-    )
-    ttl_s = _approval_ttl_s()
-    with _db_connect() as conn:
-        with conn.cursor() as cur:
-            _expire_stale_approvals(cur)
-            cur.execute(
-                """
-                INSERT INTO approvals (tenant_id, session_id, action, tool, context, status, requester_id, expires_at)
-                VALUES (
-                    %s, %s, %s, %s, %s::jsonb, 'pending', %s,
-                    CASE WHEN %s > 0 THEN now() + make_interval(secs => %s) ELSE NULL END
-                )
-                RETURNING id
-                """,
-                (
-                    body.tenant_id,
-                    body.session_id,
-                    body.action,
-                    body.tool,
-                    json.dumps(body.context),
-                    requester_id,
-                    ttl_s,
-                    ttl_s,
-                ),
-            )
-            request_id = str(cur.fetchone()[0])
-    return ApprovalCreateResponse(request_id=request_id)
-
-
-@app.post("/v1/approvals/{request_id}/approve", response_model=ApprovalResolveResponse)
-def approvals_approve(
-    request_id: str,
-    _: None = Depends(verify_approver),
-    x_approver_id: str | None = Header(default=None, alias="X-Approver-Id"),
-) -> ApprovalResolveResponse:
-    approver_id = _require_header(x_approver_id, "X-Approver-Id")
-    with _db_connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT tenant_id, session_id, requester_id, status,
-                       (expires_at IS NOT NULL AND expires_at < now()) AS is_expired
-                FROM approvals
-                WHERE id = %s
-                FOR UPDATE
-                """,
-                (request_id,),
-            )
-            row = cur.fetchone()
-            if row is None:
-                raise HTTPException(status_code=404, detail="approval request not found")
-            tenant_id, session_id, requester_id, status, is_expired = row
-            if requester_id is not None and requester_id == approver_id:
-                raise HTTPException(status_code=403, detail="self-approval is not allowed")
-            if status == "pending" and is_expired:
-                # Persisted to 'expired' by the sweep in approvals_request; rejecting
-                # here (rollback) is sufficient to enforce the TTL.
-                raise HTTPException(status_code=409, detail="approval request is already expired")
-            if status != "pending":
-                raise HTTPException(status_code=409, detail=f"approval request is already {status}")
-
-            cur.execute(
-                """
-                UPDATE approvals
-                SET status = 'approved', resolved_at = now(), approver_id = %s
-                WHERE id = %s
-                """,
-                (approver_id, request_id),
-            )
-    resume_token = _sign_resume_token(
-        request_id=request_id,
-        tenant_id=str(tenant_id),
-        session_id=str(session_id),
-        requester_id=str(requester_id) if requester_id is not None else "",
-    )
-    return ApprovalResolveResponse(request_id=request_id, status="approved", resume_token=resume_token)
-
-
-@app.post("/v1/approvals/{request_id}/deny", response_model=ApprovalResolveResponse)
-def approvals_deny(
-    request_id: str,
-    _: None = Depends(verify_approver),
-    x_approver_id: str | None = Header(default=None, alias="X-Approver-Id"),
-) -> ApprovalResolveResponse:
-    approver_id = _require_header(x_approver_id, "X-Approver-Id")
-    with _db_connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT status FROM approvals WHERE id = %s FOR UPDATE", (request_id,))
-            row = cur.fetchone()
-            if row is None:
-                raise HTTPException(status_code=404, detail="approval request not found")
-            status = row[0]
-            if status != "pending":
-                raise HTTPException(status_code=409, detail=f"approval request is already {status}")
-            cur.execute(
-                """
-                UPDATE approvals
-                SET status = 'denied', resolved_at = now(), approver_id = %s
-                WHERE id = %s
-                """,
-                (approver_id, request_id),
-            )
-    return ApprovalResolveResponse(request_id=request_id, status="denied")
-
-
-@app.get("/v1/approvals/{tenant_id}")
-def approvals_list(
-    tenant_id: str,
-    status: str = "pending",
-    _: None = Depends(verify_approver),
-) -> dict[str, Any]:
-    with _db_connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, tenant_id, session_id, action, tool, context, status, created_at, resolved_at, approver_id, requester_id
-                FROM approvals
-                WHERE tenant_id = %s AND status = %s
-                ORDER BY created_at DESC
-                """,
-                (tenant_id, status),
-            )
-            rows = cur.fetchall()
-    items = []
-    for r in rows:
-        items.append(
-            {
-                "id": str(r[0]),
-                "tenant_id": r[1],
-                "session_id": r[2],
-                "action": r[3],
-                "tool": r[4],
-                "context": r[5],
-                "status": r[6],
-                "created_at": r[7].isoformat() if r[7] else None,
-                "resolved_at": r[8].isoformat() if r[8] else None,
-                "approver_id": r[9],
-                "requester_id": r[10],
-            }
-        )
-    return {"approvals": items}
-
-
-@app.post("/v1/http/proxy", response_model=HttpProxyResponse)
-def http_proxy(
-    body: HttpProxyRequest,
-    _: None = Depends(verify_bearer),
-) -> HttpProxyResponse:
-    policy = _load_policy_config()
-    client = GatedHttpClient(
-        allowed_hosts=[str(h) for h in policy.get("allowed_http_domains", [])],
-        output_max_chars=int(policy.get("output_max_chars", 2000)),
-    )
-    try:
-        decision, resp_body = client.request(body.method, body.url)
-        if not decision.allowed:
-            return HttpProxyResponse(allowed=False, reason=decision.reason)
-        # Scan the fetched body for canaries/PII, mirroring the docs adapter so no
-        # egress path returns unscanned tool output.
-        reason_or_none, scanned_body, _extras = _scan_tool_output(tool_output=resp_body or "")
-        if reason_or_none is not None:
-            return HttpProxyResponse(allowed=False, reason=reason_or_none)
-        return HttpProxyResponse(allowed=True, reason=decision.reason, status_code=200, body=scanned_body)
-    finally:
-        client.close()
-
-
-@app.post("/v1/docs/read", response_model=DocsReadResponse)
-def docs_read(
-    body: DocsReadRequest,
-    _: None = Depends(verify_bearer),
-) -> DocsReadResponse:
-    policy = _load_policy_config()
-
-    def _demo_read_doc(*, path: str, doc_id: str | None = None) -> str:
-        # Demo adapter: in real integrations, this wraps your actual doc store read.
-        return f"doc({doc_id or 'none'}):{path}\n" + ("x" * 5000)
-
-    # Keep this endpoint independent of the DocAdapter (which calls the gateway).
-    # We check OPA directly to avoid recursion.
-    ctx: dict[str, Any] = {"path": body.path}
-    if body.doc_id is not None:
-        ctx["doc_id"] = body.doc_id
-    opa_input = {"action": "tool_call", "tool": "docs.read", "context": ctx, "config": policy}
-
-    with nullcontext(_http()) as client:
-        allowed = bool(_opa_post(client, "/v1/data/asg/allow", opa_input))
-        if not allowed:
-            reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
-            return DocsReadResponse(allowed=False, reason=str(reason_raw))
-
-    output = _demo_read_doc(path=body.path, doc_id=body.doc_id)
-    reason_or_none, scanned_output, _extras = _scan_tool_output(tool_output=output)
-    if reason_or_none is not None:
-        return DocsReadResponse(allowed=False, reason=reason_or_none)
-
-    output = scanned_output
-    limit = int(policy.get("output_max_chars", 2000))
-    truncated = len(output) > limit
-    if truncated:
-        output = output[:limit]
-    return DocsReadResponse(allowed=True, reason="allow", output=output, truncated=truncated)
 
 
 def _decide_tool_call(
@@ -750,113 +460,19 @@ def _decide_tool_call_impl(
     return response
 
 
-@app.post("/agent", response_model=AgentResponse)
-def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_token)) -> AgentResponse:
-    """
-    Demo façade: take a plain-text prompt and map it to a representative tool call
-    that is enforced by the gateway/OPA seam.
-    """
-    # Rate limit the demo façade per Bearer token (separate budget from /v1/gateway/decide).
-    token_key = bearer_token
-    try:
-        _rate_limit_agent_or_raise(bearer_token=token_key)
-    except HTTPException as exc:
-        if exc.status_code == 429 and isinstance(exc.detail, dict):
-            audit_id = f"evt_{uuid.uuid4().hex}"
-            payload = {"allowed": False, **exc.detail}
-            _append_audit_event(audit_id, {"agent_input": body.model_dump(), "response": payload})
-            return JSONResponse(status_code=429, content=payload, headers=exc.headers or {})
-        raise
+# Route handlers live in app/routers/*; they call back into this module for the shared
+# decision logic, pooled clients, and helpers (keeping enforcement in one place). Imported
+# at the bottom so app.main is fully defined before the routers reference it.
+from app.routers import (  # noqa: E402
+    agent as _agent_router,
+    approvals as _approvals_router,
+    decide as _decide_router,
+    observability as _observability_router,
+    tools as _tools_router,
+)
 
-    text = body.input.lower()
-
-    # Heuristic mapping for demos: pick one representative action/tool.
-    if "169.254.169.254" in text or "meta-data" in text:
-        policy = _load_policy_config()
-        client = GatedHttpClient(
-            allowed_hosts=[str(h) for h in policy.get("allowed_http_domains", [])],
-            output_max_chars=int(policy.get("output_max_chars", 2000)),
-        )
-        audit_id = f"evt_{uuid.uuid4().hex}"
-        t0 = time.perf_counter()
-        try:
-            decision, _ = client.request("GET", "http://169.254.169.254/latest/meta-data/")
-        finally:
-            client.close()
-        latency_ms = (time.perf_counter() - t0) * 1000.0
-        resp = AgentResponse(
-            allowed=decision.allowed,
-            reason=decision.reason,
-            audit_id=audit_id,
-            latency_ms=round(latency_ms, 3),
-            approval_url=None,
-            action="tool_call",
-            tool="http.get",
-        )
-        _append_audit_event(audit_id, {"agent_input": body.model_dump(), "response": resp.model_dump()})
-        return resp
-
-    if "drop table" in text or "select * from users" in text or "db.write" in text:
-        decide = DecideRequest(
-            tenant_id=body.tenant_id,
-            session_id=body.session_id,
-            action="tool_call",
-            tool="db.write",
-            context={"query": body.input, "output_length": 0},
-            mode=body.mode,
-        )
-    elif "ignore previous instructions" in text or "system prompt" in text or "secrets" in text:
-        decide = DecideRequest(
-            tenant_id=body.tenant_id,
-            session_id=body.session_id,
-            action="tool_call",
-            tool="docs.read",
-            context={"path": "/internal/secrets.yaml", "output_length": 0},
-            mode=body.mode,
-        )
-    else:
-        context = {"path": "/public/readme.md", "output_length": 0}
-        if body.input:
-            context["tool_output"] = body.input
-            context["output_length"] = len(body.input)
-        decide = DecideRequest(
-            tenant_id=body.tenant_id,
-            session_id=body.session_id,
-            action="tool_call",
-            tool="docs.read",
-            context=context,
-            mode=body.mode,
-        )
-
-    d = _decide_tool_call(body=decide, resume_token=None, x_requester_id=None)
-    return AgentResponse(
-        allowed=d.allowed,
-        reason=d.reason,
-        audit_id=d.audit_id,
-        latency_ms=d.latency_ms,
-        approval_url=d.approval_url,
-        action=decide.action,
-        tool=decide.tool,
-    )
-
-@app.post("/v1/gateway/decide", response_model=DecideResponse)
-def gateway_decide(
-    body: DecideRequest,
-    bearer_token: str = Depends(require_bearer_token),
-    resume_token: str | None = Header(default=None, alias="Resume-Token"),
-    x_requester_id: str | None = Header(default=None, alias="X-Requester-Id"),
-):
-    try:
-        _rate_limit_or_raise(
-            bearer_token=bearer_token,
-            bucket="decide",
-            max_requests=_decide_rate_limit_max(),
-            window_s=_decide_rate_limit_window_s(),
-        )
-    except HTTPException as exc:
-        if exc.status_code == 429 and isinstance(exc.detail, dict):
-            audit_id = f"evt_{uuid.uuid4().hex}"
-            _append_audit_event(audit_id, {"request": body.model_dump(), "response": exc.detail})
-            return JSONResponse(status_code=429, content=exc.detail, headers=exc.headers or {})
-        raise
-    return _decide_tool_call(body=body, resume_token=resume_token, x_requester_id=x_requester_id)
+app.include_router(_observability_router.router)
+app.include_router(_approvals_router.router)
+app.include_router(_tools_router.router)
+app.include_router(_agent_router.router)
+app.include_router(_decide_router.router)
