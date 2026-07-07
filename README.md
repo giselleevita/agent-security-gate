@@ -209,6 +209,9 @@ Rules:
 - Agents cannot approve their own requests (`X-Requester-Id` must differ from approver)
 - Approval state is persisted in Postgres
 - Approved actions return a single-use `Resume-Token` for the exact approved operation
+- Dual-control: tools in `dual_approval_tools` (policy data) need two distinct approvers.
+  The first approval returns `first_approved` (no resume token); a second approver with a
+  different `X-Approver-Id` completes it and returns the resume token
 
 ### HTTP Adapter
 

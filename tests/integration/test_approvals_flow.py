@@ -43,12 +43,13 @@ def test_approval_required_flow_allows_after_approval(client: httpx.Client) -> N
     tenant_id = f"t{int(time.time())}"
     session_id = f"s{int(time.time())}"
 
+    # tickets.delete requires a single approval (not dual-control).
     decide_body = {
         "tenant_id": tenant_id,
         "session_id": session_id,
         "action": "tool_call",
-        "tool": "db.write",
-        "context": {"query": "update accounts set role='admin'"},
+        "tool": "tickets.delete",
+        "context": {"ticket_id": "T-42"},
     }
 
     r0 = client.post("/v1/gateway/decide", json=decide_body, headers=AGENT_HEADERS)
@@ -237,3 +238,60 @@ def test_approved_operation_cannot_be_replayed_for_different_tool(client: httpx.
     )
     assert replay.status_code == 401
     assert replay.json()["detail"] == "approval record does not match requested operation"
+
+
+@pytest.mark.integration
+def test_dual_control_requires_two_distinct_approvers(client: httpx.Client) -> None:
+    # db.write is configured as a dual-control tool: one approval is not enough.
+    tenant_id = f"t{int(time.time())}dc"
+    session_id = f"s{int(time.time())}dc"
+    decide_body = {
+        "tenant_id": tenant_id,
+        "session_id": session_id,
+        "action": "tool_call",
+        "tool": "db.write",
+        "context": {"query": "update accounts set role='admin'"},
+    }
+    req_body = {
+        "tenant_id": tenant_id,
+        "session_id": session_id,
+        "action": decide_body["action"],
+        "tool": decide_body["tool"],
+        "context": decide_body["context"],
+    }
+    request_id = client.post("/v1/approvals/request", json=req_body, headers=AGENT_HEADERS).json()[
+        "request_id"
+    ]
+
+    first = client.post(
+        f"/v1/approvals/{request_id}/approve",
+        headers={"Authorization": "Bearer approver-token", "X-Approver-Id": "approver-1"},
+    )
+    first.raise_for_status()
+    assert first.json()["status"] == "first_approved"
+    assert first.json()["resume_token"] is None
+
+    # Same approver cannot provide the second approval.
+    same = client.post(
+        f"/v1/approvals/{request_id}/approve",
+        headers={"Authorization": "Bearer approver-token", "X-Approver-Id": "approver-1"},
+    )
+    assert same.status_code == 403
+
+    second = client.post(
+        f"/v1/approvals/{request_id}/approve",
+        headers={"Authorization": "Bearer approver-token", "X-Approver-Id": "approver-2"},
+    )
+    second.raise_for_status()
+    assert second.json()["status"] == "approved"
+    resume_token = second.json()["resume_token"]
+    assert resume_token
+
+    allowed = client.post(
+        "/v1/gateway/decide",
+        json=decide_body,
+        headers={**AGENT_HEADERS, "Resume-Token": resume_token},
+    )
+    allowed.raise_for_status()
+    assert allowed.json()["allowed"] is True
+    assert allowed.json()["reason"] == "allow"
