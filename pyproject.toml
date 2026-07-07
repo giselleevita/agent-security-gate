@@ -41,7 +41,7 @@ Documentation = "https://github.com/giselleevita/agent-security-gate#readme"
 Issues = "https://github.com/giselleevita/agent-security-gate/issues"
 
 [tool.setuptools]
-packages = ["adapters", "app", "approvals", "audit", "benchmark", "gateway", "scripts"]
+packages = ["adapters", "app", "approvals", "asg_sdk", "audit", "benchmark", "gateway", "scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
