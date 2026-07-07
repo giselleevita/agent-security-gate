@@ -80,6 +80,8 @@ platformdirs==4.10.0
     # via pip-audit
 pluggy==1.6.0
     # via pytest
+prometheus-client==0.25.0
+    # via agent-security-gate (pyproject.toml)
 psycopg==3.3.4
     # via agent-security-gate (pyproject.toml)
 psycopg-binary==3.3.4
