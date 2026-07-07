@@ -23,7 +23,13 @@ def load_policy_config() -> dict[str, Any]:
     }
 
 
-def build_opa_input(body: DecideRequest, policy_config: dict[str, Any], *, action_count: int) -> dict[str, Any]:
+def build_opa_input(
+    body: DecideRequest,
+    policy_config: dict[str, Any],
+    *,
+    action_count: int,
+    active_exceptions: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     ctx = dict(body.context)
     # Derive output_length from the output ASG can actually see rather than trusting a
     # caller-supplied value, so the OPA output cap cannot be bypassed by understating it.
@@ -41,6 +47,7 @@ def build_opa_input(body: DecideRequest, policy_config: dict[str, Any], *, actio
         "context": ctx,
         "session": {"action_count": action_count},
         "config": policy_config,
+        "active_exceptions": active_exceptions or [],
     }
 
 
