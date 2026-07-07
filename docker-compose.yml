@@ -33,6 +33,9 @@ services:
       AUDIT_LOG_PATH: /app/audit/events.jsonl
       DATABASE_URL: postgresql://asg:asg@postgres:5432/asg
       REDIS_URL: redis://redis:6379/0
+      APPROVAL_RATE_LIMIT_MAX: "${APPROVAL_RATE_LIMIT_MAX:-20}"
+      APPROVAL_RATE_LIMIT_WINDOW_S: "${APPROVAL_RATE_LIMIT_WINDOW_S:-60}"
+      APPROVAL_TTL_S: "${APPROVAL_TTL_S:-3600}"
     volumes:
       - ./audit:/app/audit
       - ./policies/data:/app/policies/data:ro
