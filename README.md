@@ -223,6 +223,16 @@ Rules:
 - `GET /audit?limit=N` — returns last N hash-chained audit events for approvers (default 20, max 200)
 - `GET /health` — returns `{"status":"ok"}`
 
+### Observability
+
+- `GET /metrics` — Prometheus exposition (unauthenticated by convention for in-cluster scraping). Exposed series:
+  - `asg_decide_total{outcome,reason}` — decisions by outcome (`allow` / `deny` / `approval_required`) and policy reason
+  - `asg_decide_latency_seconds` — decision-handling latency histogram
+  - `asg_opa_errors_total` — OPA query failures
+  - `asg_rate_limit_hits_total{bucket}` — requests rejected per rate-limit bucket
+  - `asg_approvals_pending` — pending approvals (best-effort, set at scrape)
+- Structured JSON logs: each decision emits one JSON line (`event: gateway_decision`) with `audit_id`, `tenant_id`, `action`, `tool`, `outcome`, `reason`, `latency_ms`. Metric labels never contain tenant/session identifiers or free text.
+
 ### Output scanning coverage
 
 DLP/canary scanning runs on every path that returns fetched or tool-produced content to the caller:

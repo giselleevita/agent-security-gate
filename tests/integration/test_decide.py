@@ -191,3 +191,16 @@ def test_decide_denies_http_get_non_allowlisted_host(client: httpx.Client) -> No
     data = r.json()
     assert data["allowed"] is False
     assert data["reason"] == "http_not_allowlisted"
+
+
+@pytest.mark.integration
+def test_metrics_endpoint_exposes_decide_counters(client: httpx.Client) -> None:
+    # Make at least one decision, then confirm the scrape reflects it.
+    client.post("/v1/gateway/decide", json=ALLOW_BODY)
+    r = httpx.get(f"{BASE_URL}/metrics", timeout=5.0)
+    r.raise_for_status()
+    assert "text/plain" in r.headers["content-type"]
+    body = r.text
+    assert "asg_decide_total" in body
+    assert "asg_decide_latency_seconds" in body
+    assert "asg_approvals_pending" in body
