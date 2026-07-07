@@ -129,6 +129,18 @@ def test_http_client_pins_resolved_ip(monkeypatch) -> None:
     assert client._pinned["example.com"] == "93.184.216.34"  # noqa: SLF001
 
 
+def test_evaluate_http_target_allowlist_before_dns_failure() -> None:
+    decision, normalized = evaluate_http_target(
+        url="https://evil.example.test/status",
+        method="GET",
+        allowed_hosts=["api.example.com"],
+        resolve_dns=True,
+    )
+    assert decision.allowed is False
+    assert decision.reason == "http_not_allowlisted"
+    assert normalized is None
+
+
 def test_evaluate_http_target_blocks_metadata_ip_literal() -> None:
     decision, normalized = evaluate_http_target(
         url="http://169.254.169.254/latest/meta-data/",
