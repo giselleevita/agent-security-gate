@@ -22,15 +22,18 @@ flowchart LR
 - `app/`
   - exposes `/v1/gateway/decide`
   - builds OPA input, evaluates Rego decisions, records audit events
+  - `main.py`: app factory, lifespan, pooled clients, shared decision logic (`_decide_tool_call`), rate limiting, and the tool-output scan middleware
+  - `routers/`: HTTP route handlers grouped by concern (`observability`, `approvals`, `tools`, `agent`, `decide`); they call back into `app.main` for shared logic and pooled clients
   - `auth.py`: bearer-token dependencies and approval resume-token signing
   - `config.py`: environment variables, demo-mode defaults, runtime paths
   - `dlp.py`: YAML-backed DLP and canary scanning
   - `policy.py`: OPA input construction and PDP HTTP calls
+  - `metrics.py`: Prometheus metrics and structured decision logging
   - `schemas.py`: FastAPI request/response models
   - `audit_log.py`: application-level audit event wrapper
 - `approvals/`
   - contains the legacy in-memory approval helper used by the benchmark
-- Postgres-backed approvals in `app/main.py`
+- Postgres-backed approvals in `app/routers/approvals.py`
   - creates and resolves approval requests for risky runtime actions
 - `audit/`
   - writes hash-chained JSONL events
