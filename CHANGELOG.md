@@ -9,6 +9,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Approval TTL/expiry: `expires_at` column and `expired` status (migration `003_add_approval_expiry.sql`); pending approvals past `APPROVAL_TTL_S` (default 1h) are swept to `expired` and can no longer be approved
+- Per-caller rate limit on `POST /v1/approvals/request` (`APPROVAL_RATE_LIMIT_MAX`, default 20/min) to prevent approver-queue flooding
+- Approval rate-limit unit test (`tests/test_approvals_rate_limit.py`) and opt-in expiry integration test (`tests/integration/test_approvals_flow.py`)
 - Decide-path SSRF and HTTP allowlist integration tests (`tests/integration/test_decide.py`)
 - Integration test job in main CI workflow (`.github/workflows/ci.yml`)
 - Investment diligence assessment (`docs/investment-assessment.md`)

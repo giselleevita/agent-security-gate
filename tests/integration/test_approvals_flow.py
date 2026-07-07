@@ -142,6 +142,37 @@ def test_resume_without_approval_is_denied(client: httpx.Client) -> None:
 
 
 @pytest.mark.integration
+def test_expired_approval_cannot_be_approved(client: httpx.Client) -> None:
+    # Opt-in: only meaningful when the stack runs with a short TTL. Skips under the
+    # default 1h TTL so it never blocks CI with a long wait.
+    ttl_s = int(os.environ.get("APPROVAL_TTL_S", "3600"))
+    if ttl_s <= 0 or ttl_s > 10:
+        pytest.skip(f"APPROVAL_TTL_S={ttl_s}; set a short TTL (<=10s) on the stack to exercise expiry")
+
+    tenant_id = f"t{int(time.time())}exp"
+    session_id = f"s{int(time.time())}exp"
+    r1 = client.post(
+        "/v1/approvals/request",
+        json={
+            "tenant_id": tenant_id,
+            "session_id": session_id,
+            "action": "tool_call",
+            "tool": "db.write",
+            "context": {"query": "update accounts set role='admin'"},
+        },
+        headers=AGENT_HEADERS,
+    )
+    r1.raise_for_status()
+    request_id = r1.json()["request_id"]
+
+    time.sleep(ttl_s + 1)
+
+    r2 = client.post(f"/v1/approvals/{request_id}/approve", headers=APPROVER_HEADERS)
+    assert r2.status_code == 409
+    assert "expired" in r2.json()["detail"]
+
+
+@pytest.mark.integration
 def test_self_approval_is_blocked(client: httpx.Client) -> None:
     tenant_id = f"t{int(time.time())}y"
     session_id = f"s{int(time.time())}y"

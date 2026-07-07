@@ -32,6 +32,9 @@ from app.config import agent_rate_limit_max as _agent_rate_limit_max
 from app.config import agent_rate_limit_window_s as _agent_rate_limit_window_s
 from app.config import decide_rate_limit_max as _decide_rate_limit_max
 from app.config import decide_rate_limit_window_s as _decide_rate_limit_window_s
+from app.config import approval_rate_limit_max as _approval_rate_limit_max
+from app.config import approval_rate_limit_window_s as _approval_rate_limit_window_s
+from app.config import approval_ttl_s as _approval_ttl_s
 from app.config import opa_url as _opa_url
 from app.config import redis_url as _redis_url
 from app.dlp import load_canaries as _load_canaries
@@ -162,6 +165,26 @@ def _rate_limit_or_raise(*, bearer_token: str, bucket: str, max_requests: int, w
         raise HTTPException(status_code=503, detail="rate limiter unavailable") from exc
 
 
+def _expire_stale_approvals(cur: Any) -> None:
+    """
+    Opportunistically mark pending approvals whose TTL has elapsed as 'expired'.
+
+    Runs inside the caller's transaction so the sweep and the subsequent
+    read/insert are consistent. A non-positive TTL disables expiry.
+    """
+    if _approval_ttl_s() <= 0:
+        return
+    cur.execute(
+        """
+        UPDATE approvals
+        SET status = 'expired', resolved_at = now()
+        WHERE status = 'pending'
+          AND expires_at IS NOT NULL
+          AND expires_at < now()
+        """
+    )
+
+
 def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
     _rate_limit_or_raise(
         bearer_token=bearer_token,
@@ -275,16 +298,28 @@ def health_ready() -> dict[str, str]:
 @app.post("/v1/approvals/request", response_model=ApprovalCreateResponse)
 def approvals_request(
     body: ApprovalCreateRequest,
-    _: None = Depends(verify_bearer),
+    bearer_token: str = Depends(require_bearer_token),
     x_requester_id: str | None = Header(default=None, alias="X-Requester-Id"),
 ) -> ApprovalCreateResponse:
     requester_id = _require_header(x_requester_id, "X-Requester-Id")
+    # Bound approval creation per caller to prevent flooding the approver queue.
+    _rate_limit_or_raise(
+        bearer_token=bearer_token,
+        bucket="approvals",
+        max_requests=_approval_rate_limit_max(),
+        window_s=_approval_rate_limit_window_s(),
+    )
+    ttl_s = _approval_ttl_s()
     with _db_connect() as conn:
         with conn.cursor() as cur:
+            _expire_stale_approvals(cur)
             cur.execute(
                 """
-                INSERT INTO approvals (tenant_id, session_id, action, tool, context, status, requester_id)
-                VALUES (%s, %s, %s, %s, %s::jsonb, 'pending', %s)
+                INSERT INTO approvals (tenant_id, session_id, action, tool, context, status, requester_id, expires_at)
+                VALUES (
+                    %s, %s, %s, %s, %s::jsonb, 'pending', %s,
+                    CASE WHEN %s > 0 THEN now() + make_interval(secs => %s) ELSE NULL END
+                )
                 RETURNING id
                 """,
                 (
@@ -294,6 +329,8 @@ def approvals_request(
                     body.tool,
                     json.dumps(body.context),
                     requester_id,
+                    ttl_s,
+                    ttl_s,
                 ),
             )
             request_id = str(cur.fetchone()[0])
@@ -311,7 +348,8 @@ def approvals_approve(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT tenant_id, session_id, requester_id, status
+                SELECT tenant_id, session_id, requester_id, status,
+                       (expires_at IS NOT NULL AND expires_at < now()) AS is_expired
                 FROM approvals
                 WHERE id = %s
                 FOR UPDATE
@@ -321,9 +359,13 @@ def approvals_approve(
             row = cur.fetchone()
             if row is None:
                 raise HTTPException(status_code=404, detail="approval request not found")
-            tenant_id, session_id, requester_id, status = row
+            tenant_id, session_id, requester_id, status, is_expired = row
             if requester_id is not None and requester_id == approver_id:
                 raise HTTPException(status_code=403, detail="self-approval is not allowed")
+            if status == "pending" and is_expired:
+                # Persisted to 'expired' by the sweep in approvals_request; rejecting
+                # here (rollback) is sufficient to enforce the TTL.
+                raise HTTPException(status_code=409, detail="approval request is already expired")
             if status != "pending":
                 raise HTTPException(status_code=409, detail=f"approval request is already {status}")
 

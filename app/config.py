@@ -17,6 +17,9 @@ AGENT_RATE_LIMIT_MAX_ENV = "AGENT_RATE_LIMIT_MAX"
 AGENT_RATE_LIMIT_WINDOW_S_ENV = "AGENT_RATE_LIMIT_WINDOW_S"
 DECIDE_RATE_LIMIT_MAX_ENV = "DECIDE_RATE_LIMIT_MAX"
 DECIDE_RATE_LIMIT_WINDOW_S_ENV = "DECIDE_RATE_LIMIT_WINDOW_S"
+APPROVAL_RATE_LIMIT_MAX_ENV = "APPROVAL_RATE_LIMIT_MAX"
+APPROVAL_RATE_LIMIT_WINDOW_S_ENV = "APPROVAL_RATE_LIMIT_WINDOW_S"
+APPROVAL_TTL_S_ENV = "APPROVAL_TTL_S"
 LEGACY_RATE_LIMIT_MAX_ENV = "RATE_LIMIT_MAX"
 LEGACY_RATE_LIMIT_WINDOW_ENV = "RATE_LIMIT_WINDOW"
 DLP_PATTERNS_PATH_ENV = "DLP_PATTERNS_PATH"
@@ -99,3 +102,29 @@ def decide_rate_limit_window_s() -> int:
         return int(os.environ.get(DECIDE_RATE_LIMIT_WINDOW_S_ENV, "60"))
     except ValueError:
         return 60
+
+
+def approval_rate_limit_max() -> int:
+    # Bounds how many approval requests a single caller can create per window,
+    # preventing approver-queue flooding / spam.
+    try:
+        return int(os.environ.get(APPROVAL_RATE_LIMIT_MAX_ENV, "20"))
+    except ValueError:
+        return 20
+
+
+def approval_rate_limit_window_s() -> int:
+    try:
+        return int(os.environ.get(APPROVAL_RATE_LIMIT_WINDOW_S_ENV, "60"))
+    except ValueError:
+        return 60
+
+
+def approval_ttl_s() -> int:
+    # Pending approvals older than this are swept to 'expired' and can no longer
+    # be approved or consumed. Zero or negative disables expiry (approvals never
+    # time out).
+    try:
+        return int(os.environ.get(APPROVAL_TTL_S_ENV, "3600"))
+    except ValueError:
+        return 3600
