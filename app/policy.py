@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import HTTPException
 
-from app.config import opa_url, policy_data_path
+from app.config import opa_url, policy_data_path, tenant_policy_strict
 from app.schemas import DecideRequest
 
+# Tenant identifiers used to build a filesystem path must be strictly bounded so a
+# hostile `tenant_id` cannot traverse directories or escape the tenants root.
+_SAFE_TENANT_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
-def load_policy_config() -> dict[str, Any]:
-    raw = json.loads(policy_data_path().read_text(encoding="utf-8"))
+
+def _normalize_policy(raw: dict[str, Any]) -> dict[str, Any]:
     return {
         "allowed_tools": list(raw.get("allowed_tools", [])),
         "denied_doc_prefixes": list(raw.get("denied_doc_prefixes", [])),
@@ -22,6 +27,48 @@ def load_policy_config() -> dict[str, Any]:
         "allowed_http_domains": list(raw.get("allowed_http_domains", [])),
         "max_actions": int(raw.get("max_actions", 50)),
     }
+
+
+def tenant_policy_path(tenant_id: str) -> Path | None:
+    """
+    Path to a tenant's dedicated policy file (`.../tenants/{tenant_id}/policy_data.json`),
+    or None if `tenant_id` is not a safe, single path segment.
+    """
+    if not _SAFE_TENANT_ID.match(tenant_id or ""):
+        return None
+    # Reject dot-only segments ('.', '..') which pass the charset check but resolve to
+    # the current/parent directory.
+    if set(tenant_id) == {"."}:
+        return None
+    return policy_data_path().parent / "tenants" / tenant_id / "policy_data.json"
+
+
+def tenant_known(tenant_id: str | None) -> bool:
+    """
+    Whether the tenant may be served. In strict mode a tenant is known only if it has a
+    dedicated policy file; otherwise all tenants are known (they fall back to default).
+    """
+    if not tenant_policy_strict():
+        return True
+    path = tenant_policy_path(tenant_id or "")
+    return path is not None and path.is_file()
+
+
+def load_policy_config(tenant_id: str | None = None) -> dict[str, Any]:
+    """
+    Resolve the effective policy config for a tenant.
+
+    A per-tenant file at `.../tenants/{tenant_id}/policy_data.json` fully overrides the
+    default policy so tenants never share allow/deny rules. When no per-tenant file
+    exists the default file is used (in strict mode the caller should first reject the
+    request via `tenant_known`, so the default is never silently applied to an unknown
+    tenant).
+    """
+    if tenant_id:
+        path = tenant_policy_path(tenant_id)
+        if path is not None and path.is_file():
+            return _normalize_policy(json.loads(path.read_text(encoding="utf-8")))
+    return _normalize_policy(json.loads(policy_data_path().read_text(encoding="utf-8")))
 
 
 def build_opa_input(

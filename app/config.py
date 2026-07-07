@@ -28,6 +28,7 @@ DEMO_MODE_ENV = "ASG_DEMO_MODE"
 OIDC_ISSUER_ENV = "OIDC_ISSUER"
 OIDC_AUDIENCE_ENV = "OIDC_AUDIENCE"
 OIDC_JWKS_URL_ENV = "OIDC_JWKS_URL"
+TENANT_POLICY_STRICT_ENV = "ASG_TENANT_POLICY_STRICT"
 
 DEMO_AUTH_TOKEN = "test-token"
 DEMO_APPROVER_TOKEN = "approver-token"
@@ -44,6 +45,16 @@ def canaries_path() -> Path:
 
 def policy_data_path() -> Path:
     return Path(os.environ.get(POLICY_DATA_PATH_ENV, "policies/data/policy_data.json"))
+
+
+def tenant_policy_strict() -> bool:
+    """
+    When enabled, a request whose `tenant_id` has no dedicated per-tenant policy file is
+    denied (`unknown_tenant`) instead of falling back to the default policy. Recommended
+    for multi-tenant production so a new/unknown tenant never inherits another tenant's
+    (or a permissive default) policy.
+    """
+    return os.environ.get(TENANT_POLICY_STRICT_ENV, "false").lower() in {"1", "true", "yes", "on"}
 
 
 def audit_log_path() -> Path:
