@@ -1,10 +1,16 @@
 services:
   redis:
-    image: redis:7.4.9-alpine3.21
+    image: redis:7.4.9-alpine3.21@sha256:b1addbe72465a718643cff9e60a58e6df1841e29d6d7d60c9a85d8d72f08d1a7
     command: ["redis-server", "--appendonly", "no"]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /data
+    security_opt:
+      - no-new-privileges:true
 
   postgres:
-    image: postgres:16.14-bookworm
+    image: postgres:16.14-bookworm@sha256:eac82980276bf5dd7ac9bb330e99950da0ef178002ff08279a4a708a5e373b7a
     environment:
       POSTGRES_USER: asg
       POSTGRES_PASSWORD: asg
@@ -12,16 +18,27 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    security_opt:
+      - no-new-privileges:true
 
   opa:
-    image: openpolicyagent/opa:0.65.0-static
+    image: openpolicyagent/opa:0.65.0-static@sha256:f5298560e3ca60151ce7d0fd66cbccb0cbcecc6b155b52d83260c41d7abf0405
     command: run --server --addr :8181 /policies
     volumes:
       - ./policies:/policies:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
   gateway:
     build:
       context: .
       dockerfile: Dockerfile.gateway
+    # Run as the host UID/GID so the bind-mounted audit dir stays writable by the
+    # non-root container process. Defaults suit typical single-user Linux hosts;
+    # CI/other hosts set ASG_UID/ASG_GID to `id -u`/`id -g`.
+    user: "${ASG_UID:-1000}:${ASG_GID:-1000}"
     command: sh -c "python -m scripts.migrate_db && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     environment:
       AUTH_TOKEN: test-token
@@ -36,6 +53,14 @@ services:
       APPROVAL_RATE_LIMIT_MAX: "${APPROVAL_RATE_LIMIT_MAX:-20}"
       APPROVAL_RATE_LIMIT_WINDOW_S: "${APPROVAL_RATE_LIMIT_WINDOW_S:-60}"
       APPROVAL_TTL_S: "${APPROVAL_TTL_S:-3600}"
+      HOME: /tmp
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - ./audit:/app/audit
       - ./policies/data:/app/policies/data:ro

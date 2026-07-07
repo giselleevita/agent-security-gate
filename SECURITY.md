@@ -34,3 +34,22 @@ Agent Security Gate is a reference implementation, not a production-hardened sec
 appliance. Review the [threat model](docs/agent-security-gate-threat-model.md) before
 deployment. Production deployments require external identity, secret management,
 network egress controls, immutable audit storage, monitoring, and operational response.
+
+## Container Hardening (demo stack)
+
+The reference `docker-compose.yml` stack applies baseline container controls:
+
+- **Digest-pinned images** for `redis`, `postgres`, `opa`, and the gateway base image
+  (`python:3.12.13-slim-bookworm@sha256:…`)
+- **Non-root gateway process** — image defaults to UID `10001`; compose runs as
+  `ASG_UID`/`ASG_GID` (defaults `1000`, CI sets `id -u`/`id -g`) so bind-mounted
+  audit files remain writable
+- **Read-only root filesystem** on gateway, redis, and opa with `tmpfs` for `/tmp`
+  (and `/data` on redis)
+- **`cap_drop: [ALL]`** and **`no-new-privileges`** on gateway and opa
+
+Postgres retains a writable data volume. Redis drops `cap_drop: ALL` because the
+official image entrypoint uses `setpriv` to drop to the `redis` user.
+
+For production, add network policies, secret injection (not compose env literals),
+image scanning, and a non-bind-mount audit sink.

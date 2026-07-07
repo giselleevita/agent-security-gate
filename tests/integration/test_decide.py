@@ -167,7 +167,7 @@ def test_decide_allows_http_get_allowlisted_host(client: httpx.Client) -> None:
             "tenant_id": "acme",
             "action": "tool_call",
             "tool": "http.get",
-            "context": {"url": "https://api.example.com/status"},
+            "context": {"url": "https://example.com/status"},
         },
     )
     r.raise_for_status()
