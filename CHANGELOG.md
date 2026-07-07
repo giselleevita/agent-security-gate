@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- OIDC identity: accept signed OIDC JWTs (JWKS-verified, issuer/audience checks, `RS*`/`ES*` only) alongside static tokens when `OIDC_ISSUER`/`OIDC_AUDIENCE` are set. Role-based authorization (`asg:agent`, `asg:approver`) from `roles`, `realm_access.roles`, or `scope` claims; static tokens become optional service credentials under OIDC. Adds `PyJWT[crypto]`/`cryptography`. Documented in SECURITY.md
 - Secret management: load `AUTH_TOKEN`, `APPROVER_TOKEN`, `JWT_SECRET`, `DATABASE_URL`, and `REDIS_URL` from `*_FILE` path variables (Docker/K8s/Vault secret mounts); direct env wins, unreadable `*_FILE` is a hard error. Startup validation refuses to boot outside demo mode when required secrets are missing or still demo values (`app/config.py`); documented in SECURITY.md
 - Observability: Prometheus `GET /metrics` endpoint (`asg_decide_total{outcome,reason}`, `asg_decide_latency_seconds`, `asg_opa_errors_total`, `asg_rate_limit_hits_total{bucket}`, `asg_approvals_pending`) and structured JSON decision logs (`app/metrics.py`); adds `prometheus-client` dependency. Metric labels carry no tenant/session identifiers or free text
 - Container hardening: digest-pinned base images, non-root gateway (`USER 10001` +

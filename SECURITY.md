@@ -71,3 +71,19 @@ A direct env value takes precedence over its `*_FILE` counterpart. An unreadable
 When `ASG_DEMO_MODE` is not enabled, the gateway validates required secrets at startup
 and refuses to boot if any are missing or still set to the built-in demo values. Secret
 values are never logged.
+
+## Identity (OIDC)
+
+Set `OIDC_ISSUER` and `OIDC_AUDIENCE` (and optionally `OIDC_JWKS_URL`, which defaults to
+`{issuer}/.well-known/jwks.json`) to accept signed OIDC JWTs. Tokens are verified against
+the provider's JWKS (asymmetric algorithms only — `RS*`/`ES*`) with issuer and audience
+checks. Authorization is role-based:
+
+- `asg:agent` — required for the gateway/agent and approval-request endpoints
+- `asg:approver` — required for approve/deny/list endpoints
+
+Roles are read from the `roles` claim, Keycloak-style `realm_access.roles`, or the OAuth
+`scope` string. When OIDC is enabled, the static agent/approver tokens become optional
+service credentials; `JWT_SECRET` is still required for approval resume-token signing. The
+symmetric `HS256` resume-token path is isolated from OIDC verification so a JWKS key can
+never be used to forge resume tokens (and vice versa).
