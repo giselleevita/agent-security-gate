@@ -7,10 +7,11 @@ CREATE TABLE IF NOT EXISTS approvals (
   action TEXT NOT NULL,
   tool TEXT NOT NULL,
   context JSONB NOT NULL DEFAULT '{}'::jsonb,
-  status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'denied', 'consumed', 'expired')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'first_approved', 'approved', 'denied', 'consumed', 'expired')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at TIMESTAMPTZ NULL,
   approver_id TEXT NULL,
+  first_approver_id TEXT NULL,
   requester_id TEXT NULL,
   expires_at TIMESTAMPTZ NULL
 );
