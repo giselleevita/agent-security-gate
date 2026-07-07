@@ -149,6 +149,17 @@ curl -s "http://localhost:8000/audit?limit=4" \
 
 ## API Reference
 
+### Authentication
+
+All endpoints require a `Authorization: Bearer <token>` header. Two credential types are
+accepted:
+
+- **Static tokens** — `AUTH_TOKEN` (agent) and `APPROVER_TOKEN` (approver). Demo values
+  work only when `ASG_DEMO_MODE=true`.
+- **OIDC JWTs** — when `OIDC_ISSUER`/`OIDC_AUDIENCE` are configured, JWKS-verified tokens
+  are accepted; the `asg:agent` role is required for agent/decide/approval-request calls
+  and `asg:approver` for approve/deny/list calls.
+
 ### Gateway
 
 **POST /v1/gateway/decide**

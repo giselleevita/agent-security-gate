@@ -26,10 +26,14 @@ certifi==2026.5.20
     #   httpcore
     #   httpx
     #   requests
+cffi==2.1.0
+    # via cryptography
 charset-normalizer==3.4.7
     # via requests
 click==8.4.1
     # via uvicorn
+cryptography==49.0.0
+    # via pyjwt
 cyclonedx-python-lib==11.10.0
     # via pip-audit
 defusedxml==0.7.1
@@ -90,6 +94,8 @@ psycopg-pool==3.3.1
     # via psycopg
 py-serializable==2.1.0
     # via cyclonedx-python-lib
+pycparser==3.0
+    # via cffi
 pydantic==2.13.4
     # via
     #   agent-security-gate (pyproject.toml)
@@ -101,7 +107,9 @@ pygments==2.20.0
     #   pytest
     #   rich
 pyjwt==2.13.0
-    # via agent-security-gate (pyproject.toml)
+    # via
+    #   agent-security-gate (pyproject.toml)
+    #   pyjwt
 pyparsing==3.3.2
     # via pip-requirements-parser
 pytest==9.0.3
