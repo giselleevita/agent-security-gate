@@ -29,6 +29,7 @@ from app.config import agent_rate_limit_max as _agent_rate_limit_max
 from app.config import agent_rate_limit_window_s as _agent_rate_limit_window_s
 from app.config import approval_ttl_s as _approval_ttl_s
 from app.config import redis_url as _redis_url
+from app.config import validate_startup_secrets as _validate_startup_secrets
 from app.dlp import load_canaries as _load_canaries
 from app.dlp import scan_tool_output as _scan_tool_output
 from app import metrics as _metrics
@@ -181,6 +182,7 @@ def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    _validate_startup_secrets()
     _metrics.configure_logging()
     yield
     _reset_clients()
