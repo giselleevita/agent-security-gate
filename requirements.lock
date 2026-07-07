@@ -35,6 +35,8 @@ idna==3.18
     # via
     #   anyio
     #   httpx
+prometheus-client==0.25.0
+    # via agent-security-gate (pyproject.toml)
 psycopg==3.3.4
     # via agent-security-gate (pyproject.toml)
 psycopg-binary==3.3.4
