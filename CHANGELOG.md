@@ -31,6 +31,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Canonical approval operation fingerprint (`_operation_key`)
 
 ### Changed
+- Decomposed the `app/main.py` monolith: route handlers moved into `app/routers/` (`observability`, `approvals`, `tools`, `agent`, `decide`); `main.py` retains the app factory, lifespan, pooled clients, and shared decision logic (~820 → ~478 lines). Routers reference shared helpers via the `app.main` module so existing behavior and test patch points are unchanged
 - SSRF and host allowlist enforced on `/v1/gateway/decide` for `http.get`, not only HTTP adapter/proxy
 - Benchmark PEP aligned with runtime HTTP policy semantics (`allowed_http_domains`)
 - Session `max_actions` uses atomic INCR with DECR release on deny (denials do not consume quota)
