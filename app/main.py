@@ -39,6 +39,7 @@ from app.config import opa_url as _opa_url
 from app.config import redis_url as _redis_url
 from app.dlp import load_canaries as _load_canaries
 from app.dlp import scan_tool_output as _scan_tool_output
+from app import metrics as _metrics
 from app.policy import build_opa_input as _build_opa_input
 from app.policy import load_policy_config as _load_policy_config
 from app.policy import opa_post as _opa_post
@@ -156,6 +157,7 @@ def _rate_limit_or_raise(*, bearer_token: str, bucket: str, max_requests: int, w
             oldest = r.zrange(key, 0, 0, withscores=True)
             oldest_ts = float(oldest[0][1]) if oldest else now
             retry_after = max(1, int(window_s - (now - oldest_ts) + 0.999))
+            _metrics.record_rate_limit_hit(bucket)
             raise HTTPException(
                 status_code=429,
                 detail=RateLimitExceededResponse(retry_after_seconds=retry_after).model_dump(),
@@ -196,6 +198,7 @@ def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    _metrics.configure_logging()
     yield
     _reset_clients()
 
@@ -261,6 +264,25 @@ app.add_middleware(_ToolOutputScanMiddleware)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    """
+    Prometheus exposition endpoint. Unauthenticated by convention for in-cluster
+    scraping; labels never include tenant/session identifiers or free text.
+    """
+    try:
+        with _db_connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(*) FROM approvals WHERE status = 'pending'")
+                row = cur.fetchone()
+                _metrics.set_approvals_pending(int(row[0]) if row else 0)
+    except Exception:
+        # Never let a store hiccup fail a scrape; the gauge simply keeps its last value.
+        pass
+    payload, content_type = _metrics.render_latest()
+    return Response(content=payload, media_type=content_type)
 
 
 @app.get("/audit", dependencies=[Depends(verify_approver)])
@@ -518,6 +540,43 @@ def _decide_tool_call(
     resume_token: str | None,
     x_requester_id: str | None,
 ) -> DecideResponse:
+    """Time the decision, emit metrics + a structured log line, and return the result."""
+    t_start = time.perf_counter()
+    try:
+        response = _decide_tool_call_impl(
+            body=body, resume_token=resume_token, x_requester_id=x_requester_id
+        )
+    except BaseException:
+        _metrics.observe_decide_latency(time.perf_counter() - t_start)
+        raise
+
+    elapsed = time.perf_counter() - t_start
+    _metrics.observe_decide_latency(elapsed)
+    if response.allowed:
+        outcome = "allow"
+    elif response.reason == "approval_required":
+        outcome = "approval_required"
+    else:
+        outcome = "deny"
+    _metrics.record_decision(outcome=outcome, reason=response.reason)
+    _metrics.log_decision(
+        audit_id=response.audit_id,
+        tenant_id=body.tenant_id,
+        tool=body.tool,
+        action=body.action,
+        outcome=outcome,
+        reason=response.reason,
+        latency_ms=elapsed * 1000.0,
+    )
+    return response
+
+
+def _decide_tool_call_impl(
+    *,
+    body: DecideRequest,
+    resume_token: str | None,
+    x_requester_id: str | None,
+) -> DecideResponse:
     policy_config = _load_policy_config()
     redis_key = f"sessions:{body.tenant_id}:{body.session_id}:count"
     r = _redis()
@@ -592,7 +651,11 @@ def _decide_tool_call(
 
     with nullcontext(_http()) as client:
         # Single aggregate query instead of separate allow/approval/deny_reason round trips.
-        opa_decision = _opa_post(client, "/v1/data/asg/decision", opa_input)
+        try:
+            opa_decision = _opa_post(client, "/v1/data/asg/decision", opa_input)
+        except (httpx.HTTPError, HTTPException):
+            _metrics.record_opa_error()
+            raise
         approval_required = bool(opa_decision.get("approval_required"))
         allowed = bool(opa_decision.get("allow"))
         deny_reason = str(opa_decision.get("deny_reason") or "policy_denied")
