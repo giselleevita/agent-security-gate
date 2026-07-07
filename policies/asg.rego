@@ -70,8 +70,37 @@ max_actions_exceeded if {
 	object.get(input.session, "action_count", 0) > input.config.max_actions
 }
 
-hard_deny if { denied_prefix_match }
-hard_deny if { denied_doc_id_match }
+# Time-bound policy exceptions: an active exception whose tool and context_match
+# (subset) align with the request can bypass doc-prefix/id denies and approval gates.
+# Safety rails (sensitivity, unknown tool, max_actions, output cap) are never bypassed.
+
+context_matches_exception(ex) if {
+	count(ex.context_match) == 0
+}
+
+context_matches_exception(ex) if {
+	count(ex.context_match) > 0
+	every key, value in ex.context_match {
+		object.get(input.context, key, null) == value
+	}
+}
+
+exception_applies if {
+	some ex in input.active_exceptions
+	ex.tool == input.tool
+	context_matches_exception(ex)
+}
+
+matched_exception_id := ex.id if {
+	some ex in input.active_exceptions
+	ex.tool == input.tool
+	context_matches_exception(ex)
+}
+
+default matched_exception_id := null
+
+hard_deny if { denied_prefix_match; not exception_applies }
+hard_deny if { denied_doc_id_match; not exception_applies }
 hard_deny if { output_too_long }
 hard_deny if { max_actions_exceeded }
 hard_deny if { sensitivity_denied }
@@ -81,6 +110,7 @@ hard_deny if { unsupported_action }
 approval_required if {
 	some t in input.config.approval_required_tools
 	input.tool == t
+	not exception_applies
 }
 
 allow if {
@@ -122,4 +152,5 @@ decision := {
 	"approval_required": approval_required,
 	"allow_after_approval": allow_after_approval,
 	"deny_reason": deny_reason,
+	"exception_id": matched_exception_id,
 }

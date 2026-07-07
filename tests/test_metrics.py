@@ -1,8 +1,43 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from fastapi.testclient import TestClient
 
 import app.main as main
+
+
+class _FakeCursor:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+    def execute(self, *_a, **_k):
+        return None
+
+    def fetchone(self):
+        return (0,)
+
+    def fetchall(self):
+        return []
+
+
+class _FakeConn:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+    def cursor(self):
+        return _FakeCursor()
+
+
+@contextmanager
+def _fake_db_connect():
+    yield _FakeConn()
 
 
 class _FakeRedis:
@@ -58,8 +93,7 @@ def test_metrics_increment_on_allow_and_deny(monkeypatch) -> None:
     fake_r = _FakeRedis()
     monkeypatch.setattr(main.redis.Redis, "from_url", staticmethod(lambda *_a, **_k: fake_r))
     monkeypatch.setattr(main, "_append_audit_event", lambda *_a, **_k: None)
-    # /metrics pending-approvals gauge must not require a real DB.
-    monkeypatch.setattr(main, "_db_connect", lambda: (_ for _ in ()).throw(RuntimeError("no db")))
+    monkeypatch.setattr(main, "_db_connect", _fake_db_connect)
 
     def fake_opa_post(_client, _path, _opa_input):
         return {"allow": True, "approval_required": False, "deny_reason": ""}
@@ -114,7 +148,7 @@ def test_metrics_counts_rate_limit_hits(monkeypatch) -> None:
     fake_r = _FakeRedis()
     monkeypatch.setattr(main.redis.Redis, "from_url", staticmethod(lambda *_a, **_k: fake_r))
     monkeypatch.setattr(main, "_append_audit_event", lambda *_a, **_k: None)
-    monkeypatch.setattr(main, "_db_connect", lambda: (_ for _ in ()).throw(RuntimeError("no db")))
+    monkeypatch.setattr(main, "_db_connect", _fake_db_connect)
 
     def fake_opa_post(_client, _path, _opa_input):
         return {"allow": True, "approval_required": False, "deny_reason": ""}
