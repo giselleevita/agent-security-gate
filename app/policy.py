@@ -18,14 +18,19 @@ def load_policy_config() -> dict[str, Any]:
         "denied_doc_ids": list(raw.get("denied_doc_ids", [])),
         "output_max_chars": int(raw.get("output_max_chars", 2000)),
         "approval_required_tools": list(raw.get("approval_required_tools", [])),
-        "http_allowlist": list(raw.get("http_allowlist", [])),
+        "allowed_http_domains": list(raw.get("allowed_http_domains", [])),
         "max_actions": int(raw.get("max_actions", 50)),
     }
 
 
 def build_opa_input(body: DecideRequest, policy_config: dict[str, Any], *, action_count: int) -> dict[str, Any]:
     ctx = dict(body.context)
-    if "output_length" not in ctx:
+    # Derive output_length from the output ASG can actually see rather than trusting a
+    # caller-supplied value, so the OPA output cap cannot be bypassed by understating it.
+    tool_output = ctx.get("tool_output")
+    if isinstance(tool_output, str):
+        ctx["output_length"] = len(tool_output)
+    elif "output_length" not in ctx:
         ctx["output_length"] = 0
     return {
         "tenant_id": body.tenant_id,

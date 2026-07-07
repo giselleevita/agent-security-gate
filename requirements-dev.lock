@@ -11,7 +11,6 @@ annotated-types==0.7.0
 anyio==4.13.0
     # via
     #   httpx
-    #   httpx2
     #   starlette
     #   watchfiles
 bandit==1.9.4
@@ -42,23 +41,17 @@ filelock==3.29.3
 h11==0.16.0
     # via
     #   httpcore
-    #   httpcore2
     #   uvicorn
 httpcore==1.0.9
     # via httpx
-httpcore2==2.4.0
-    # via httpx2
 httptools==0.8.0
     # via uvicorn
 httpx==0.28.1
-    # via agent-security-gate (pyproject.toml)
-httpx2==2.4.0
     # via agent-security-gate (pyproject.toml)
 idna==3.18
     # via
     #   anyio
     #   httpx
-    #   httpx2
     #   requests
 iniconfig==2.3.0
     # via pytest
@@ -90,6 +83,8 @@ pluggy==1.6.0
 psycopg==3.3.4
     # via agent-security-gate (pyproject.toml)
 psycopg-binary==3.3.4
+    # via psycopg
+psycopg-pool==3.3.1
     # via psycopg
 py-serializable==2.1.0
     # via cyclonedx-python-lib
@@ -142,17 +137,13 @@ tomli==2.4.1
     # via pip-audit
 tomli-w==1.2.0
     # via pip-audit
-truststore==0.10.4
-    # via
-    #   httpcore2
-    #   httpx2
 typing-extensions==4.15.0
     # via
     #   anyio
     #   cyclonedx-python-lib
     #   fastapi
-    #   httpx2
     #   psycopg
+    #   psycopg-pool
     #   pydantic
     #   pydantic-core
     #   starlette

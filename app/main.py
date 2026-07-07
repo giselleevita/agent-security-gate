@@ -4,18 +4,19 @@ import hashlib
 import json
 import time
 import uuid
+from contextlib import asynccontextmanager, nullcontext
 from typing import Any
 
 import httpx
-import psycopg
 import redis
+from psycopg_pool import ConnectionPool
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from adapters.http import GatedHttpClient
+from adapters.http import GatedHttpClient, evaluate_http_target
 from app.audit_log import append_audit_event as _append_audit_event
 from app.auth import (
     require_bearer_token,
@@ -29,6 +30,8 @@ from app.config import audit_log_path as _audit_log_path
 from app.config import database_url as _database_url
 from app.config import agent_rate_limit_max as _agent_rate_limit_max
 from app.config import agent_rate_limit_window_s as _agent_rate_limit_window_s
+from app.config import decide_rate_limit_max as _decide_rate_limit_max
+from app.config import decide_rate_limit_window_s as _decide_rate_limit_window_s
 from app.config import opa_url as _opa_url
 from app.config import redis_url as _redis_url
 from app.dlp import load_canaries as _load_canaries
@@ -52,26 +55,93 @@ from app.schemas import (
 )
 
 
+# Long-lived, pooled clients shared across requests (created lazily so unit tests that
+# never touch these backends don't open real connections). Reset via _reset_clients().
+_redis_singleton: redis.Redis | None = None
+_http_singleton: httpx.Client | None = None
+_db_pool_singleton: ConnectionPool | None = None
+
+
+def _redis() -> redis.Redis:
+    global _redis_singleton
+    if _redis_singleton is None:
+        _redis_singleton = redis.Redis.from_url(_redis_url(), decode_responses=True)
+    return _redis_singleton
+
+
+def _http() -> httpx.Client:
+    global _http_singleton
+    if _http_singleton is None:
+        _http_singleton = httpx.Client(timeout=10.0)
+    return _http_singleton
+
+
+def _db_pool() -> ConnectionPool:
+    global _db_pool_singleton
+    if _db_pool_singleton is None:
+        _db_pool_singleton = ConnectionPool(_database_url(), min_size=1, max_size=10, open=True)
+    return _db_pool_singleton
+
+
 def _db_connect():
-    return psycopg.connect(_database_url())
+    # Returns a pooled-connection context manager; commits/rolls back and returns the
+    # connection to the pool on exit, matching the previous psycopg.connect() semantics.
+    return _db_pool().connection()
 
 
-def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
+_OPERATION_VOLATILE_KEYS = {"tool_output", "output_length"}
+
+
+def _operation_key(action: str, tool: str, context: dict[str, Any]) -> str:
     """
-    Redis ZSET sliding window rate limit.
-      - key per bearer token
-      - max N requests per window seconds
+    Canonical fingerprint of the operation an approval is bound to.
+
+    Compares action + tool + the meaningful context, ignoring volatile output-scanning
+    fields and key ordering so a legitimate resume isn't rejected over incidental
+    differences (while still binding the approval to the actual operation).
     """
-    window_s = _agent_rate_limit_window_s()
-    max_requests = _agent_rate_limit_max()
+    filtered = {k: v for k, v in context.items() if k not in _OPERATION_VOLATILE_KEYS}
+    return json.dumps(
+        {"action": action, "tool": tool, "context": filtered},
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+
+
+def _reset_clients() -> None:
+    """Dispose shared clients/pools (used by tests for isolation and on shutdown)."""
+    global _redis_singleton, _http_singleton, _db_pool_singleton
+    _redis_singleton = None
+    if _http_singleton is not None:
+        try:
+            _http_singleton.close()
+        except Exception:
+            pass
+        _http_singleton = None
+    if _db_pool_singleton is not None:
+        try:
+            _db_pool_singleton.close()
+        except Exception:
+            pass
+        _db_pool_singleton = None
+
+
+def _rate_limit_or_raise(*, bearer_token: str, bucket: str, max_requests: int, window_s: int) -> None:
+    """
+    Redis ZSET sliding-window rate limit, keyed per (bucket, bearer token).
+
+    Fails closed: if the limit cannot be enforced (Redis unavailable), the request is
+    rejected rather than allowed.
+    """
     now = time.time()
     cutoff = now - window_s
 
     token_hash = hashlib.sha256(bearer_token.encode("utf-8")).hexdigest()
-    key = f"rate:agent:{token_hash}"
+    key = f"rate:{bucket}:{token_hash}"
 
     try:
-        r = redis.Redis.from_url(_redis_url(), decode_responses=True)
+        r = _redis()
         # Clean up old entries.
         r.zremrangebyscore(key, 0, cutoff)
         # Add current request.
@@ -89,11 +159,25 @@ def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
                 headers={"Retry-After": str(retry_after)},
             )
     except redis.RedisError as exc:
-        # Fail closed: if we can't enforce the limit, don't allow /agent.
-        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+        raise HTTPException(status_code=503, detail="rate limiter unavailable") from exc
 
 
-app = FastAPI(title="Agent Security Gate", version="0.2.0")
+def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
+    _rate_limit_or_raise(
+        bearer_token=bearer_token,
+        bucket="agent",
+        max_requests=_agent_rate_limit_max(),
+        window_s=_agent_rate_limit_window_s(),
+    )
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    yield
+    _reset_clients()
+
+
+app = FastAPI(title="Agent Security Gate", version="0.5.0", lifespan=_lifespan)
 
 
 class _ToolOutputScanMiddleware(BaseHTTPMiddleware):
@@ -180,11 +264,11 @@ def health_ready() -> dict[str, str]:
         r = httpx.get(f"{_opa_url()}/health", timeout=2.0)
         r.raise_for_status()
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=503, detail=f"OPA not ready: {exc}") from exc
+        raise HTTPException(status_code=503, detail="OPA not ready") from exc
     try:
-        redis.Redis.from_url(_redis_url(), decode_responses=True).ping()
+        _redis().ping()
     except redis.RedisError as exc:
-        raise HTTPException(status_code=503, detail=f"redis not ready: {exc}") from exc
+        raise HTTPException(status_code=503, detail="redis not ready") from exc
     return {"status": "ready"}
 
 
@@ -332,8 +416,7 @@ def http_proxy(
 ) -> HttpProxyResponse:
     policy = _load_policy_config()
     client = GatedHttpClient(
-        opa_url=_opa_url(),
-        http_allowlist=[str(u) for u in policy.get("http_allowlist", [])],
+        allowed_hosts=[str(h) for h in policy.get("allowed_http_domains", [])],
         output_max_chars=int(policy.get("output_max_chars", 2000)),
     )
     try:
@@ -363,7 +446,7 @@ def docs_read(
         ctx["doc_id"] = body.doc_id
     opa_input = {"action": "tool_call", "tool": "docs.read", "context": ctx, "config": policy}
 
-    with httpx.Client(timeout=10.0) as client:
+    with nullcontext(_http()) as client:
         allowed = bool(_opa_post(client, "/v1/data/asg/allow", opa_input))
         if not allowed:
             reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
@@ -390,13 +473,7 @@ def _decide_tool_call(
 ) -> DecideResponse:
     policy_config = _load_policy_config()
     redis_key = f"sessions:{body.tenant_id}:{body.session_id}:count"
-    try:
-        r = redis.Redis.from_url(_redis_url(), decode_responses=True)
-        action_count = int(r.incr(redis_key))
-        if action_count == 1:
-            r.expire(redis_key, 86400)
-    except redis.RedisError as exc:
-        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+    r = _redis()
 
     tool_output = body.context.get("tool_output")
     if isinstance(tool_output, str) and tool_output:
@@ -431,17 +508,47 @@ def _decide_tool_call(
         _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
         return response
 
+    # SSRF + host-allowlist enforcement for outbound HTTP on the main decision path,
+    # using the same evaluator the gated client and benchmark rely on.
+    if body.tool == "http.get":
+        http_decision, _ = evaluate_http_target(
+            url=str(body.context.get("url", "")),
+            method=str(body.context.get("method", "GET")),
+            allowed_hosts=list(policy_config.get("allowed_http_domains", [])),
+            resolve_dns=True,
+        )
+        if not http_decision.allowed:
+            audit_id = f"evt_{uuid.uuid4().hex}"
+            response = DecideResponse(
+                allowed=False,
+                reason=http_decision.reason,
+                audit_id=audit_id,
+                latency_ms=0.0,
+                approval_url=None,
+            )
+            _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
+            return response
+
+    # Reserve a session action slot with a single atomic INCR. Denied and approval-pending
+    # outcomes release the slot below, so only allowed actions consume session quota and
+    # the max_actions cap cannot be exceeded under concurrency.
+    try:
+        action_count = int(r.incr(redis_key))
+        if action_count == 1:
+            r.expire(redis_key, 86400)
+    except redis.RedisError as exc:
+        raise HTTPException(status_code=503, detail="session store unavailable") from exc
+
     opa_input = _build_opa_input(body, policy_config, action_count=action_count)
     audit_id = f"evt_{uuid.uuid4().hex}"
     t0 = time.perf_counter()
 
-    with httpx.Client() as client:
-        approval_required = bool(_opa_post(client, "/v1/data/asg/approval_required", opa_input))
-        allowed = bool(_opa_post(client, "/v1/data/asg/allow", opa_input))
-        deny_reason_raw = None
-        if not allowed:
-            deny_reason_raw = _opa_post(client, "/v1/data/asg/deny_reason", opa_input)
-        deny_reason = str(deny_reason_raw) if deny_reason_raw is not None else "policy_denied"
+    with nullcontext(_http()) as client:
+        # Single aggregate query instead of separate allow/approval/deny_reason round trips.
+        opa_decision = _opa_post(client, "/v1/data/asg/decision", opa_input)
+        approval_required = bool(opa_decision.get("approval_required"))
+        allowed = bool(opa_decision.get("allow"))
+        deny_reason = str(opa_decision.get("deny_reason") or "policy_denied")
 
         if allowed:
             reason = "allow"
@@ -482,13 +589,15 @@ def _decide_tool_call(
                             raise HTTPException(status_code=401, detail="approval record does not match request")
                         if db_requester_id is not None and str(db_requester_id) != requester_id:
                             raise HTTPException(status_code=401, detail="approval requester mismatch")
-                        if str(action) != body.action or str(tool) != body.tool or dict(context) != body.context:
+                        if _operation_key(str(action), str(tool), dict(context)) != _operation_key(
+                            body.action, body.tool, body.context
+                        ):
                             raise HTTPException(
                                 status_code=401,
                                 detail="approval record does not match requested operation",
                             )
 
-                allowed_after_approval = bool(_opa_post(client, "/v1/data/asg/allow_after_approval", opa_input))
+                allowed_after_approval = bool(opa_decision.get("allow_after_approval"))
                 if allowed_after_approval:
                     with _db_connect() as conn:
                         with conn.cursor() as cur:
@@ -511,6 +620,15 @@ def _decide_tool_call(
             reason = deny_reason
 
     latency_ms = (time.perf_counter() - t0) * 1000.0
+
+    # Release the reserved slot for denied/approval-pending outcomes; best-effort, since
+    # the atomic INCR above already guarantees the cap is never exceeded.
+    if not allowed:
+        try:
+            r.decr(redis_key)
+        except redis.RedisError:
+            pass
+
     response = DecideResponse(
         allowed=allowed,
         reason=reason,
@@ -528,9 +646,7 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
     Demo façade: take a plain-text prompt and map it to a representative tool call
     that is enforced by the gateway/OPA seam.
     """
-    # Rate limit: max 5 requests/min per Bearer token.
-    # We re-parse the auth token from the environment default to avoid pulling it from request context.
-    # Since verify_bearer already validated it, we treat the expected token as the key.
+    # Rate limit the demo façade per Bearer token (separate budget from /v1/gateway/decide).
     token_key = bearer_token
     try:
         _rate_limit_agent_or_raise(bearer_token=token_key)
@@ -548,8 +664,7 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
     if "169.254.169.254" in text or "meta-data" in text:
         policy = _load_policy_config()
         client = GatedHttpClient(
-            opa_url=_opa_url(),
-            http_allowlist=[str(u) for u in policy.get("http_allowlist", [])],
+            allowed_hosts=[str(h) for h in policy.get("allowed_http_domains", [])],
             output_max_chars=int(policy.get("output_max_chars", 2000)),
         )
         audit_id = f"evt_{uuid.uuid4().hex}"
@@ -617,8 +732,21 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
 @app.post("/v1/gateway/decide", response_model=DecideResponse)
 def gateway_decide(
     body: DecideRequest,
-    _: None = Depends(verify_bearer),
+    bearer_token: str = Depends(require_bearer_token),
     resume_token: str | None = Header(default=None, alias="Resume-Token"),
     x_requester_id: str | None = Header(default=None, alias="X-Requester-Id"),
-) -> DecideResponse:
+):
+    try:
+        _rate_limit_or_raise(
+            bearer_token=bearer_token,
+            bucket="decide",
+            max_requests=_decide_rate_limit_max(),
+            window_s=_decide_rate_limit_window_s(),
+        )
+    except HTTPException as exc:
+        if exc.status_code == 429 and isinstance(exc.detail, dict):
+            audit_id = f"evt_{uuid.uuid4().hex}"
+            _append_audit_event(audit_id, {"request": body.model_dump(), "response": exc.detail})
+            return JSONResponse(status_code=429, content=exc.detail, headers=exc.headers or {})
+        raise
     return _decide_tool_call(body=body, resume_token=resume_token, x_requester_id=x_requester_id)

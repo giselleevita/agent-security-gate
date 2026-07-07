@@ -39,6 +39,8 @@ psycopg==3.3.4
     # via agent-security-gate (pyproject.toml)
 psycopg-binary==3.3.4
     # via psycopg
+psycopg-pool==3.3.1
+    # via psycopg
 pydantic==2.13.4
     # via
     #   agent-security-gate (pyproject.toml)
@@ -62,6 +64,7 @@ typing-extensions==4.15.0
     #   anyio
     #   fastapi
     #   psycopg
+    #   psycopg-pool
     #   pydantic
     #   pydantic-core
     #   starlette
