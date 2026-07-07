@@ -17,8 +17,12 @@ certifi==2026.5.20
     # via
     #   httpcore
     #   httpx
+cffi==2.1.0
+    # via cryptography
 click==8.4.1
     # via uvicorn
+cryptography==49.0.0
+    # via pyjwt
 fastapi==0.136.3
     # via agent-security-gate (pyproject.toml)
 h11==0.16.0
@@ -43,6 +47,8 @@ psycopg-binary==3.3.4
     # via psycopg
 psycopg-pool==3.3.1
     # via psycopg
+pycparser==3.0
+    # via cffi
 pydantic==2.13.4
     # via
     #   agent-security-gate (pyproject.toml)
@@ -50,7 +56,9 @@ pydantic==2.13.4
 pydantic-core==2.46.4
     # via pydantic
 pyjwt==2.13.0
-    # via agent-security-gate (pyproject.toml)
+    # via
+    #   agent-security-gate (pyproject.toml)
+    #   pyjwt
 python-dotenv==1.2.2
     # via uvicorn
 pyyaml==6.0.3

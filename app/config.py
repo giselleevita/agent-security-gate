@@ -25,6 +25,9 @@ LEGACY_RATE_LIMIT_WINDOW_ENV = "RATE_LIMIT_WINDOW"
 DLP_PATTERNS_PATH_ENV = "DLP_PATTERNS_PATH"
 CANARIES_PATH_ENV = "CANARIES_PATH"
 DEMO_MODE_ENV = "ASG_DEMO_MODE"
+OIDC_ISSUER_ENV = "OIDC_ISSUER"
+OIDC_AUDIENCE_ENV = "OIDC_AUDIENCE"
+OIDC_JWKS_URL_ENV = "OIDC_JWKS_URL"
 
 DEMO_AUTH_TOKEN = "test-token"
 DEMO_APPROVER_TOKEN = "approver-token"
@@ -86,6 +89,31 @@ def demo_mode_enabled() -> bool:
     return os.environ.get(DEMO_MODE_ENV, "false").lower() in {"1", "true", "yes", "on"}
 
 
+def oidc_issuer() -> str | None:
+    value = os.environ.get(OIDC_ISSUER_ENV)
+    return value.strip() if value and value.strip() else None
+
+
+def oidc_audience() -> str | None:
+    value = os.environ.get(OIDC_AUDIENCE_ENV)
+    return value.strip() if value and value.strip() else None
+
+
+def oidc_jwks_url() -> str | None:
+    explicit = os.environ.get(OIDC_JWKS_URL_ENV)
+    if explicit and explicit.strip():
+        return explicit.strip()
+    issuer = oidc_issuer()
+    if issuer:
+        # Standard OIDC discovery location for the signing key set.
+        return f"{issuer.rstrip('/')}/.well-known/jwks.json"
+    return None
+
+
+def oidc_enabled() -> bool:
+    return oidc_issuer() is not None and oidc_audience() is not None
+
+
 def required_secret(env_name: str, *, demo_value: str) -> str:
     value = _read_env_or_file(env_name)
     if demo_mode_enabled():
@@ -97,24 +125,24 @@ def required_secret(env_name: str, *, demo_value: str) -> str:
     return value
 
 
-# Secrets that must be present (and not the demo placeholder) when demo mode is off.
-_REQUIRED_SECRETS = (
-    (AUTH_TOKEN_ENV, DEMO_AUTH_TOKEN),
-    (APPROVER_TOKEN_ENV, DEMO_APPROVER_TOKEN),
-    (JWT_SECRET_ENV, DEMO_JWT_SECRET),
-)
-
-
 def validate_startup_secrets() -> None:
     """
     Fail loudly at startup if required secrets are missing or still the demo values
     while running outside demo mode. Raises RuntimeError so the process aborts before
     serving traffic instead of returning 500s per request.
+
+    JWT_SECRET (resume-token signing) is always required. The static agent/approver
+    tokens are required only when OIDC is not configured; with OIDC enabled they become
+    optional service credentials.
     """
     if demo_mode_enabled():
         return
+    required = [(JWT_SECRET_ENV, DEMO_JWT_SECRET)]
+    if not oidc_enabled():
+        required.append((AUTH_TOKEN_ENV, DEMO_AUTH_TOKEN))
+        required.append((APPROVER_TOKEN_ENV, DEMO_APPROVER_TOKEN))
     missing: list[str] = []
-    for env_name, demo_value in _REQUIRED_SECRETS:
+    for env_name, demo_value in required:
         value = _read_env_or_file(env_name)
         if value is None or not value.strip() or value == demo_value:
             missing.append(env_name)
