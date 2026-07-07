@@ -88,6 +88,47 @@ def test_http_client_blocks_non_allowlisted_host(monkeypatch) -> None:
     assert body is None
 
 
+def test_http_client_blocks_dns_rebinding_to_loopback(monkeypatch) -> None:
+    # Host is allowlisted, but the authoritative connect-time resolution returns a
+    # loopback address (DNS rebinding); the pinned connect must refuse it.
+    def fake_getaddrinfo(*_args, **_kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    client = GatedHttpClient(allowed_hosts=["example.com"])
+
+    try:
+        decision, body = client.request("GET", "https://example.com/")
+    finally:
+        client.close()
+
+    assert decision.allowed is False
+    assert decision.reason == "ssrf_blocked_resolved_ip"
+    assert body is None
+
+
+def test_http_client_pins_resolved_ip(monkeypatch) -> None:
+    def fake_getaddrinfo(*_args, **_kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="ok")
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+    client = GatedHttpClient(allowed_hosts=["example.com"])
+    client._client = httpx.Client(transport=httpx.MockTransport(handler))  # noqa: SLF001
+
+    try:
+        decision, body = client.request("GET", "https://example.com/")
+    finally:
+        client.close()
+
+    assert decision.allowed is True
+    assert body == "ok"
+    # The hostname is pinned to the validated IP used for the actual connect.
+    assert client._pinned["example.com"] == "93.184.216.34"  # noqa: SLF001
+
+
 def test_evaluate_http_target_blocks_metadata_ip_literal() -> None:
     decision, normalized = evaluate_http_target(
         url="http://169.254.169.254/latest/meta-data/",
