@@ -17,6 +17,7 @@ from app.config import (
     approval_rate_limit_window_s as _approval_rate_limit_window_s,
     approval_ttl_s as _approval_ttl_s,
 )
+from app.policy import load_policy_config as _load_policy_config
 from app.schemas import (
     ApprovalCreateRequest,
     ApprovalCreateResponse,
@@ -75,11 +76,12 @@ def approvals_approve(
     x_approver_id: str | None = Header(default=None, alias="X-Approver-Id"),
 ) -> ApprovalResolveResponse:
     approver_id = _require_header(x_approver_id, "X-Approver-Id")
+    dual_approval_tools = set(_load_policy_config().get("dual_approval_tools", []))
     with m._db_connect() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT tenant_id, session_id, requester_id, status,
+                SELECT tenant_id, session_id, requester_id, status, tool, first_approver_id,
                        (expires_at IS NOT NULL AND expires_at < now()) AS is_expired
                 FROM approvals
                 WHERE id = %s
@@ -90,24 +92,56 @@ def approvals_approve(
             row = cur.fetchone()
             if row is None:
                 raise HTTPException(status_code=404, detail="approval request not found")
-            tenant_id, session_id, requester_id, status, is_expired = row
+            tenant_id, session_id, requester_id, status, tool, first_approver_id, is_expired = row
             if requester_id is not None and requester_id == approver_id:
                 raise HTTPException(status_code=403, detail="self-approval is not allowed")
-            if status == "pending" and is_expired:
+            if status in ("pending", "first_approved") and is_expired:
                 # Persisted to 'expired' by the sweep in approvals_request; rejecting
                 # here (rollback) is sufficient to enforce the TTL.
                 raise HTTPException(status_code=409, detail="approval request is already expired")
-            if status != "pending":
-                raise HTTPException(status_code=409, detail=f"approval request is already {status}")
 
-            cur.execute(
-                """
-                UPDATE approvals
-                SET status = 'approved', resolved_at = now(), approver_id = %s
-                WHERE id = %s
-                """,
-                (approver_id, request_id),
-            )
+            requires_dual = tool in dual_approval_tools
+
+            if requires_dual and status == "pending":
+                # First of two required approvals: record the approver and hold in
+                # first_approved. No resume token is issued until a second, distinct
+                # approver signs off.
+                cur.execute(
+                    """
+                    UPDATE approvals
+                    SET status = 'first_approved', first_approver_id = %s
+                    WHERE id = %s
+                    """,
+                    (approver_id, request_id),
+                )
+                return ApprovalResolveResponse(request_id=request_id, status="first_approved", resume_token=None)
+
+            if requires_dual and status == "first_approved":
+                # Second approval: enforce separation of duties between the two approvers.
+                if first_approver_id is not None and first_approver_id == approver_id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="dual-control requires a second, distinct approver",
+                    )
+                cur.execute(
+                    """
+                    UPDATE approvals
+                    SET status = 'approved', resolved_at = now(), approver_id = %s
+                    WHERE id = %s
+                    """,
+                    (approver_id, request_id),
+                )
+            elif not requires_dual and status == "pending":
+                cur.execute(
+                    """
+                    UPDATE approvals
+                    SET status = 'approved', resolved_at = now(), approver_id = %s
+                    WHERE id = %s
+                    """,
+                    (approver_id, request_id),
+                )
+            else:
+                raise HTTPException(status_code=409, detail=f"approval request is already {status}")
     resume_token = _sign_resume_token(
         request_id=request_id,
         tenant_id=str(tenant_id),
@@ -131,7 +165,9 @@ def approvals_deny(
             if row is None:
                 raise HTTPException(status_code=404, detail="approval request not found")
             status = row[0]
-            if status != "pending":
+            # A single approver can deny a request that is still awaiting approval(s),
+            # including one that has only its first dual-control approval.
+            if status not in ("pending", "first_approved"):
                 raise HTTPException(status_code=409, detail=f"approval request is already {status}")
             cur.execute(
                 """
