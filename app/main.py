@@ -29,6 +29,9 @@ from app.config import database_url as _database_url
 from app.config import agent_rate_limit_max as _agent_rate_limit_max
 from app.config import agent_rate_limit_window_s as _agent_rate_limit_window_s
 from app.config import approval_ttl_s as _approval_ttl_s
+from app.config import enforce_mode as _enforce_mode
+from app.config import enforce_recording_enabled as _enforce_recording_enabled
+from app.config import enforce_ttl_s as _enforce_ttl_s
 from app.config import redis_url as _redis_url
 from app.config import validate_startup_secrets as _validate_startup_secrets
 from app.dlp import load_canaries as _load_canaries
@@ -98,6 +101,60 @@ def _operation_key(action: str, tool: str, context: dict[str, Any]) -> str:
         separators=(",", ":"),
         default=str,
     )
+
+
+def _enforce_key(audit_id: str) -> str:
+    return f"enforce:{audit_id}"
+
+
+def _record_enforcement_grant(audit_id: str, operation_key: str) -> None:
+    """
+    Record a single-use grant so a subsequent tool call for the same operation can prove a
+    prior allow decision. Best-effort: enforcement is a defense-in-depth layer, so a Redis
+    hiccup here must never fail an otherwise-allowed decision.
+    """
+    if not _enforce_recording_enabled():
+        return
+    try:
+        _redis().set(_enforce_key(audit_id), operation_key, ex=_enforce_ttl_s())
+    except redis.RedisError:
+        pass
+
+
+def _enforce_tool_execution(*, audit_id: str | None, operation_key: str) -> None:
+    """
+    Gate a side-effecting tool endpoint on a prior decide grant.
+
+    - ``off``: no-op.
+    - ``strict``: a valid, matching, unused grant is mandatory (403 otherwise).
+    - ``permissive``: a supplied grant is verified and consumed; a missing one is allowed.
+
+    Grants are single-use (atomic GETDEL) so a captured ``audit_id`` cannot be replayed.
+    """
+    mode = _enforce_mode()
+    if mode == "off":
+        return
+    if audit_id is None:
+        if mode == "strict":
+            raise HTTPException(
+                status_code=403,
+                detail="enforcement required: missing X-ASG-Audit-Id (call /v1/gateway/decide first)",
+            )
+        return
+    try:
+        stored = _redis().getdel(_enforce_key(audit_id))
+    except redis.RedisError as exc:
+        raise HTTPException(status_code=503, detail="enforcement store unavailable") from exc
+    if stored is None:
+        raise HTTPException(
+            status_code=403,
+            detail="enforcement token not found, expired, or already used",
+        )
+    if str(stored) != operation_key:
+        raise HTTPException(
+            status_code=403,
+            detail="enforcement token does not match the requested operation",
+        )
 
 
 def _reset_clients() -> None:
@@ -480,6 +537,11 @@ def _decide_tool_call_impl(
             r.decr(redis_key)
         except redis.RedisError:
             pass
+
+    # Record a single-use enforcement grant so a follow-up tool call can prove this allow
+    # decision happened (see _enforce_tool_execution). No-op unless enforcement is enabled.
+    if allowed:
+        _record_enforcement_grant(audit_id, _operation_key(body.action, body.tool, body.context))
 
     response = DecideResponse(
         allowed=allowed,

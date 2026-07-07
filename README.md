@@ -213,6 +213,26 @@ Rules:
   The first approval returns `first_approved` (no resume token); a second approver with a
   different `X-Approver-Id` completes it and returns the resume token
 
+### Enforcement (connector SDK)
+
+ASG can only govern agents that route side effects through it. The `asg_sdk` package and the
+`X-ASG-Audit-Id` contract make that mandatory:
+
+1. call `POST /v1/gateway/decide` before a side effect,
+2. pass the returned `audit_id` to the tool endpoint,
+3. with `ASG_ENFORCE_MODE=strict`, tool endpoints refuse (403) any call lacking a valid,
+   single-use, operation-bound grant.
+
+```python
+from asg_sdk import AsgClient, AsgDenied
+
+with AsgClient("http://asg:8000", token="...", tenant_id="acme", requester_id="agent-1") as c:
+    doc = c.docs_read("/public/readme.md")   # decide + execute; raises AsgDenied if denied
+```
+
+Modes: `off` (default), `permissive` (record + verify when present), `strict` (mandatory).
+See [docs/connector-sdk.md](docs/connector-sdk.md) and [`examples/gated_agent.py`](examples/gated_agent.py).
+
 ### HTTP Adapter
 
 **POST /v1/http/proxy**
@@ -293,6 +313,8 @@ Environment variables:
 | `AUDIT_HMAC_KEY` | unset | HMAC key to sign audit entries (also `AUDIT_HMAC_KEY_FILE`) |
 | `AUDIT_S3_BUCKET` | unset | Enable S3 Object Lock audit mirror (requires `s3` extra) |
 | `AUDIT_S3_RETENTION_DAYS` | `0` | Per-object WORM retention when mirroring (0 relies on bucket default) |
+| `ASG_ENFORCE_MODE` | `off` | Tool-execution enforcement: `off` / `permissive` / `strict` |
+| `ASG_ENFORCE_TTL_S` | `300` | Seconds a decide grant stays valid for a follow-up tool call |
 | `ASG_DEMO_MODE` | `false` | Enables documented demo credentials for local compose |
 | `AUTH_TOKEN` | required unless demo mode | Agent/API bearer token |
 | `APPROVER_TOKEN` | required unless demo mode | Approver bearer token |

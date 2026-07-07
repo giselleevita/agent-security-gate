@@ -8,6 +8,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md requirements.lock ./
 COPY app ./app
+COPY asg_sdk ./asg_sdk
 COPY audit ./audit
 COPY adapters ./adapters
 COPY policies ./policies
