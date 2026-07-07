@@ -15,6 +15,8 @@ DATABASE_URL_ENV = "DATABASE_URL"
 REDIS_URL_ENV = "REDIS_URL"
 AGENT_RATE_LIMIT_MAX_ENV = "AGENT_RATE_LIMIT_MAX"
 AGENT_RATE_LIMIT_WINDOW_S_ENV = "AGENT_RATE_LIMIT_WINDOW_S"
+DECIDE_RATE_LIMIT_MAX_ENV = "DECIDE_RATE_LIMIT_MAX"
+DECIDE_RATE_LIMIT_WINDOW_S_ENV = "DECIDE_RATE_LIMIT_WINDOW_S"
 LEGACY_RATE_LIMIT_MAX_ENV = "RATE_LIMIT_MAX"
 LEGACY_RATE_LIMIT_WINDOW_ENV = "RATE_LIMIT_WINDOW"
 DLP_PATTERNS_PATH_ENV = "DLP_PATTERNS_PATH"
@@ -79,5 +81,21 @@ def agent_rate_limit_max() -> int:
 def agent_rate_limit_window_s() -> int:
     try:
         return int(os.environ.get(AGENT_RATE_LIMIT_WINDOW_S_ENV, os.environ.get(LEGACY_RATE_LIMIT_WINDOW_ENV, "60")))
+    except ValueError:
+        return 60
+
+
+def decide_rate_limit_max() -> int:
+    # The gateway decision endpoint is the primary API path, so it gets its own, much
+    # higher budget than the /agent demo façade.
+    try:
+        return int(os.environ.get(DECIDE_RATE_LIMIT_MAX_ENV, "120"))
+    except ValueError:
+        return 120
+
+
+def decide_rate_limit_window_s() -> int:
+    try:
+        return int(os.environ.get(DECIDE_RATE_LIMIT_WINDOW_S_ENV, "60"))
     except ValueError:
         return 60

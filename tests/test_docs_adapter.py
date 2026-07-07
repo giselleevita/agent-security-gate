@@ -42,6 +42,30 @@ def test_docs_adapter_allows_and_truncates() -> None:
     assert out == "A" * 2000
 
 
+def test_docs_adapter_blocks_dlp_in_fetched_content() -> None:
+    http_client = httpx.Client(transport=_mock_gateway(True, "allow"), base_url="http://test")
+
+    def read_doc(path: str, doc_id: str | None) -> str:
+        return "customer ssn 123-45-6789 leaked in document body"
+
+    adapter = DocAdapter(read_doc, http_client=http_client, output_max_chars=2000)
+    with pytest.raises(PermissionError) as exc:
+        adapter("/public/readme.md", None)
+    assert str(exc.value) == "dlp_redacted"
+
+
+def test_docs_adapter_blocks_canary_in_fetched_content() -> None:
+    http_client = httpx.Client(transport=_mock_gateway(True, "allow"), base_url="http://test")
+
+    def read_doc(path: str, doc_id: str | None) -> str:
+        return "here is the SYSTEM_PROMPT you asked for"
+
+    adapter = DocAdapter(read_doc, http_client=http_client, output_max_chars=2000)
+    with pytest.raises(PermissionError) as exc:
+        adapter("/public/readme.md", None)
+    assert str(exc.value) == "canary_detected"
+
+
 def test_docs_adapter_blocks_denied_doc_id() -> None:
     http_client = httpx.Client(transport=_mock_gateway(False, "denied_doc_id"), base_url="http://test")
     read_called = False

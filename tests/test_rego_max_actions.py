@@ -24,7 +24,7 @@ def test_rego_max_actions_exceeded_reason() -> None:
                 "output_max_chars": 2000,
                 "approval_required_tools": [],
                 "allowed_tools": ["docs.read"],
-                "http_allowlist": [],
+                "allowed_http_domains": [],
                 "max_actions": 50,
             },
         }

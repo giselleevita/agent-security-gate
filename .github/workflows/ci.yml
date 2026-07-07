@@ -65,3 +65,38 @@ jobs:
         uses: github/codeql-action/upload-sarif@411bbbe57033eedfc1a82d68c01345aa96c737d7 # v4
         with:
           sarif_file: results/benchmark.sarif
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.11"
+
+      - name: Start stack
+        run: docker compose up -d --build
+
+      - name: Wait for gateway ready
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health/ready && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8000/health/ready
+
+      - name: Show stack logs on readiness failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Run integration tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install --constraint requirements-dev.lock -e ".[dev]"
+          pytest -m integration --timeout=30
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

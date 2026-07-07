@@ -8,7 +8,6 @@ default allow := false
 default hard_deny := false
 default approval_required := false
 default allow_after_approval := false
-default http_allowed := false
 
 path := object.get(input.context, "path", "")
 
@@ -93,11 +92,10 @@ allow_after_approval if {
 	not hard_deny
 }
 
-http_allowed if {
-	input.tool == "http.get"
-	some u in input.config.http_allowlist
-	object.get(input.context, "url", "") == u
-}
+# HTTP egress (URL allowlist + SSRF) is enforced by the shared Python evaluator in
+# adapters/http.py (evaluate_http_target), because DNS-resolution checks required to
+# stop rebinding cannot be expressed in Rego. That evaluator is shared by the runtime
+# gateway and the benchmark PEP to keep enforcement identical across both paths.
 
 default deny_reason := "policy_denied"
 
@@ -115,4 +113,13 @@ deny_reason := "sensitivity_label_denied" if {
 	denied_doc_id_match
 } else := "output_too_long" if {
 	output_too_long
+}
+
+# Aggregate decision so the gateway can resolve a tool call in a single OPA query
+# instead of separate allow / approval_required / deny_reason / allow_after_approval calls.
+decision := {
+	"allow": allow,
+	"approval_required": approval_required,
+	"allow_after_approval": allow_after_approval,
+	"deny_reason": deny_reason,
 }

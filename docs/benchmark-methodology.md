@@ -14,6 +14,12 @@ proves security.
 The benchmark does not import or simulate a separate agent runtime. Runtime FastAPI +
 OPA integration tests remain authoritative for the deployed enforcement path.
 
+HTTP egress decisions (SSRF and host allowlisting) are made by the same shared evaluator
+(`adapters/http.py::evaluate_http_target`) used by the runtime gateway, so the benchmark
+and runtime apply identical URL policy. The only intentional difference is that the
+offline benchmark skips DNS resolution to keep replay deterministic; the runtime path
+resolves DNS to also block rebinding to internal addresses.
+
 ## Scenarios
 
 Scenarios are validated from `benchmark/scenarios/scenarios.yaml`. Each scenario
