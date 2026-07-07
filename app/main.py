@@ -36,6 +36,7 @@ from app import metrics as _metrics
 from app.policy import build_opa_input as _build_opa_input
 from app.policy import load_policy_config as _load_policy_config
 from app.policy import opa_post as _opa_post
+from app.policy import tenant_known as _tenant_known
 from app.exceptions import load_active_policy_exceptions as _load_active_policy_exceptions
 from app.schemas import (
     DecideRequest,
@@ -291,7 +292,22 @@ def _decide_tool_call_impl(
     resume_token: str | None,
     x_requester_id: str | None,
 ) -> DecideResponse:
-    policy_config = _load_policy_config()
+    # Tenant isolation: in strict mode an unknown tenant (no dedicated policy file) is
+    # denied outright so it can never inherit another tenant's or a permissive default
+    # policy. Otherwise the tenant's own policy file overrides the default.
+    if not _tenant_known(body.tenant_id):
+        audit_id = f"evt_{uuid.uuid4().hex}"
+        response = DecideResponse(
+            allowed=False,
+            reason="unknown_tenant",
+            audit_id=audit_id,
+            latency_ms=0.0,
+            approval_url=None,
+        )
+        _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
+        return response
+
+    policy_config = _load_policy_config(body.tenant_id)
     redis_key = f"sessions:{body.tenant_id}:{body.session_id}:count"
     r = _redis()
 
