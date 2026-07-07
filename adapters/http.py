@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+import httpcore
 import httpx
 
 
@@ -34,22 +35,35 @@ def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     )
 
 
-def _assert_safe_dns_target(host: str, port: int | None) -> None:
+def resolve_safe_addresses(host: str, port: int | None) -> list[str]:
+    """
+    Resolve `host` and return its IPs, raising if any resolves to a blocked range.
+
+    Returns the validated addresses (deduped, resolution order preserved) so callers
+    can pin the actual TCP connection to a checked IP and close the DNS TOCTOU window.
+    """
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise ValueError("dns_resolution_failed") from exc
 
-    addresses = {info[4][0] for info in infos}
-    if not addresses:
-        raise ValueError("dns_resolution_failed")
-    for addr in addresses:
+    addresses: list[str] = []
+    seen: set[str] = set()
+    for info in infos:
+        addr = info[4][0]
+        if addr in seen:
+            continue
+        seen.add(addr)
         try:
             ip = ipaddress.ip_address(addr)
         except ValueError as exc:
             raise ValueError("dns_resolution_failed") from exc
         if _is_blocked_ip(ip):
             raise ValueError("blocked_resolved_ip")
+        addresses.append(addr)
+    if not addresses:
+        raise ValueError("dns_resolution_failed")
+    return addresses
 
 
 def normalize_url(url: str, *, resolve_dns: bool = True) -> str:
@@ -65,7 +79,7 @@ def normalize_url(url: str, *, resolve_dns: bool = True) -> str:
     if _is_blocked_ip_literal(host):
         raise ValueError("blocked_ip_literal")
     if resolve_dns:
-        _assert_safe_dns_target(host, parts.port)
+        resolve_safe_addresses(host, parts.port)
 
     netloc = host
     if parts.port is not None:
@@ -120,6 +134,29 @@ def evaluate_http_target(
     return HttpDecision(True, "allow"), normalized
 
 
+class _PinnedBackend(httpcore.SyncBackend):
+    """
+    Network backend that redirects the TCP connect for a hostname to a
+    pre-validated IP, so the socket cannot be steered to an internal address by a
+    DNS answer that changes between the SSRF check and the actual connect.
+    """
+
+    def __init__(self, pinned: dict[str, str]) -> None:
+        super().__init__()
+        self._pinned = pinned
+
+    def connect_tcp(self, host: str, port: int, *args: Any, **kwargs: Any):  # type: ignore[override]
+        return super().connect_tcp(self._pinned.get(host, host), port, *args, **kwargs)
+
+
+class _PinnedTransport(httpx.HTTPTransport):
+    def __init__(self, pinned: dict[str, str], **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        # TLS SNI / certificate verification still use the origin hostname from the
+        # URL; only the TCP target IP is pinned here.
+        self._pool._network_backend = _PinnedBackend(pinned)  # noqa: SLF001
+
+
 class GatedHttpClient:
     def __init__(
         self,
@@ -131,20 +168,37 @@ class GatedHttpClient:
         self._allowed_hosts = list(allowed_hosts)
         self._output_max_chars = output_max_chars
         self._resolve_dns = resolve_dns
-        self._client = httpx.Client(timeout=10.0)
+        self._pinned: dict[str, str] = {}
+        if resolve_dns:
+            self._client = httpx.Client(timeout=10.0, transport=_PinnedTransport(self._pinned))
+        else:
+            self._client = httpx.Client(timeout=10.0)
 
     def close(self) -> None:
         self._client.close()
 
     def request(self, method: str, url: str, **kwargs: Any) -> tuple[HttpDecision, str | None]:
+        # DNS resolution is deferred to the pinning step below so the address that is
+        # validated is exactly the one connected to (single authoritative lookup).
         decision, normalized = evaluate_http_target(
             url=url,
             method=method,
             allowed_hosts=self._allowed_hosts,
-            resolve_dns=self._resolve_dns,
+            resolve_dns=False,
         )
         if not decision.allowed or normalized is None:
             return decision, None
+
+        if self._resolve_dns:
+            parts = urlsplit(normalized)
+            host = parts.hostname or ""
+            try:
+                safe_ips = resolve_safe_addresses(host, parts.port)
+            except ValueError as exc:
+                reason = str(exc)
+                code = "ssrf_blocked_resolved_ip" if reason == "blocked_resolved_ip" else f"invalid_url:{reason}"
+                return HttpDecision(False, code), None
+            self._pinned[host] = safe_ips[0]
 
         resp = self._client.request(method.upper(), normalized, follow_redirects=False, **kwargs)
         # For demo purposes, treat non-2xx as still a response but return body truncated.
