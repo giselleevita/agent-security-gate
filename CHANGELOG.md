@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- DLP/canary scanning on the `POST /v1/http/proxy` response body so no egress path returns unscanned tool output; README documents the output-scanning coverage matrix
 - DNS TOCTOU mitigation: outbound HTTP connections are pinned to the IP validated at check time via a custom network backend, closing the DNS-rebinding window between the SSRF check and the socket connect (`adapters/http.py`); threat model TM-003 residual risk updated
 - Approval TTL/expiry: `expires_at` column and `expired` status (migration `003_add_approval_expiry.sql`); pending approvals past `APPROVAL_TTL_S` (default 1h) are swept to `expired` and can no longer be approved
 - Per-caller rate limit on `POST /v1/approvals/request` (`APPROVAL_RATE_LIMIT_MAX`, default 20/min) to prevent approver-queue flooding

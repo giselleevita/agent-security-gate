@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
+
+import app.main as main
+from adapters.http import HttpDecision
 from app.dlp import scan_tool_output
 
 
@@ -37,3 +41,54 @@ def test_scan_passes_clean_output() -> None:
     assert reason is None
     assert redacted == "ordinary public documentation"
     assert extras == {}
+
+
+class _FakeGatedClient:
+    def __init__(self, body: str) -> None:
+        self._body = body
+
+    def request(self, _method: str, _url: str):
+        return HttpDecision(True, "allow"), self._body
+
+    def close(self) -> None:
+        return None
+
+
+def test_http_proxy_denies_on_pii_in_response_body(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setattr(
+        main,
+        "GatedHttpClient",
+        lambda **_kwargs: _FakeGatedClient("record: ssn 123-45-6789 leaked"),
+    )
+
+    client = TestClient(main.app)
+    r = client.post(
+        "/v1/http/proxy",
+        json={"method": "GET", "url": "https://api.example.com/records"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["allowed"] is False
+    assert data["reason"] == "dlp_redacted"
+
+
+def test_http_proxy_allows_and_returns_scanned_clean_body(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setattr(
+        main,
+        "GatedHttpClient",
+        lambda **_kwargs: _FakeGatedClient("public data with no secrets"),
+    )
+
+    client = TestClient(main.app)
+    r = client.post(
+        "/v1/http/proxy",
+        json={"method": "GET", "url": "https://api.example.com/records"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["allowed"] is True
+    assert data["body"] == "public data with no secrets"

@@ -206,7 +206,8 @@ Rules:
 - Requests are checked against an allowlist before proxying
 - IP literals, metadata endpoints (`169.254.x.x`, `100.64.x.x`), and internal ranges are blocked
 - Returns `ssrf_blocked_ip_literal`, `ssrf_blocked_resolved_ip`, or `http_not_allowlisted` on denial
-- Production deployments still require an egress proxy/firewall to eliminate DNS-rebinding time-of-check/time-of-use risk
+- The TCP connection is pinned to the IP validated at check time, closing the DNS-rebinding time-of-check/time-of-use window; an egress proxy/firewall is still recommended for long-lived connections and defense in depth
+- Response bodies are scanned for DLP/canary matches before return (see coverage matrix below)
 
 ### Docs
 
@@ -221,6 +222,19 @@ Rules:
 - `POST /agent` — accepts `{"input": "..."}`, maps to gateway decision, returns result
 - `GET /audit?limit=N` — returns last N hash-chained audit events for approvers (default 20, max 200)
 - `GET /health` — returns `{"status":"ok"}`
+
+### Output scanning coverage
+
+DLP/canary scanning runs on every path that returns fetched or tool-produced content to the caller:
+
+| Path | Scanned? | On canary/PII match |
+|---|---|---|
+| `POST /v1/gateway/decide` (`tool_output` in context) | Yes | `canary_detected` / `dlp_redacted` |
+| `POST /v1/docs/read` (post-fetch) | Yes | denied with scan reason |
+| `POST /v1/http/proxy` (response body) | Yes | denied with scan reason |
+| `DocAdapter` fetched content | Yes | denied with scan reason |
+
+Canary matches are treated as a hard deny; DLP pattern matches redact and deny to prevent the sensitive payload from reaching the agent.
 
 ---
 
