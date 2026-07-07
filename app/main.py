@@ -154,10 +154,11 @@ def _rate_limit_or_raise(*, bearer_token: str, bucket: str, max_requests: int, w
 
 def _expire_stale_approvals(cur: Any) -> None:
     """
-    Opportunistically mark pending approvals whose TTL has elapsed as 'expired'.
+    Opportunistically mark unresolved approvals whose TTL has elapsed as 'expired'.
 
-    Runs inside the caller's transaction so the sweep and the subsequent
-    read/insert are consistent. A non-positive TTL disables expiry.
+    Covers both 'pending' and 'first_approved' (dual-control) states. Runs inside the
+    caller's transaction so the sweep and the subsequent read/insert are consistent. A
+    non-positive TTL disables expiry.
     """
     if _approval_ttl_s() <= 0:
         return
@@ -165,7 +166,7 @@ def _expire_stale_approvals(cur: Any) -> None:
         """
         UPDATE approvals
         SET status = 'expired', resolved_at = now()
-        WHERE status = 'pending'
+        WHERE status IN ('pending', 'first_approved')
           AND expires_at IS NOT NULL
           AND expires_at < now()
         """

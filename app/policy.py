@@ -18,6 +18,7 @@ def load_policy_config() -> dict[str, Any]:
         "denied_doc_ids": list(raw.get("denied_doc_ids", [])),
         "output_max_chars": int(raw.get("output_max_chars", 2000)),
         "approval_required_tools": list(raw.get("approval_required_tools", [])),
+        "dual_approval_tools": list(raw.get("dual_approval_tools", [])),
         "allowed_http_domains": list(raw.get("allowed_http_domains", [])),
         "max_actions": int(raw.get("max_actions", 50)),
     }
