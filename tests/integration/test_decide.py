@@ -139,3 +139,55 @@ def test_max_actions_exceeded_on_51st_call_and_session_resets(client: httpx.Clie
     r_new.raise_for_status()
     d_new = r_new.json()
     assert d_new["allowed"] is True
+
+
+@pytest.mark.integration
+def test_decide_blocks_http_get_metadata_ip(client: httpx.Client) -> None:
+    r = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "acme",
+            "action": "tool_call",
+            "tool": "http.get",
+            "context": {"url": "http://169.254.169.254/latest/meta-data/"},
+        },
+    )
+    r.raise_for_status()
+    data = r.json()
+    assert data["allowed"] is False
+    assert "ssrf_blocked" in data["reason"]
+    assert data["audit_id"].startswith("evt_")
+
+
+@pytest.mark.integration
+def test_decide_allows_http_get_allowlisted_host(client: httpx.Client) -> None:
+    r = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "acme",
+            "action": "tool_call",
+            "tool": "http.get",
+            "context": {"url": "https://api.example.com/status"},
+        },
+    )
+    r.raise_for_status()
+    data = r.json()
+    assert data["allowed"] is True
+    assert data["reason"] == "allow"
+
+
+@pytest.mark.integration
+def test_decide_denies_http_get_non_allowlisted_host(client: httpx.Client) -> None:
+    r = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "acme",
+            "action": "tool_call",
+            "tool": "http.get",
+            "context": {"url": "https://evil.example.test/status"},
+        },
+    )
+    r.raise_for_status()
+    data = r.json()
+    assert data["allowed"] is False
+    assert data["reason"] == "http_not_allowlisted"

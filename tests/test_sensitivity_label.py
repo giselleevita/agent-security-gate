@@ -46,10 +46,15 @@ def test_audit_tail_requires_approver_auth(monkeypatch) -> None:
 def test_sensitivity_label_confidential_is_denied(monkeypatch) -> None:
     monkeypatch.setenv("ASG_DEMO_MODE", "true")
 
-    # Fake Redis so we don't require a running redis for unit tests.
+    # Fake Redis so we don't require a running redis for unit tests. Supports the
+    # session counter (get/incr) and the decide-path sliding-window rate limiter (ZSETs).
     class FakeRedis:
         def __init__(self):
             self.counts = {}
+            self.zsets = {}
+
+        def get(self, key: str):
+            return self.counts.get(key)
 
         def incr(self, key: str) -> int:
             self.counts[key] = int(self.counts.get(key, 0)) + 1
@@ -57,6 +62,25 @@ def test_sensitivity_label_confidential_is_denied(monkeypatch) -> None:
 
         def expire(self, key: str, _ttl: int) -> None:
             return None
+
+        def zremrangebyscore(self, key: str, _min: float, maxv: float) -> None:
+            z = self.zsets.get(key, {})
+            self.zsets[key] = {m: s for (m, s) in z.items() if float(s) > float(maxv)}
+
+        def zadd(self, key: str, mapping: dict) -> None:
+            z = self.zsets.setdefault(key, {})
+            for m, s in mapping.items():
+                z[m] = float(s)
+
+        def zcard(self, key: str) -> int:
+            return len(self.zsets.get(key, {}))
+
+        def zrange(self, key: str, start: int, end: int, withscores: bool = False):
+            items = sorted(self.zsets.get(key, {}).items(), key=lambda kv: kv[1])
+            slice_items = items[start:] if end == -1 else items[start : end + 1]
+            if withscores:
+                return [(m, s) for (m, s) in slice_items]
+            return [m for (m, _s) in slice_items]
 
     fake_r = FakeRedis()
 

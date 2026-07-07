@@ -44,6 +44,6 @@ flowchart LR
 
 - The local JSONL audit log is tamper-evident, not tamper-proof. Production use should move this behind an append-only audit sink.
 - Demo credentials are accepted only when `ASG_DEMO_MODE=true`.
-- The benchmark-only `gateway/` path can drift from runtime OPA behavior; runtime integration tests remain authoritative.
+- The benchmark `gateway/` PEP mirrors runtime tool-policy semantics and shares the exact HTTP egress evaluator (`adapters/http.py::evaluate_http_target`) with the runtime gateway, so SSRF/allowlist decisions are identical across both paths (the benchmark only skips DNS resolution for deterministic replay). Runtime FastAPI + OPA integration tests remain authoritative for the deployed decision engine.
 - Database migrations are recorded with checksums in `schema_migrations`; changing an applied migration fails startup.
 - See `docs/agent-security-gate-threat-model.md` for trust boundaries and known security limitations.
