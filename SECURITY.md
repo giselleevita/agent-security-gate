@@ -102,3 +102,25 @@ no dedicated policy file is denied with `unknown_tenant` before any policy evalu
 session accounting, or database access, so an unregistered tenant can never inherit a
 permissive default. With strict mode off (default), unknown tenants fall back to the
 default policy — appropriate for single-tenant/demo deployments.
+
+## Audit Integrity
+
+The audit log is a SHA-256 hash chain (each entry commits to the previous entry's hash),
+so any modification, reordering, or deletion of recorded events is detectable with
+`scripts/verify_audit.py`. Two optional controls harden this for production:
+
+- **Signing** — `AUDIT_HMAC_KEY` (or `AUDIT_HMAC_KEY_FILE`) attaches an HMAC-SHA256
+  signature over each entry's chain hash. Because the chain hash covers only the event,
+  signing is additive (key-less verifiers still work), but an attacker who rewrites events
+  and recomputes the entire chain cannot forge signatures without the key. Keep the key on
+  a separate trust boundary from the log storage.
+- **Immutable external sink** — `AUDIT_S3_BUCKET` mirrors every signed entry to an S3 (or
+  S3-compatible) bucket that should have Object Lock (WORM) enabled; set
+  `AUDIT_S3_RETENTION_DAYS` to apply per-object retention in `GOVERNANCE` or `COMPLIANCE`
+  mode. Mirroring runs on a background worker and is best-effort — local durability is
+  guaranteed before a response is returned, so a sink outage never blocks or fails a
+  decision. Objects are content-addressed by chain hash, so retries are idempotent and
+  concurrent writers cannot clobber each other; a downloaded bundle is verified by
+  reassembling the chain, which surfaces gaps and forks (the single-node local file is not
+  multi-writer safe — run per-replica log files or the external sink under multiple
+  replicas).

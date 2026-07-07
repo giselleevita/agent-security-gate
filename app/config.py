@@ -29,6 +29,13 @@ OIDC_ISSUER_ENV = "OIDC_ISSUER"
 OIDC_AUDIENCE_ENV = "OIDC_AUDIENCE"
 OIDC_JWKS_URL_ENV = "OIDC_JWKS_URL"
 TENANT_POLICY_STRICT_ENV = "ASG_TENANT_POLICY_STRICT"
+AUDIT_HMAC_KEY_ENV = "AUDIT_HMAC_KEY"
+AUDIT_S3_BUCKET_ENV = "AUDIT_S3_BUCKET"
+AUDIT_S3_PREFIX_ENV = "AUDIT_S3_PREFIX"
+AUDIT_S3_REGION_ENV = "AUDIT_S3_REGION"
+AUDIT_S3_ENDPOINT_URL_ENV = "AUDIT_S3_ENDPOINT_URL"
+AUDIT_S3_RETENTION_DAYS_ENV = "AUDIT_S3_RETENTION_DAYS"
+AUDIT_S3_OBJECT_LOCK_MODE_ENV = "AUDIT_S3_OBJECT_LOCK_MODE"
 
 DEMO_AUTH_TOKEN = "test-token"
 DEMO_APPROVER_TOKEN = "approver-token"
@@ -59,6 +66,47 @@ def tenant_policy_strict() -> bool:
 
 def audit_log_path() -> Path:
     return Path(os.environ.get(AUDIT_LOG_PATH_ENV, "audit/events.jsonl"))
+
+
+def audit_hmac_key() -> str | None:
+    """
+    Optional HMAC key used to sign each audit chain entry. Loaded from `AUDIT_HMAC_KEY`
+    or `AUDIT_HMAC_KEY_FILE`. When set, tampering that recomputes the hash chain still
+    fails verification because the attacker cannot forge the signature.
+    """
+    return _read_env_or_file(AUDIT_HMAC_KEY_ENV)
+
+
+def audit_s3_bucket() -> str | None:
+    value = os.environ.get(AUDIT_S3_BUCKET_ENV)
+    return value.strip() if value and value.strip() else None
+
+
+def audit_s3_prefix() -> str:
+    prefix = os.environ.get(AUDIT_S3_PREFIX_ENV, "audit/")
+    return prefix if prefix.endswith("/") or prefix == "" else prefix + "/"
+
+
+def audit_s3_region() -> str | None:
+    value = os.environ.get(AUDIT_S3_REGION_ENV)
+    return value.strip() if value and value.strip() else None
+
+
+def audit_s3_endpoint_url() -> str | None:
+    value = os.environ.get(AUDIT_S3_ENDPOINT_URL_ENV)
+    return value.strip() if value and value.strip() else None
+
+
+def audit_s3_retention_days() -> int:
+    try:
+        return max(0, int(os.environ.get(AUDIT_S3_RETENTION_DAYS_ENV, "0")))
+    except ValueError:
+        return 0
+
+
+def audit_s3_object_lock_mode() -> str:
+    mode = os.environ.get(AUDIT_S3_OBJECT_LOCK_MODE_ENV, "GOVERNANCE").upper()
+    return mode if mode in {"GOVERNANCE", "COMPLIANCE"} else "GOVERNANCE"
 
 
 def _read_env_or_file(env_name: str) -> str | None:

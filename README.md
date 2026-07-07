@@ -290,6 +290,9 @@ Environment variables:
 | `AGENT_RATE_LIMIT_WINDOW_S` | `60` | Window size in seconds |
 | `REDIS_URL` | `redis://redis:6379` | Redis connection for rate limiting |
 | `ASG_TENANT_POLICY_STRICT` | `false` | Deny tenants without a dedicated policy file (`unknown_tenant`) instead of using the default |
+| `AUDIT_HMAC_KEY` | unset | HMAC key to sign audit entries (also `AUDIT_HMAC_KEY_FILE`) |
+| `AUDIT_S3_BUCKET` | unset | Enable S3 Object Lock audit mirror (requires `s3` extra) |
+| `AUDIT_S3_RETENTION_DAYS` | `0` | Per-object WORM retention when mirroring (0 relies on bucket default) |
 | `ASG_DEMO_MODE` | `false` | Enables documented demo credentials for local compose |
 | `AUTH_TOKEN` | required unless demo mode | Agent/API bearer token |
 | `APPROVER_TOKEN` | required unless demo mode | Approver bearer token |
@@ -303,7 +306,12 @@ All decisions are written to `audit/events.jsonl` as hash-chained entries.
 
 Every gateway decision, DLP/canary block, and rate-limit breach produces an audit entry.
 
-The local JSONL audit log is tamper-evident, not tamper-proof: `scripts/verify_audit.py` detects modification of recorded events or chain links. Production deployments should write the same event model to append-only storage and restrict reader access.
+The local JSONL audit log is tamper-evident, not tamper-proof: `scripts/verify_audit.py` detects modification of recorded events or chain links.
+
+### Signing and immutable external sink
+
+- **HMAC signing** — set `AUDIT_HMAC_KEY` (or `AUDIT_HMAC_KEY_FILE`) to sign every entry. An attacker who rewrites events and recomputes the hash chain still fails verification without the key. Verify with `--hmac-key` (or `$AUDIT_HMAC_KEY`).
+- **S3 Object Lock mirror** — set `AUDIT_S3_BUCKET` (plus optional `AUDIT_S3_PREFIX`, `AUDIT_S3_REGION`, `AUDIT_S3_ENDPOINT_URL`, `AUDIT_S3_RETENTION_DAYS`, `AUDIT_S3_OBJECT_LOCK_MODE`) to mirror each signed entry to a WORM bucket off the request path. Requires the `s3` extra (`pip install -e ".[s3]"`). Mirroring is best-effort: local durability is guaranteed before responding, so an S3 outage never blocks a decision. Objects are content-addressed by chain hash (idempotent retries; multi-writer safe), and `verify_audit.py` can verify a downloaded bundle directory by reassembling the chain — detecting gaps and forks regardless of listing order.
 
 ```json
 {
@@ -326,7 +334,14 @@ The local JSONL audit log is tamper-evident, not tamper-proof: `scripts/verify_a
 
 Verify integrity:
 ```bash
+# Local JSONL chain
 python scripts/verify_audit.py --path audit/events.jsonl
+
+# With signatures
+python scripts/verify_audit.py --path audit/events.jsonl --hmac-key "$AUDIT_HMAC_KEY"
+
+# A downloaded S3 Object Lock bundle (directory of one-object-per-entry JSON files)
+python scripts/verify_audit.py --path ./downloaded-bundle --hmac-key "$AUDIT_HMAC_KEY"
 ```
 
 ---

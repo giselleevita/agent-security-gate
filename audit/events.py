@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from audit.sinks import get_external_sink, sign_wrapper
+
 _GENESIS_HASH = "0" * 64
 
 
@@ -56,7 +58,18 @@ def append_hash_chained_event(path: str | Path, event: dict[str, Any]) -> None:
         canonical_event = json.dumps(event, sort_keys=True, separators=(",", ":"))
         digest = hashlib.sha256((previous_hash + canonical_event).encode("utf-8")).hexdigest()
         wrapper = {"previous_hash": previous_hash, "hash": digest, "event": event}
+        # Optional HMAC signature binds each entry to a secret so a recomputed chain still
+        # fails verification. Signing does not affect the chain hash (computed over the
+        # event only), so verifiers without the key are unaffected.
+        wrapper = sign_wrapper(wrapper)
         handle.write(json.dumps(wrapper, sort_keys=True) + "\n")
         handle.flush()
 
         head_path.write_text(digest, encoding="utf-8")
+
+    # Best-effort mirror to an external immutable sink (e.g. S3 Object Lock) off the
+    # request path. Local durability above is already guaranteed, so a sink outage never
+    # blocks or fails the caller.
+    external = get_external_sink()
+    if external is not None:
+        external.emit(wrapper)
