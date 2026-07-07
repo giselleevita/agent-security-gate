@@ -1,0 +1,45 @@
+# Optional backup overlay: a sidecar that periodically dumps Postgres to a local volume.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.backup.yml up -d
+#
+# Dumps land in the `asg_backups` volume at /backups/postgres-<timestamp>.sql. This covers
+# the Postgres side (approvals, policy_exceptions); mirror the hash-chained audit log with
+# the WS-11 S3 Object Lock sink (AUDIT_S3_BUCKET) or scripts/backup.sh for a full bundle.
+# See docs/runbooks/backup-restore.md.
+services:
+  pg-backup:
+    image: postgres:16.14-bookworm@sha256:eac82980276bf5dd7ac9bb330e99950da0ef178002ff08279a4a708a5e373b7a
+    depends_on:
+      - postgres
+    environment:
+      PGPASSWORD: asg
+      BACKUP_INTERVAL_SECONDS: "${BACKUP_INTERVAL_SECONDS:-3600}"
+      BACKUP_RETENTION: "${BACKUP_RETENTION:-168}"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mkdir -p /backups
+        echo "[pg-backup] interval=$${BACKUP_INTERVAL_SECONDS}s retention=$${BACKUP_RETENTION} files"
+        while true; do
+          ts=$$(date -u +%Y%m%dT%H%M%SZ)
+          out="/backups/postgres-$${ts}.sql"
+          if pg_dump -h postgres -U asg -d asg --clean --if-exists > "$${out}.tmp"; then
+            mv "$${out}.tmp" "$${out}"
+            echo "[pg-backup] wrote $${out}"
+          else
+            echo "[pg-backup] dump failed" >&2
+            rm -f "$${out}.tmp"
+          fi
+          # Retain only the newest N dumps.
+          ls -1t /backups/postgres-*.sql 2>/dev/null | tail -n +$$(($${BACKUP_RETENTION} + 1)) | xargs -r rm -f
+          sleep "$${BACKUP_INTERVAL_SECONDS}"
+        done
+    volumes:
+      - asg_backups:/backups
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  asg_backups:
