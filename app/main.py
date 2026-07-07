@@ -465,7 +465,12 @@ def http_proxy(
         decision, resp_body = client.request(body.method, body.url)
         if not decision.allowed:
             return HttpProxyResponse(allowed=False, reason=decision.reason)
-        return HttpProxyResponse(allowed=True, reason=decision.reason, status_code=200, body=resp_body)
+        # Scan the fetched body for canaries/PII, mirroring the docs adapter so no
+        # egress path returns unscanned tool output.
+        reason_or_none, scanned_body, _extras = _scan_tool_output(tool_output=resp_body or "")
+        if reason_or_none is not None:
+            return HttpProxyResponse(allowed=False, reason=reason_or_none)
+        return HttpProxyResponse(allowed=True, reason=decision.reason, status_code=200, body=scanned_body)
     finally:
         client.close()
 
