@@ -36,6 +36,7 @@ from app import metrics as _metrics
 from app.policy import build_opa_input as _build_opa_input
 from app.policy import load_policy_config as _load_policy_config
 from app.policy import opa_post as _opa_post
+from app.exceptions import load_active_policy_exceptions as _load_active_policy_exceptions
 from app.schemas import (
     DecideRequest,
     DecideResponse,
@@ -357,9 +358,16 @@ def _decide_tool_call_impl(
     except redis.RedisError as exc:
         raise HTTPException(status_code=503, detail="session store unavailable") from exc
 
-    opa_input = _build_opa_input(body, policy_config, action_count=action_count)
+    with _db_connect() as conn:
+        with conn.cursor() as cur:
+            active_exceptions = _load_active_policy_exceptions(cur, tenant_id=body.tenant_id)
+
+    opa_input = _build_opa_input(
+        body, policy_config, action_count=action_count, active_exceptions=active_exceptions
+    )
     audit_id = f"evt_{uuid.uuid4().hex}"
     t0 = time.perf_counter()
+    matched_exception_id: str | None = None
 
     with nullcontext(_http()) as client:
         # Single aggregate query instead of separate allow/approval/deny_reason round trips.
@@ -371,6 +379,9 @@ def _decide_tool_call_impl(
         approval_required = bool(opa_decision.get("approval_required"))
         allowed = bool(opa_decision.get("allow"))
         deny_reason = str(opa_decision.get("deny_reason") or "policy_denied")
+        raw_exception_id = opa_decision.get("exception_id")
+        if raw_exception_id:
+            matched_exception_id = str(raw_exception_id)
 
         if allowed:
             reason = "allow"
@@ -458,7 +469,10 @@ def _decide_tool_call_impl(
         latency_ms=round(latency_ms, 3),
         approval_url="/v1/approvals/request" if (reason == "approval_required" and not allowed) else None,
     )
-    _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
+    audit_event: dict[str, Any] = {"request": body.model_dump(), "response": response.model_dump()}
+    if matched_exception_id:
+        audit_event["policy_exception_id"] = matched_exception_id
+    _append_audit_event(audit_id, audit_event)
     return response
 
 
@@ -469,12 +483,14 @@ from app.routers import (  # noqa: E402
     agent as _agent_router,
     approvals as _approvals_router,
     decide as _decide_router,
+    exceptions as _exceptions_router,
     observability as _observability_router,
     tools as _tools_router,
 )
 
 app.include_router(_observability_router.router)
 app.include_router(_approvals_router.router)
+app.include_router(_exceptions_router.router)
 app.include_router(_tools_router.router)
 app.include_router(_agent_router.router)
 app.include_router(_decide_router.router)
