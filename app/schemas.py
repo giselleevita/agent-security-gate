@@ -85,3 +85,16 @@ class DocsReadResponse(BaseModel):
     reason: str
     output: str | None = None
     truncated: bool = False
+
+
+class PolicyExceptionCreateRequest(BaseModel):
+    tenant_id: str
+    tool: str
+    context_match: dict[str, Any] = Field(default_factory=dict)
+    ttl_seconds: int = Field(default=3600, ge=1, le=86400 * 30)
+    reason: str | None = None
+
+
+class PolicyExceptionCreateResponse(BaseModel):
+    exception_id: str
+    expires_at: str
