@@ -368,6 +368,16 @@ python scripts/verify_audit.py --path ./downloaded-bundle --hmac-key "$AUDIT_HMA
 
 ---
 
+## Backup and restore
+
+`scripts/backup.sh` writes a timestamped bundle (Postgres dump + audit log + checksum
+manifest); `scripts/restore.sh` loads it and verifies the audit chain. An optional hourly
+Postgres sidecar is available via `docker compose -f docker-compose.yml -f docker-compose.backup.yml up -d`.
+Procedures, RPO/RTO targets, and a tested drill are in
+[docs/runbooks/backup-restore.md](docs/runbooks/backup-restore.md).
+
+---
+
 ## Benchmark Results
 
 ```bash

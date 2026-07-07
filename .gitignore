@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 results/
+backups/
 audit/
 audit/events.jsonl
 audit/*.head
