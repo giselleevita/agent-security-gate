@@ -565,6 +565,7 @@ from app.routers import (  # noqa: E402
     approvals as _approvals_router,
     audit as _audit_router,
     decide as _decide_router,
+    demo as _demo_router,
     exceptions as _exceptions_router,
     observability as _observability_router,
     tools as _tools_router,
@@ -572,6 +573,7 @@ from app.routers import (  # noqa: E402
 )
 
 app.include_router(_observability_router.router)
+app.include_router(_demo_router.router)
 app.include_router(_approvals_router.router)
 app.include_router(_audit_router.router)
 app.include_router(_exceptions_router.router)
