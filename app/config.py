@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -38,6 +39,7 @@ AUDIT_S3_RETENTION_DAYS_ENV = "AUDIT_S3_RETENTION_DAYS"
 AUDIT_S3_OBJECT_LOCK_MODE_ENV = "AUDIT_S3_OBJECT_LOCK_MODE"
 ENFORCE_MODE_ENV = "ASG_ENFORCE_MODE"
 ENFORCE_TTL_S_ENV = "ASG_ENFORCE_TTL_S"
+REPLICA_ID_ENV = "ASG_REPLICA_ID"
 
 DEMO_AUTH_TOKEN = "test-token"
 DEMO_APPROVER_TOKEN = "approver-token"
@@ -66,8 +68,39 @@ def tenant_policy_strict() -> bool:
     return os.environ.get(TENANT_POLICY_STRICT_ENV, "false").lower() in {"1", "true", "yes", "on"}
 
 
+_SAFE_REPLICA_ID = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def replica_id() -> str | None:
+    """
+    Optional identifier for this gateway process/replica.
+
+    In a multi-replica deployment each replica owns an independent audit chain (see
+    ``audit_log_path``); mixing replicas into one shared local file would fork the chain.
+    Typically set to the container hostname. Sanitised to a filesystem-safe token; an
+    empty/blank value means single-replica mode (unchanged behaviour).
+    """
+    raw = os.environ.get(REPLICA_ID_ENV, "")
+    token = _SAFE_REPLICA_ID.sub("-", raw).strip("-")
+    return token or None
+
+
 def audit_log_path() -> Path:
-    return Path(os.environ.get(AUDIT_LOG_PATH_ENV, "audit/events.jsonl"))
+    """
+    Path to the hash-chained audit log.
+
+    When ``ASG_REPLICA_ID`` is set, the replica id is inserted into the filename
+    (``events.jsonl`` -> ``events-<replica>.jsonl``) so multiple replicas sharing a volume
+    each maintain their own valid chain instead of interleaving into one forked file. Each
+    per-replica stream verifies independently with ``scripts/verify_audit.py``.
+    """
+    base = Path(os.environ.get(AUDIT_LOG_PATH_ENV, "audit/events.jsonl"))
+    rid = replica_id()
+    if rid is None:
+        return base
+    suffix = base.suffix or ".jsonl"
+    stem = base.name[: -len(suffix)] if base.suffix else base.name
+    return base.with_name(f"{stem}-{rid}{suffix}")
 
 
 def audit_hmac_key() -> str | None:

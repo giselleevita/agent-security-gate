@@ -38,6 +38,16 @@ else
   echo "[backup] WARNING: audit log ${AUDIT_LOG} not found (using external sink only?)"
 fi
 
+# Per-replica audit streams (WS-18 HA): events-<replica>.jsonl alongside the default log.
+AUDIT_DIR="$(dirname "${AUDIT_LOG}")"
+shopt -s nullglob
+for replica_log in "${AUDIT_DIR}"/events-*.jsonl; do
+  echo "[backup] replica audit ${replica_log} -> ${DEST}/audit/"
+  cp "${replica_log}" "${DEST}/audit/"
+  [[ -f "${replica_log}.head" ]] && cp "${replica_log}.head" "${DEST}/audit/" || true
+done
+shopt -u nullglob
+
 echo "[backup] writing manifest"
 {
   echo "created_utc=${TS}"

@@ -22,6 +22,8 @@ class FakeConnection:
 
     def execute(self, query: str, params=None) -> FakeResult:
         normalized = " ".join(query.split())
+        if "pg_advisory_lock" in normalized or "pg_advisory_unlock" in normalized:
+            return FakeResult()
         if normalized.startswith("SELECT checksum"):
             version = params[0]
             checksum = self.applied.get(version)

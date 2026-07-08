@@ -18,7 +18,22 @@ def migration_checksum(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+# Fixed advisory-lock key so concurrent replicas serialise schema migration at startup
+# (only one applies; the rest wait, then find every migration already recorded).
+_MIGRATION_LOCK_KEY = 8234190112233
+
+
 def apply_pending_migrations(connection: psycopg.Connection) -> None:
+    # Session-level advisory lock: makes multi-replica startup safe. Without it two
+    # replicas could both execute the same DDL or collide on the version primary key.
+    connection.execute("SELECT pg_advisory_lock(%s)", (_MIGRATION_LOCK_KEY,))
+    try:
+        _apply_pending_migrations_locked(connection)
+    finally:
+        connection.execute("SELECT pg_advisory_unlock(%s)", (_MIGRATION_LOCK_KEY,))
+
+
+def _apply_pending_migrations_locked(connection: psycopg.Connection) -> None:
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS schema_migrations (
