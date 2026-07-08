@@ -149,6 +149,8 @@ Details: [docs/architecture.md](docs/architecture.md)
 
 Shareable write-up: [docs/technical-brief.md](docs/technical-brief.md)
 
+For a minimal simulated agent flow, see [`examples/injected_agent_tool_call.py`](examples/injected_agent_tool_call.py). It demonstrates how an agent-produced tool call is checked before execution (no in-tree LLM).
+
 ---
 
 ## API overview
