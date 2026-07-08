@@ -1,47 +1,44 @@
-# Outreach checklist (weeks 11–12)
+# Outreach checklist
 
-## Blog post
+## Publish (free)
 
-1. Publish [agent-security-at-tool-boundary.md](./blog/agent-security-at-tool-boundary.md) on dev.to using [cross-posts/devto.md](./blog/cross-posts/devto.md)
-2. Post [cross-posts/linkedin.md](./blog/cross-posts/linkedin.md) on LinkedIn
-3. Link live demo, GIF, and benchmark results in each post
+1. **LinkedIn** — paste [cross-posts/linkedin-demo.md](./blog/cross-posts/linkedin-demo.md)
+2. **dev.to** — paste [cross-posts/devto.md](./blog/cross-posts/devto.md) (canonical URL in front matter)
+3. Link repo GIF: https://github.com/giselleevita/agent-security-gate
 
 ## Portfolio site
 
-Update [giselleevita.github.io/portfolio](https://giselleevita.github.io/portfolio):
+Already live: [giselleevita.github.io/portfolio](https://giselleevita.github.io/portfolio)
 
-- Lead with Agent Security Gate (not unrelated domain projects)
-- Add Fly demo URL, demo video link, benchmark results link
-- Target roles: Agentic Systems Engineer, AI Security Platform Engineer
+- 5-repo Evaluate → Enforce → Govern → Evidence → Ship story
+- ASG demo GIF on featured card
+- Target roles listed
 
-## OSS contribution
+## Job applications
 
-Pick one small PR to an existing project:
+Use [RECRUITER_PACKET.md](./RECRUITER_PACKET.md):
+
+1. GitHub profile + 5 pins (manual)
+2. [agent-security-gate](https://github.com/giselleevita/agent-security-gate) README (GIF + `docker compose`)
+3. [Technical brief](./technical-brief.md)
+4. [vendor-red-team-passport](https://github.com/giselleevita/vendor-red-team-passport)
+5. [security-compliance-copilot](https://github.com/giselleevita/security-compliance-copilot)
+6. [proofrail-evidence-api](https://github.com/giselleevita/proofrail-evidence-api)
+
+### Target titles (~10 applications)
+
+- AI Security Engineer
+- Agentic AI Platform Engineer
+- LLM Security Engineer
+- AI Governance Engineer
+- Security Engineer, AI Systems
+
+### 30-second pitch
+
+> I built enforceable AI security at the tool-call boundary — OPA policy gateway, vendor red-team reports, grounded governance RAG, and verifiable evidence APIs. See the README GIF for a 30-second demo; full stack is 5 pinned repos with 166+ tests on the flagship.
+
+## OSS contribution (optional)
 
 - OPA policy example for agent tool boundaries
 - LangGraph docs: security middleware pattern
 - FastAPI security recipe (OIDC + rate limiting)
-
-## Job applications
-
-Use this recruiter packet (all linked from profile README):
-
-1. Live Fly demo URL
-2. [agent-security-gate](https://github.com/giselleevita/agent-security-gate) README
-3. [LangGraph integration](./integrations/langgraph.md)
-4. Blog post
-5. Demo video
-6. [vendor-red-team-passport](https://github.com/giselleevita/vendor-red-team-passport)
-7. [security-compliance-copilot](https://github.com/giselleevita/security-compliance-copilot)
-
-### Target titles (apply to ~10 roles)
-
-- Agentic Systems Engineer
-- AI Security Platform Engineer
-- LLM Agent Infrastructure Engineer
-- AI Trust & Safety Platform Engineer
-- AI Governance Platform Engineer
-
-### 30-second pitch
-
-> I built an open-source AgentOps control plane between LLM agents and their tools — OPA policy, human approvals, DLP, and tamper-evident audit. It ships 136+ tests, integration CI, LangGraph connectors, and a benchmark harness that proves attack blocking at the tool-call boundary.

@@ -5,7 +5,8 @@ Ready-to-publish drafts derived from
 
 | Platform | Draft | Notes |
 |----------|-------|-------|
-| LinkedIn | [`linkedin.md`](linkedin.md) | Paste as a post; keep the GitHub doc as canonical |
+| LinkedIn (launch) | [`linkedin-demo.md`](linkedin-demo.md) | Short post with GIF + 5-repo stack |
+| LinkedIn (technical) | [`linkedin.md`](linkedin.md) | Longer tool-boundary post |
 | dev.to | [`devto.md`](devto.md) | Import as article; `canonical_url` is in front matter |
 
 ## Canonical URL (use on every platform)
