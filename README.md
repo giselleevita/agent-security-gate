@@ -84,7 +84,11 @@ For offensive vendor testing and attack-class reports, see [vendor-red-team-pass
 | **Deploy live demo** | `flyctl auth login` → `./scripts/fly_demo_bootstrap.sh` → [guide](docs/demo-deployment.md) |
 | **Demo API** | `GET /demo` — public curl examples and demo tokens |
 | **Approval console** | `/ui/approvals` (approver token: `approver-token` in demo mode) |
-| **Demo video** | [docs/DEMO_VIDEO.md](docs/DEMO_VIDEO.md) *(script — record next)* |
+| **Demo video** | [docs/assets/asg-demo.mp4](docs/assets/asg-demo.mp4) · [script](docs/DEMO_VIDEO.md) |
+
+<p align="center">
+  <video src="https://github.com/giselleevita/agent-security-gate/raw/main/docs/assets/asg-demo.mp4" controls width="100%"></video>
+</p>
 
 **Quick try (local or live demo):**
 
