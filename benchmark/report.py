@@ -58,8 +58,9 @@ def render_comparison_report(comparison: dict[str, Any]) -> str:
             "",
             (
                 "The no-gate baseline intentionally allows every tool request. The policy-gate "
-                "baseline executes the repository's deterministic local policy model. Runtime "
-                "FastAPI + OPA integration tests remain authoritative for deployed behavior."
+                "baseline exercises the runtime FastAPI decision path (OPA + shared Python "
+                "pre-checks) via benchmark/runtime_gate.py. All 18 scenarios are parity-tested "
+                "in tests/test_benchmark_runtime_parity.py."
             ),
             "",
         ]

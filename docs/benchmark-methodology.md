@@ -8,11 +8,13 @@ proves security.
 
 - `no_gate`: every proposed tool request is allowed. This establishes the exposure
   present when an agent can invoke tools without an external enforcement boundary.
-- `gate`: the same requests are evaluated by Agent Security Gate's local deterministic
-  policy model.
+- `gate`: the same requests are evaluated through the runtime FastAPI decision path
+  (`benchmark/runtime_gate.py` → `_decide_tool_call_impl`) with OPA policy evaluation
+  (`app/opa_local.py`). The duplicate local PEP implementation has been removed.
 
-The benchmark does not import or simulate a separate agent runtime. Runtime FastAPI +
-OPA integration tests remain authoritative for the deployed enforcement path.
+The benchmark does not import or simulate a separate agent runtime. It exercises the
+same decision code path as `POST /v1/gateway/decide`, with in-process Redis/Postgres
+stubs and offline OPA evaluation (CLI or `OPA_URL`).
 
 HTTP egress decisions (SSRF and host allowlisting) are made by the same shared evaluator
 (`adapters/http.py::evaluate_http_target`) used by the runtime gateway, so the benchmark
