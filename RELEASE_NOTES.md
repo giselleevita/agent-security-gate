@@ -1,15 +1,28 @@
-## Agent Security Gate v0.5.0
+## Agent Security Gate v0.6.0
 
-Outreach release — adds ready-to-publish cross-post drafts for the tool-boundary blog.
+**Post-hardening platform release** — completes technical hardening phases 0–3 from
+[docs/hardening-strategy.md](docs/hardening-strategy.md). Suitable for design-partner
+pilots and technical diligence; see [docs/investor-readiness.md](docs/investor-readiness.md).
 
-### Added
+### Highlights
 
-- LinkedIn and dev.to drafts derived from the main blog post
-- Cross-post README with canonical URL and hashtag guidance
+- **Connector SDK + strict enforcement** (`asg_sdk`, `ASG_ENFORCE_MODE=strict`) — binding
+  decide-to-execution grants via `X-ASG-Audit-Id`
+- **Enterprise identity & tenancy** — OIDC JWT (`asg:agent` / `asg:approver`), per-tenant
+  OPA policies, dual-control approvals, time-bound policy exceptions
+- **Audit & compliance** — S3 Object Lock sink, HMAC-signed entries, approver-only
+  `POST /v1/audit/export` with offline `verify.py`
+- **Operability** — Prometheus `/metrics`, `GET /v1/stats`, Grafana dashboard JSON,
+  backup/restore runbooks, HA compose overlay (2+ gateway replicas)
+- **Single decision path** — benchmark `gate` baseline exercises `_decide_tool_call_impl`
+  (18-scenario parity test); OPA via HTTP or `opa eval` in CI
 
-### Why v0.5.0
+### Upgrade notes
 
-v0.4.0 packaged the technical brief and blog for in-repo reviewers. v0.5.0 makes it
-easy to publish the same story on LinkedIn and dev.to without reformatting.
+- Set real secrets via env or `*_FILE` mounts; disable `ASG_DEMO_MODE` in production
+- Enable `ASG_ENFORCE_MODE=strict` and integrate `asg_sdk` for mandatory enforcement
+- Configure `AUDIT_S3_*` for immutable audit durability; use per-replica audit files or
+  S3 sink in multi-replica deployments (`docker-compose.ha.yml`)
+- Optional: `OIDC_ISSUER` / `OIDC_AUDIENCE`, `ASG_TENANT_POLICY_STRICT=true`
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
