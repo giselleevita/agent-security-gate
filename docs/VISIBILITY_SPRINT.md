@@ -1,60 +1,42 @@
-# Visibility Sprint — 30-day checklist
+# Visibility Sprint — recruiter-ready checklist
 
-Execute after the [90-day repositioning plan](https://github.com/giselleevita/agent-security-gate). Repo work is done; this sprint makes it **clickable** for recruiters.
+Free portfolio path: **5 pinned repos + README GIF + local `docker compose` demo**. No paid hosting required.
 
-## Week 1 — Clickable in 5 minutes
+## Done (automated / repo)
 
-- [ ] **Pin 6 repos** on GitHub profile (manual — no API):
-  1. `agent-security-gate`
-  2. `security-compliance-copilot`
-  3. `vendor-red-team-passport`
-  4. `proofrail-evidence-api`
-  5. `secure-docs-aws`
-  6. `sai-platform`
-- [ ] **Fly demo live**
-  ```bash
-  brew install flyctl
-  flyctl auth login
-  ./scripts/fly_demo_bootstrap.sh
-  ```
-- [ ] Update **Live demo** URL in [profile README](https://github.com/giselleevita/giselleevita) and [README.md](../README.md) Try it table
-- [ ] Merge automated **benchmark snapshot PRs** when `publish-benchmark` workflow opens them
-- [ ] Confirm `sai-platform` has no secrets in history (see [sai-platform-public-audit.md](./sai-platform-public-audit.md))
+- [x] Profile README — 4-layer story (Evaluate → Enforce → Govern → Evidence → Ship)
+- [x] Portfolio site — [giselleevita.github.io/portfolio](https://giselleevita.github.io/portfolio)
+- [x] README GIF + MP4 on `agent-security-gate`
+- [x] Cross-links between flagship repos
+- [x] ProofRail as featured evidence repo; copilot = guidance only
+- [x] Archived `crm-pipeline`, `network-security-lab`
+- [x] `/demo` endpoint + local docker verified
+- [x] LinkedIn + dev.to drafts ready
 
-**Verify:** `scripts/check_visibility_sprint.sh`
+## You (manual)
 
-## Week 2 — Proof you can explain it
+- [ ] **Pin 5 repos** on GitHub profile — see [github-profile-setup.md](./github-profile-setup.md)
+- [ ] **LinkedIn post** — paste [cross-posts/linkedin-demo.md](./blog/cross-posts/linkedin-demo.md)
+- [ ] **dev.to article** — paste [cross-posts/devto.md](./blog/cross-posts/devto.md)
+- [ ] **Apply** using [RECRUITER_PACKET.md](./RECRUITER_PACKET.md) + [APPLICATIONS.md](./APPLICATIONS.md)
 
-- [ ] Record **3-min demo video** — script: [DEMO_VIDEO.md](./DEMO_VIDEO.md)
-- [ ] Embed video link in README + profile README
-- [ ] Record **terminal GIF** (4 curl attacks + audit verify); add to `docs/assets/`
-- [ ] Publish blog on **dev.to** — [cross-posts/devto.md](./blog/cross-posts/devto.md)
-- [ ] Post on **LinkedIn** — [cross-posts/linkedin.md](./blog/cross-posts/linkedin.md)
+## Optional (free)
 
-## Week 3 — Apply with a packet
+- [ ] Voiceover on demo video — script: [DEMO_VIDEO.md](./DEMO_VIDEO.md)
+- [ ] One OSS PR (OPA example, LangGraph docs) — external signal
 
-Build one recruiter packet linking:
+## Skip
 
-1. Live Fly URL
-2. [agent-security-gate](https://github.com/giselleevita/agent-security-gate)
-3. Demo video
-4. Blog post
-5. [vendor-red-team-passport](https://github.com/giselleevita/vendor-red-team-passport)
-6. [security-compliance-copilot](https://github.com/giselleevita/security-compliance-copilot)
-
-Apply to **10 roles** — see [APPLICATIONS.md](./APPLICATIONS.md).
-
-## Week 4 — One external signal
-
-- [ ] One OSS PR (OPA example, LangGraph docs, or FastAPI security recipe)
-- [ ] Add PR link to profile README
-
-## Stop doing
-
+- Fly.io deploy (costs money) — see [demo-deployment.md](./demo-deployment.md)
 - New unrelated repos
-- ASG feature work until demo is live
-- Mass repo grooming days
+- Publicizing ToolShield as second flagship
+
+## Verify
+
+```bash
+./scripts/check_visibility_sprint.sh
+```
 
 ## Success criteria
 
-A hiring manager in 5 minutes: **6 pins → video/GIF → live demo → blog → clear AgentOps positioning**.
+A hiring manager in 5 minutes: **5 pins → GIF in README → `docker compose up` → clear AgentOps positioning**.
