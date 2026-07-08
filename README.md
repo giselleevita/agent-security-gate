@@ -1,19 +1,73 @@
 # Agent Security Gate
 
+Runtime policy enforcement for AI agent tool calls.
+
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
 ![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-166%20passing-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-BSL--1.1-orange)
 ![Version](https://img.shields.io/badge/version-0.6.0-informational)
-[![Visibility sprint](https://img.shields.io/badge/docs-visibility%20sprint-blue)](docs/VISIBILITY_SPRINT.md)
 
-> Pre-execution policy enforcement for tool-using LLM agents.
-
-Agent Security Gate (ASG) sits between your AI agent and the tools it calls —
-blocking unsafe actions before they execute, requiring human approval for
-high-risk operations, and producing tamper-evident audit logs for compliance.
+**Agent Security Gate** is a runtime security gateway for AI agents. It enforces policy **before** tool calls execute, records audit evidence, and helps teams prevent prompt injection, unsafe actions, and unauthorized tool use.
 
 ![Demo: four policy decisions in the terminal](docs/assets/demo-terminal.svg)
+
+---
+
+## Why this matters
+
+AI agents can call tools, access data, and trigger real-world actions. Prompt filters alone are brittle and non-auditable.
+
+ASG adds a security gateway between the agent and tools so every action can be **checked**, **logged**, **approved**, or **blocked** — deterministically, at the tool-call boundary.
+
+| Benchmark (18 scenarios) | No gate | Policy gate |
+|---|---:|---:|
+| Attack success rate | 100% | **0%** |
+| Data leakage | 100% | **0%** |
+| Benign task success | 100% | **100%** |
+
+Full results: [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md)
+
+---
+
+## Core features
+
+- OPA-based policy enforcement (Rego policy-as-code)
+- Tool-call authorization and unknown-tool blocking
+- Prompt-injection defense patterns (DLP + canary scanning on tool outputs)
+- Human approval gates with dual-control support
+- Hash-chained audit logs with optional HMAC signing and S3 Object Lock
+- 166 automated tests across unit, integration, and benchmark parity suites
+- CI-tested security scenarios (SSRF, doc exfiltration, privilege escalation)
+- [Fly.io deploy path](docs/demo-deployment.md) and one-command local demo
+
+---
+
+## Architecture
+
+```
+Agent → Security Gate → Policy Engine (OPA) → Tool Router → Audit Evidence
+              ↓
+     allow / deny / approval_required
+```
+
+![Architecture](docs/assets/architecture.svg)
+
+**Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md)
+
+---
+
+## Ecosystem
+
+| Layer | Project | Relationship |
+|---|---|---|
+| **Evaluate** | [vendor-red-team-passport](https://github.com/giselleevita/vendor-red-team-passport) | Offensive vendor/model testing — 10 attack classes, Passport Reports |
+| **Govern** | [security-compliance-copilot](https://github.com/giselleevita/security-compliance-copilot) | Grounded governance Q&A with citations (guidance, not enforcement) |
+| **Evidence** | [proofrail-evidence-api](https://github.com/giselleevita/proofrail-evidence-api) | Signed compliance evidence bundles |
+| **Ship** | [secure-docs-aws](https://github.com/giselleevita/secure-docs-aws) | Secure cloud document-storage reference |
+
+For offensive vendor testing and attack-class reports, see [vendor-red-team-passport](https://github.com/giselleevita/vendor-red-team-passport). Prompt-injection detection research (ToolShield thesis) informs the benchmark methodology — see [docs/research-lineage.md](docs/research-lineage.md).
 
 ---
 
@@ -29,13 +83,11 @@ high-risk operations, and producing tamper-evident audit logs for compliance.
 
 ---
 
-## Why ASG?
+## Scope
 
-> ASG is a source-available reference implementation for an agent security gateway with OPA policy enforcement, hash-chained audit events, and a built-in approval workflow - deployable in one `docker compose up`.
+> ASG is a source-available reference implementation for an agent security gateway with OPA policy enforcement, hash-chained audit events, and a built-in approval workflow — deployable in one `docker compose up`.
 
 Most agent security tools protect at the **prompt layer**. ASG enforces at the **tool-call decision boundary** — before execution, not after damage.
-
-### Scope
 
 ASG is a **pilot-ready reference platform** for agent tool-boundary enforcement: policy-as-code (OPA), approval gates, optional mandatory enforcement (SDK + strict mode), OIDC identity, tenant policy isolation, DLP/canary scanning, and verifiable audit chains with optional immutable S3 sink and auditor export packages.
 
