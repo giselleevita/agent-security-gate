@@ -38,6 +38,10 @@ _APPROVALS_PENDING = Gauge(
     "asg_approvals_pending",
     "Approvals currently in the pending state (best-effort, set at scrape time).",
 )
+_APPROVALS_FIRST_APPROVED = Gauge(
+    "asg_approvals_first_approved",
+    "Dual-control approvals awaiting a second approver (best-effort, set at scrape time).",
+)
 
 
 def observe_decide_latency(seconds: float) -> None:
@@ -58,6 +62,28 @@ def record_rate_limit_hit(bucket: str) -> None:
 
 def set_approvals_pending(count: int) -> None:
     _APPROVALS_PENDING.set(count)
+
+
+def set_approvals_first_approved(count: int) -> None:
+    _APPROVALS_FIRST_APPROVED.set(count)
+
+
+def snapshot_decision_counts() -> list[dict[str, int | str]]:
+    """Return in-process Prometheus decision counter totals (since process start)."""
+    out: list[dict[str, int | str]] = []
+    for metric in _DECIDE_TOTAL.collect():
+        for sample in metric.samples:
+            if sample.name != "asg_decide_total":
+                continue
+            out.append(
+                {
+                    "outcome": sample.labels["outcome"],
+                    "reason": sample.labels["reason"],
+                    "count": int(sample.value),
+                }
+            )
+    out.sort(key=lambda row: (-int(row["count"]), str(row["outcome"]), str(row["reason"])))
+    return out
 
 
 def render_latest() -> tuple[bytes, str]:

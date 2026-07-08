@@ -21,6 +21,7 @@ def test_all_expected_routes_are_registered() -> None:
         "/v1/policy/exceptions",
         "/v1/policy/exceptions/{tenant_id}",
         "/v1/audit/export",
+        "/v1/stats",
     }
     assert expected <= paths
 

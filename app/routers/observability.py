@@ -10,6 +10,7 @@ from starlette.responses import Response
 
 from app import main as m
 from app import metrics as _metrics
+from app import stats as _stats
 from app.auth import verify_approver
 from app.config import audit_log_path as _audit_log_path
 from app.config import opa_url as _opa_url
@@ -31,9 +32,17 @@ def metrics() -> Response:
     try:
         with m._db_connect() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT count(*) FROM approvals WHERE status = 'pending'")
+                cur.execute(
+                    """
+                    SELECT
+                      count(*) FILTER (WHERE status = 'pending')::int,
+                      count(*) FILTER (WHERE status = 'first_approved')::int
+                    FROM approvals
+                    """
+                )
                 row = cur.fetchone()
                 _metrics.set_approvals_pending(int(row[0]) if row else 0)
+                _metrics.set_approvals_first_approved(int(row[1]) if row else 0)
     except Exception:
         # Never let a store hiccup fail a scrape; the gauge simply keeps its last value.
         pass
@@ -58,6 +67,19 @@ def audit_tail(limit: int = Query(default=20, ge=1, le=200)) -> dict[str, Any]:
         except json.JSONDecodeError:
             continue
     return {"events": out}
+
+
+@router.get("/v1/stats", dependencies=[Depends(verify_approver)])
+def runtime_stats(window_hours: int = Query(default=24, ge=1, le=168)) -> dict[str, Any]:
+    """
+    Approver-only operator snapshot: decision deny breakdown (from in-process counters),
+    approval queue depth, and approval SLA percentiles (p50/p95 seconds to resolve).
+    """
+    try:
+        with m._db_connect() as conn:
+            return _stats.gather_runtime_stats(conn, window_hours=window_hours)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="stats unavailable") from exc
 
 
 @router.get("/health/ready")
