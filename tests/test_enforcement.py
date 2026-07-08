@@ -23,8 +23,10 @@ class _FakeRedis:
 
 @pytest.fixture
 def fake_redis(monkeypatch):
+    import app.decision as decision
+
     r = _FakeRedis()
-    monkeypatch.setattr(main, "_redis", lambda: r)
+    monkeypatch.setattr(decision, "_redis", lambda: r)
     return r
 
 
