@@ -1,26 +1,40 @@
-# Demo video script (3 minutes)
+# Demo video script (60–90 seconds)
 
-Use this script when recording a screen capture for README and portfolio.
+Use the [README GIF](../assets/asg-demo.gif) as the core visual. Record voiceover + terminal, or screen capture of the GIF flow on a live demo.
 
 ## Setup
 
-- Fly demo URL or `docker compose up -d --build`
-- Terminal + browser for `/ui/approvals`
-- Optional: `python examples/langgraph_gated_agent.py`
+- Live: https://asg-demo.fly.dev (or `docker compose up`)
+- Optional: browser on `/ui/approvals`
 
 ## Script
 
-| Time | Scene | Narration |
-|------|-------|-----------|
-| 0:00–0:20 | Title card / README | "LLM agents call tools. Tools have real consequences. Agent Security Gate enforces policy before execution — not at the prompt layer." |
-| 0:20–0:50 | `curl /health` + stack up | "One docker compose brings up OPA, Postgres, Redis, and the FastAPI gateway." |
-| 0:50–1:30 | Four demo curls | "Doc exfiltration denied. SSRF blocked. Privilege escalation requires approval. Legitimate read allowed." |
-| 1:30–2:00 | `/ui/approvals` approve flow | "Approvers resolve high-risk tools. Resume token binds the allow decision to execution." |
-| 2:00–2:30 | `verify_audit.py` + LangGraph example | "Every decision is hash-chained. LangGraph tools call decide before side effects." |
-| 2:30–3:00 | CI benchmark table | "CI proves attack blocking with threshold gates. Pilot-ready reference platform." |
+| Time | Visual | Narration |
+|------|--------|-----------|
+| 0–10s | Title / GIF first frame | "AI agents can call tools, access data, and trigger actions. That creates a new security boundary." |
+| 10–25s | Architecture diagram or GIF typing | "Agent Security Gate sits between the agent and its tools. Every tool call is checked against policy before execution." |
+| 25–50s | GIF: blocked request + audit JSON | "Here, the agent receives a prompt-injection attempt and tries to call a restricted tool. The gateway evaluates the request and blocks it." |
+| 50–65s | GIF: audit trace line | "The decision is logged with the policy result, reason, and trace metadata — evidence for review." |
+| 65–80s | GIF: allowed safe call | "Safe tool calls still pass through. The system enforces boundaries, it does not block everything." |
+| 80–90s | README / repo link | "The goal: make AI agent actions enforceable, testable, and auditable." |
+
+## Do not cover in the video
+
+- OPA/Rego internals
+- Full test suite walkthrough
+- Every architecture component
+
+Goal: make someone curious enough to inspect the repo in 15 minutes.
 
 ## Publishing
 
-- Upload unlisted to YouTube or attach to GitHub Release
-- Embed link in [README.md](../README.md) hero section
-- Add to [giselleevita profile README](https://github.com/giselleevita/giselleevita)
+1. Upload unlisted to YouTube or attach to GitHub Release
+2. Embed in [README.md](../README.md) **Try it** section
+3. Add link on [portfolio](https://giselleevita.github.io/portfolio/)
+4. Use [cross-post drafts](blog/cross-posts/) for LinkedIn
+
+## LinkedIn post (draft)
+
+> AI agents don't just generate text — they call tools. I built Agent Security Gate to enforce policy **before** tool execution: block doc exfiltration and SSRF, require approval for risky writes, and produce hash-chained audit evidence.  
+> Live demo: https://asg-demo.fly.dev/demo  
+> Repo: https://github.com/giselleevita/agent-security-gate
