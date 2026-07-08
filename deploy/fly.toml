@@ -1,11 +1,13 @@
 # Fly.io demo deployment for Agent Security Gate gateway.
-# See docs/demo-deployment.md for Postgres, Redis, and OPA setup.
+# Public reference demo — ASG_DEMO_MODE=true, documented demo tokens only.
+# Deploy: ./scripts/fly_demo_bootstrap.sh (after flyctl auth login)
 
 app = "asg-demo"
 primary_region = "ams"
 
 [build]
-  dockerfile = "Dockerfile.gateway"
+  dockerfile = "../Dockerfile.gateway"
+  context = ".."
 
 [env]
   ASG_DEMO_MODE = "true"
@@ -15,6 +17,8 @@ primary_region = "ams"
   APPROVAL_RATE_LIMIT_MAX = "20"
   APPROVAL_RATE_LIMIT_WINDOW_S = "60"
   APPROVAL_TTL_S = "3600"
+  # Demo JWT for resume tokens only — not a production secret.
+  JWT_SECRET = "asg-demo-jwt-secret-minimum-32-bytes"
 
 [http_service]
   internal_port = 8000
@@ -27,7 +31,7 @@ primary_region = "ams"
   [[http_service.checks]]
     interval = "15s"
     timeout = "5s"
-    grace_period = "30s"
+    grace_period = "45s"
     method = "GET"
     path = "/health/ready"
 
