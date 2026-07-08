@@ -5,7 +5,7 @@ Shipped a runtime policy gateway for AI agent tool calls.
 **What it does:** sits between your agent and tools, evaluates every call against OPA policy before execution, blocks unsafe actions (doc exfiltration, SSRF, privilege escalation), and writes hash-chained audit evidence.
 
 **Try it in 30 seconds:**
-- Live demo: https://asg-demo.fly.dev/demo
+- Local demo: `docker compose up` → http://localhost:8000/demo
 - Local: `docker compose up` → `curl` with `test-token`
 - Repo: https://github.com/giselleevita/agent-security-gate
 
