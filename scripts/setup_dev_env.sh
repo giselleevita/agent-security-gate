@@ -47,17 +47,16 @@ else
 fi
 
 echo ""
-echo "==> Fly.io (optional live demo)"
+echo "==> Fly.io (optional — costs money, skip for free portfolio)"
 if command -v flyctl >/dev/null 2>&1; then
   if flyctl auth whoami >/dev/null 2>&1; then
-    echo "Fly logged in as: $(flyctl auth whoami)"
-    echo "Deploy demo: ./scripts/deploy_demo_now.sh"
+    echo "Fly logged in. Paid deploy only: ./scripts/deploy_demo_now.sh"
+    echo "See docs/demo-deployment.md for cost warning."
   else
-    echo "Fly not logged in. Run: flyctl auth login"
-    echo "Then: ./scripts/deploy_demo_now.sh"
+    echo "Fly optional. Skip unless you want a paid hosted URL."
   fi
 else
-  echo "Install flyctl: brew install flyctl"
+  echo "Fly optional (brew install flyctl). Not needed for portfolio."
 fi
 
 echo ""

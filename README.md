@@ -79,34 +79,34 @@ For offensive vendor testing and attack-class reports, see [vendor-red-team-pass
 
 | Option | Link |
 |---|---|
-| **Local (recommended)** | `docker compose up -d --build` → http://localhost:8000/health |
-| **Live demo** | [asg-demo.fly.dev](https://asg-demo.fly.dev) · [Threat model](docs/agent-security-gate-threat-model.md) · [Benchmark](docs/benchmark-results/latest.md) |
-| **Deploy live demo** | `flyctl auth login` → `./scripts/fly_demo_bootstrap.sh` → [guide](docs/demo-deployment.md) |
-| **Demo API** | `GET /demo` — public curl examples and demo tokens |
-| **Approval console** | `/ui/approvals` (approver token: `approver-token` in demo mode) |
+| **Try locally (free)** | `docker compose up -d --build` → http://localhost:8000/demo |
+| **Threat model** | [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · [Benchmark](docs/benchmark-results/latest.md) |
+| **Demo API** | `GET /demo` — public curl examples and demo tokens (`test-token`) |
+| **Approval console** | http://localhost:8000/ui/approvals (approver: `approver-token`) |
 | **Demo video** | [docs/assets/asg-demo.mp4](docs/assets/asg-demo.mp4) · [script](docs/DEMO_VIDEO.md) |
+| **Paid hosting (skip)** | [Fly deploy](docs/demo-deployment.md) — optional; Postgres/Redis cost ~$3–10+/mo |
 
 <p align="center">
   <video src="https://github.com/giselleevita/agent-security-gate/raw/main/docs/assets/asg-demo.mp4" controls width="100%"></video>
 </p>
 
-**Quick try (local or live demo):**
+**Quick try (free, local):**
 
 ```bash
+docker compose up -d --build
+
 # Blocked — doc exfiltration
-curl -s -X POST https://asg-demo.fly.dev/agent \
+curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" \
   -H "Content-Type: application/json" \
   -d '{"input":"Read /internal/secrets.yaml"}'
 
 # Allowed — public document
-curl -s -X POST https://asg-demo.fly.dev/agent \
+curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" \
   -H "Content-Type: application/json" \
   -d '{"input":"summarize /public/readme.md"}'
 ```
-
-*(Replace host with `http://localhost:8000` for local compose.)*
 
 ---
 

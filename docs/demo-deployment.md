@@ -1,40 +1,44 @@
-# Fly.io demo deployment
+# Fly.io demo deployment (optional — costs money)
 
-Public reference demo for recruiters and design partners. **Not for production use.**
+> **Skip this for a free portfolio.** Use the README GIF + `docker compose up` instead.
+> Fly Postgres and Redis run 24/7 and typically cost **~$3–10+/month** even when the gateway is idle.
 
-## Live demo
+Public reference demo for recruiters who need a hosted URL. **Not for production use.**
+
+## Free alternative (recommended)
+
+```bash
+docker compose up -d --build
+open http://localhost:8000/demo
+```
+
+The README GIF and MP4 work without any hosting bill.
+
+## If you still want Fly (paid)
+
+See sections below. Requires a credit card on file.
+
+## Live demo URLs (after paid deploy)
 
 | URL | Purpose |
 |-----|---------|
-| https://asg-demo.fly.dev | Gateway (deploy with bootstrap below) |
-| https://asg-demo.fly.dev/health | Liveness |
-| https://asg-demo.fly.dev/health/ready | OPA + Redis readiness |
-| https://asg-demo.fly.dev/demo | Public curl examples + demo tokens |
-
-## Demo mode constraints
-
-- `ASG_DEMO_MODE=true` — fixed demo tokens, no recruiter secrets required
-- **Agent token:** `test-token`
-- **Approver token:** `approver-token`
-- Mock tool routing via `/agent` — fixed attack/safe scenarios only
-- Audit log on ephemeral disk (`/tmp`) — not durable across machine restarts
-- Machines auto-stop when idle (free tier friendly)
+| https://asg-demo.fly.dev | Gateway |
+| https://asg-demo.fly.dev/demo | Public curl examples |
 
 ## One-command deploy
 
 ```bash
-brew install flyctl
 flyctl auth login
 ./scripts/fly_demo_bootstrap.sh
 ./scripts/verify_fly_demo.sh https://asg-demo.fly.dev
 ```
 
-The bootstrap script creates:
+## Demo mode constraints
 
-- `asg-demo-opa` — OPA with policies baked into the image
-- `asg-demo-db` — Fly Postgres (approvals)
-- `asg-demo-redis` — Upstash Redis (rate limits)
-- `asg-demo` — FastAPI gateway
+- `ASG_DEMO_MODE=true` — fixed demo tokens (`test-token`, `approver-token`)
+- Mock tool routing via `/agent` only
+- Audit log on ephemeral disk — not durable across restarts
+- Machines auto-stop when idle (compute savings; Postgres/Redis still bill)
 
 ## Architecture
 
@@ -46,40 +50,17 @@ flowchart LR
   GW --> Redis[(Upstash Redis)]
 ```
 
-## Verify after deploy
+## Tear down (stop charges)
 
 ```bash
-curl -s https://asg-demo.fly.dev/health
-curl -s https://asg-demo.fly.dev/demo | jq .
-
-curl -s -X POST https://asg-demo.fly.dev/agent \
-  -H "Authorization: Bearer test-token" \
-  -H "Content-Type: application/json" \
-  -d '{"input":"read /internal/secrets.yaml"}'
+fly apps destroy asg-demo asg-demo-opa
+fly postgres destroy asg-demo-db
+fly redis destroy asg-demo-redis
 ```
 
 ## Local alternative
 
-Reviewers without Fly access:
-
 ```bash
 docker compose up -d --build
-open http://localhost:8000/demo
-```
-
-## Update profile README
-
-After deploy, confirm the live URL in:
-
-- [README.md](../README.md) **Try it** section
-- `giselleevita/giselleevita` profile README
-- [portfolio](https://github.com/giselleevita/portfolio) hero CTA
-
-## Manual overrides
-
-```bash
-export ASG_FLY_APP=asg-demo
-export ASG_FLY_REGION=ams
-export ASG_FLY_ORG=personal
-./scripts/fly_demo_bootstrap.sh
+curl -s http://localhost:8000/demo | jq .
 ```

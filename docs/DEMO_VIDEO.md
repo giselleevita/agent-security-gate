@@ -4,7 +4,7 @@ Use the [README GIF](../assets/asg-demo.gif) as the core visual. Record voiceove
 
 ## Setup
 
-- Live: https://asg-demo.fly.dev (or `docker compose up`)
+- Local: `docker compose up` → http://localhost:8000/demo
 - Optional: browser on `/ui/approvals`
 
 ## Script
@@ -36,5 +36,5 @@ Goal: make someone curious enough to inspect the repo in 15 minutes.
 ## LinkedIn post (draft)
 
 > AI agents don't just generate text — they call tools. I built Agent Security Gate to enforce policy **before** tool execution: block doc exfiltration and SSRF, require approval for risky writes, and produce hash-chained audit evidence.  
-> Live demo: https://asg-demo.fly.dev/demo  
+> Try it free: `docker compose up` → https://github.com/giselleevita/agent-security-gate#try-it  
 > Repo: https://github.com/giselleevita/agent-security-gate
