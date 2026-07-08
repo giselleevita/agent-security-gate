@@ -16,6 +16,7 @@ DEFAULT_SUMMARY = ROOT / "results" / "summary.json"
 OUT_DIR = ROOT / "docs" / "benchmark-results"
 OUT_MD = OUT_DIR / "latest.md"
 OUT_JSON = OUT_DIR / "latest.json"
+DEFAULT_SCENARIOS = ROOT / "benchmark" / "scenarios" / "scenarios.yaml"
 
 
 def _header(comparison: dict) -> str:
@@ -41,8 +42,16 @@ def _header(comparison: dict) -> str:
 
 def publish(comparison_path: Path, summary_path: Path | None = None) -> None:
     comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+    summary = None
+    if summary_path and summary_path.is_file():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    OUT_MD.write_text(_header(comparison) + render_comparison_report(comparison), encoding="utf-8")
+    report = render_comparison_report(
+        comparison,
+        scenarios_path=DEFAULT_SCENARIOS if DEFAULT_SCENARIOS.is_file() else None,
+        summary=summary,
+    )
+    OUT_MD.write_text(_header(comparison) + report, encoding="utf-8")
     payload = {"comparison": comparison}
     if summary_path and summary_path.is_file():
         payload["summary"] = json.loads(summary_path.read_text(encoding="utf-8"))
