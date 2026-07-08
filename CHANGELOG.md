@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] — 2026-07-08
+
+Post-hardening release completing hardening strategy phases 0–3. Diligence checklist and
+revised technical scorecard: [docs/investor-readiness.md](docs/investor-readiness.md).
+
 ### Added
 - Investor readiness completion record: `docs/investor-readiness.md` (workstream completion matrix, technical investable checklist, revised scorecard, remaining honest gaps); hardening-strategy finding table updated to Done; investment-assessment addendum; README scope aligned with post-hardening capabilities
 - Benchmark PEP consolidation: the `gate` baseline now routes through `benchmark/runtime_gate.RuntimeGateClient`, which calls `_decide_tool_call_impl` (same path as `POST /v1/gateway/decide`) with offline OPA evaluation via `app/opa_local.py` (HTTP `OPA_URL` or `opa eval` CLI). Removes the duplicate policy implementation from `gateway/pep.py` (now a thin deprecated facade). Adds parity test for all 18 scenarios and `open-policy-agent/setup-opa` in CI
@@ -52,7 +59,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Separate rate-limit buckets for `/agent` (5/min) and `/v1/gateway/decide` (120/min default)
 - Decide rate-limit 429 returns structured `RateLimitExceededResponse` body
 - Regenerated `requirements.lock` and `requirements-dev.lock` (removed unused `httpx2`, added `psycopg-pool`)
-- Version alignment across `pyproject.toml`, `RELEASE`, `SECURITY.md`, and FastAPI app metadata (0.5.0)
+- Version alignment across `pyproject.toml`, `RELEASE`, and FastAPI app metadata (0.6.0)
 
 ### Fixed
 - HTTP egress policy checks host allowlist before DNS resolution so non-allowlisted
