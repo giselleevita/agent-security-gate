@@ -4,7 +4,8 @@ app = "asg-demo-opa"
 primary_region = "ams"
 
 [build]
-  image = "openpolicyagent/opa:0.65.0-static"
+  dockerfile = "../deploy/Dockerfile.opa"
+  context = ".."
 
 [env]
 
@@ -14,6 +15,3 @@ primary_region = "ams"
 
   [[services.ports]]
     port = 8181
-
-[processes]
-  app = "run --server --addr :8181 /policies"
