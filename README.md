@@ -5,6 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-BSL--1.1-orange)
 ![Version](https://img.shields.io/badge/version-0.6.0-informational)
+[![Visibility sprint](https://img.shields.io/badge/docs-visibility%20sprint-blue)](docs/VISIBILITY_SPRINT.md)
 
 > Pre-execution policy enforcement for tool-using LLM agents.
 
@@ -22,7 +23,7 @@ high-risk operations, and producing tamper-evident audit logs for compliance.
 |---|---|
 | **Local (recommended)** | `docker compose up -d --build` → http://localhost:8000/health |
 | **Approval console** | http://localhost:8000/ui/approvals (approver token) |
-| **Fly.io demo** | Deploy with [docs/demo-deployment.md](docs/demo-deployment.md) → `https://asg-demo.fly.dev` *(set your app URL after deploy)* |
+| **Fly.io demo** | Run `./scripts/fly_demo_bootstrap.sh` after `flyctl auth login` → [deploy guide](docs/demo-deployment.md) |
 | **Benchmark results** | [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) |
 | **Demo video** | [docs/DEMO_VIDEO.md](docs/DEMO_VIDEO.md) *(script — record and embed)* |
 
