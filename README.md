@@ -11,7 +11,11 @@ Runtime policy enforcement for AI agent tool calls.
 
 **Agent Security Gate** is a runtime security gateway for AI agents. It enforces policy **before** tool calls execute, records audit evidence, and helps teams prevent prompt injection, unsafe actions, and unauthorized tool use.
 
-![Demo: four policy decisions in the terminal](docs/assets/demo-terminal.svg)
+<p align="center">
+  <img src="./docs/assets/asg-demo.gif" alt="Agent Security Gate blocking unsafe AI agent tool calls" />
+</p>
+
+<p align="center"><em>Agent Security Gate blocks unsafe AI agent tool calls before execution and records an auditable decision trace.</em></p>
 
 ---
 
