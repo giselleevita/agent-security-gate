@@ -383,6 +383,29 @@ Generate one from the CLI: `python -m scripts.export_audit_package --out export.
 
 ---
 
+## High availability (multi-replica)
+
+The gateway is stateless; Redis and Postgres hold shared state. Run multiple replicas behind
+a load balancer:
+
+```bash
+export ASG_UID=$(id -u) ASG_GID=$(id -g)
+docker compose -f docker-compose.yml -f docker-compose.ha.yml up -d --build
+```
+
+Each replica sets `ASG_REPLICA_ID` to its hostname and writes to `events-<replica>.jsonl`
+so concurrent replicas never fork a shared audit chain. In production, use the S3 Object
+Lock audit sink instead of shared local files.
+
+```bash
+ASG_HA=1 python -m pytest tests/integration/test_ha.py -q   # concurrent decide drill
+```
+
+See [docs/runbooks/ha-deployment.md](docs/runbooks/ha-deployment.md) for topology,
+production recommendations, and migration locking details.
+
+---
+
 ## Backup and restore
 
 `scripts/backup.sh` writes a timestamped bundle (Postgres dump + audit log + checksum
