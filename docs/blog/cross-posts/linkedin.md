@@ -21,7 +21,7 @@ What it demonstrates (verifiable in ~15 minutes):
 Scope honesty: portfolio-grade reference, not a certified appliance. The value is showing where controls belong and how to test them.
 
 🔗 Repo: https://github.com/giselleevita/agent-security-gate
-🏷️ Release v0.5.0: https://github.com/giselleevita/agent-security-gate/releases/tag/v0.5.0
+🏷️ Release v0.6.0: https://github.com/giselleevita/agent-security-gate/releases/tag/v0.6.0
 📄 Technical brief: https://github.com/giselleevita/agent-security-gate/blob/main/docs/technical-brief.md
 📝 Canonical post: https://github.com/giselleevita/agent-security-gate/blob/main/docs/blog/agent-security-at-tool-boundary.md
 🌐 Portfolio: https://giselleevita.github.io/portfolio/

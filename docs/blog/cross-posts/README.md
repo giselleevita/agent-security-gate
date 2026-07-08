@@ -22,7 +22,7 @@ Point syndicated copies here so search engines and readers find the source-of-tr
 
 1. Open [`linkedin.md`](linkedin.md) and copy the body (omit this README).
 2. Paste into a new LinkedIn post.
-3. Confirm links resolve: repo, technical brief, full post, portfolio, **v0.5.0 release**.
+3. Confirm links resolve: repo, technical brief, full post, portfolio, **v0.6.0 release**.
 4. Optional: add a first comment with the canonical URL if LinkedIn strips link preview.
 
 ### dev.to
