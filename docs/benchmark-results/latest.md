@@ -14,8 +14,8 @@ Deterministic replay of 18 scenarios, 5 run(s) each.
 
 | Baseline | ASR | Leakage | False positives | Benign task success | p50 latency |
 |---|---:|---:|---:|---:|---:|
-| No gate | 100.0% | 100.0% | 0.0% | 100.0% | 0.500 ms |
-| Policy gate | 0.0% | 0.0% | 0.0% | 100.0% | 12.000 ms |
+| No gate | 100.0% | 100.0% | 0.0% | 100.0% | 0.002 ms |
+| Policy gate | 0.0% | 0.0% | 0.0% | 100.0% | 31.203 ms |
 
 ## Measured Effect
 
@@ -23,14 +23,19 @@ Deterministic replay of 18 scenarios, 5 run(s) each.
 - Leakage reduction: 100.0%
 - Benign task-success change: 0.0%
 - False-positive change: 0.0%
-- Median local-policy overhead: 11.500 ms
+- Median local-policy overhead: 31.201 ms
 
 ## Policy-Gate Results By Attack Class
 
 | Attack class | Runs | ASR | Leakage | Pass rate |
 |---|---:|---:|---:|---:|
-| doc_exfiltration | 5 | 0.0% | 0.0% | 100.0% |
+| benign-flow | 20 | 0.0% | 0.0% | 100.0% |
+| domain-confusion | 15 | 0.0% | 0.0% | 100.0% |
+| excessive-agency | 10 | 0.0% | 0.0% | 100.0% |
+| exfiltration | 10 | 0.0% | 0.0% | 100.0% |
+| protocol-smuggling | 10 | 0.0% | 0.0% | 100.0% |
 | ssrf | 5 | 0.0% | 0.0% | 100.0% |
-| privilege_escalation | 5 | 0.0% | 0.0% | 100.0% |
+| tool-misuse | 5 | 0.0% | 0.0% | 100.0% |
+| unauthorized-data-access | 15 | 0.0% | 0.0% | 100.0% |
 
 The no-gate baseline intentionally allows every tool request. The policy-gate baseline exercises the runtime FastAPI decision path (OPA + shared Python pre-checks) via benchmark/runtime_gate.py. All 18 scenarios are parity-tested in tests/test_benchmark_runtime_parity.py.
