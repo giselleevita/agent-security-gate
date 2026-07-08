@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 320" font-family="ui-sans-serif, system-ui, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <style>
+      .box { fill:#f8fafc; stroke:#334155; stroke-width:2; rx:8; }
+      .title { font-size:14px; font-weight:700; fill:#0f172a; }
+      .sub { font-size:11px; fill:#475569; }
+    </style>
+  </defs>
+  <rect width="920" height="320" fill="#ffffff"/>
+  <text x="20" y="28" class="title" font-size="18">Agent Security Gate  Architecture</text>
+  <rect class="box" x="30" y="60" width="130" height="70"/>
+  <text x="50" y="90" class="title">Agent client</text>
+  <text x="50" y="110" class="sub">LangGraph / SDK</text>
+  <rect class="box" x="220" y="50" width="170" height="90"/>
+  <text x="240" y="85" class="title">FastAPI gateway</text>
+  <text x="240" y="105" class="sub">/v1/gateway/decide</text>
+  <text x="240" y="122" class="sub">Approvals · DLP · Audit</text>
+  <rect class="box" x="450" y="50" width="120" height="70"/>
+  <text x="470" y="85" class="title">OPA / Rego</text>
+  <text x="470" y="105" class="sub">Policy PDP</text>
+  <rect class="box" x="620" y="40" width="120" height="60"/>
+  <text x="640" y="72" class="title">Redis</text>
+  <text x="640" y="88" class="sub">Rate limits</text>
+  <rect class="box" x="620" y="120" width="120" height="60"/>
+  <text x="635" y="152" class="title">Postgres</text>
+  <text x="635" y="168" class="sub">Approvals</text>
+  <rect class="box" x="220" y="190" width="170" height="70"/>
+  <text x="240" y="222" class="title">Tool adapters</text>
+  <text x="240" y="242" class="sub">docs · http · db</text>
+  <rect class="box" x="450" y="190" width="140" height="70"/>
+  <text x="470" y="222" class="title">Audit chain</text>
+  <text x="470" y="242" class="sub">JSONL · S3 sink</text>
+  <rect class="box" x="30" y="190" width="130" height="70"/>
+  <text x="50" y="222" class="title">Approver</text>
+  <text x="50" y="242" class="sub">/ui/approvals</text>
+  <line x1="160" y1="95" x2="220" y2="95" stroke="#475569" marker-end="url(#arrow)"/>
+  <line x1="390" y1="95" x2="450" y2="95" stroke="#475569" marker-end="url(#arrow)"/>
+  <line x1="305" y1="140" x2="305" y2="190" stroke="#475569" marker-end="url(#arrow)"/>
+  <line x1="390" y1="225" x2="450" y2="225" stroke="#475569" marker-end="url(#arrow)"/>
+  <line x1="160" y1="225" x2="220" y2="225" stroke="#475569" marker-end="url(#arrow)"/>
+  <line x1="540" y1="95" x2="620" y2="70" stroke="#475569" marker-end="url(#arrow)"/>
+  <line x1="540" y1="110" x2="620" y2="150" stroke="#475569" marker-end="url(#arrow)"/>
+</svg>
