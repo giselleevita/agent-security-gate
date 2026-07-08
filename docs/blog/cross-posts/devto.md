@@ -36,13 +36,15 @@ ASG evaluates the proposal **before** the adapter executes it. OPA/Rego policy r
 
 On 18 deterministic scenarios (5 runs each): **no-gate ASR 100% → gate ASR 0%**.
 
-## Try it
+## Try it (free)
 
 ```bash
 git clone https://github.com/giselleevita/agent-security-gate.git
 cd agent-security-gate
 docker compose up -d --build
 ```
+
+Watch the **terminal GIF** at the top of the README for the full block → audit → allow flow.
 
 - [Technical brief](https://github.com/giselleevita/agent-security-gate/blob/main/docs/technical-brief.md)
 - [v0.6.0 release](https://github.com/giselleevita/agent-security-gate/releases/tag/v0.6.0)
