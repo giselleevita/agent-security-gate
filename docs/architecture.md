@@ -14,6 +14,11 @@ flowchart LR
   Adapters --> External["External services"]
 ```
 
+For multi-replica deployments, run ≥2 stateless gateway replicas behind a load balancer;
+shared state is Redis + Postgres only. Each replica writes to its own audit stream when
+`ASG_REPLICA_ID` is set (see `docs/runbooks/ha-deployment.md`). Production should mirror
+audit to S3 Object Lock instead of relying on shared local files.
+
 ## Core modules
 
 - `gateway/`
@@ -46,6 +51,7 @@ flowchart LR
 ## Notes
 
 - The local JSONL audit log is tamper-evident, not tamper-proof. Production use should move this behind an append-only audit sink.
+- Multi-replica: set `ASG_REPLICA_ID` (or use `docker-compose.ha.yml`) so each replica owns `events-<replica>.jsonl`; never share one `events.jsonl` across writers.
 - Demo credentials are accepted only when `ASG_DEMO_MODE=true`.
 - The benchmark `gateway/` PEP mirrors runtime tool-policy semantics and shares the exact HTTP egress evaluator (`adapters/http.py::evaluate_http_target`) with the runtime gateway, so SSRF/allowlist decisions are identical across both paths (the benchmark only skips DNS resolution for deterministic replay). Runtime FastAPI + OPA integration tests remain authoritative for the deployed decision engine.
 - Database migrations are recorded with checksums in `schema_migrations`; changing an applied migration fails startup.

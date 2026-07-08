@@ -1,0 +1,44 @@
+# High-availability overlay: run the stateless gateway with multiple replicas behind an
+# nginx load balancer. All shared state lives in Redis (sessions, rate limits, enforcement
+# grants) and Postgres (approvals, exceptions), so any replica can serve any request.
+#
+# Usage:
+#   export ASG_UID=$(id -u) ASG_GID=$(id -g)
+#   docker compose -f docker-compose.yml -f docker-compose.ha.yml up -d --build
+#   # scale further at will:
+#   docker compose -f docker-compose.yml -f docker-compose.ha.yml up -d --scale gateway=3
+#
+# Notes:
+# - The gateway no longer publishes a host port; the `lb` service is the single ingress.
+# - Each replica sets ASG_REPLICA_ID to its hostname so it owns an independent, verifiable
+#   audit chain on the shared ./audit volume (no cross-replica chain forks). In production,
+#   prefer the S3 Object Lock sink (AUDIT_S3_*) so audit durability does not depend on a
+#   shared local volume at all.
+# - Redis and Postgres run single-node here for a local drill; production should use Redis
+#   Sentinel/Cluster and a Postgres primary + replica (see docs/runbooks/ha-deployment.md).
+
+services:
+  gateway:
+    ports: !reset []
+    deploy:
+      replicas: 2
+    command:
+      - sh
+      - -c
+      - export ASG_REPLICA_ID="$$(hostname)"; python -m scripts.migrate_db && exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  lb:
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    depends_on:
+      - gateway
+    volumes:
+      - ./deploy/nginx.ha.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${GATEWAY_PORT:-8000}:8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
