@@ -33,13 +33,16 @@ curl -s http://localhost:8000/demo | jq .
 ./scripts/record_demo_gif.sh
 ```
 
-## Fly.io live demo
+## Fly.io live demo (optional — paid)
+
+Skip unless you accept ~$3–10+/month for Postgres + Redis.
 
 ```bash
 flyctl auth login
 ./scripts/deploy_demo_now.sh
-./scripts/verify_fly_demo.sh
 ```
+
+See [demo-deployment.md](demo-deployment.md) for cost warning and tear-down commands.
 
 ## macOS notes
 
