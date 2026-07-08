@@ -2,92 +2,84 @@
 
 Public reference demo for recruiters and design partners. **Not for production use.**
 
-## Architecture
+## Live demo
 
-```mermaid
-flowchart LR
-  User[Reviewer] --> FlyGW[asg-demo Fly app]
-  FlyGW --> FlyOPA[asg-demo-opa]
-  FlyGW --> FlyPG[Fly Postgres]
-  FlyGW --> Redis[Upstash Redis]
-```
+| URL | Purpose |
+|-----|---------|
+| https://asg-demo.fly.dev | Gateway (deploy with bootstrap below) |
+| https://asg-demo.fly.dev/health | Liveness |
+| https://asg-demo.fly.dev/health/ready | OPA + Redis readiness |
+| https://asg-demo.fly.dev/demo | Public curl examples + demo tokens |
 
-## Quick bootstrap (recommended)
+## Demo mode constraints
+
+- `ASG_DEMO_MODE=true` — fixed demo tokens, no recruiter secrets required
+- **Agent token:** `test-token`
+- **Approver token:** `approver-token`
+- Mock tool routing via `/agent` — fixed attack/safe scenarios only
+- Audit log on ephemeral disk (`/tmp`) — not durable across machine restarts
+- Machines auto-stop when idle (free tier friendly)
+
+## One-command deploy
 
 ```bash
 brew install flyctl
 flyctl auth login
 ./scripts/fly_demo_bootstrap.sh
+./scripts/verify_fly_demo.sh https://asg-demo.fly.dev
 ```
 
-The bootstrap script creates `asg-demo` + `asg-demo-opa`, attaches Postgres, sets secrets, and prints your demo URL and tokens.
+The bootstrap script creates:
 
-## Manual steps
+- `asg-demo-opa` — OPA with policies baked into the image
+- `asg-demo-db` — Fly Postgres (approvals)
+- `asg-demo-redis` — Upstash Redis (rate limits)
+- `asg-demo` — FastAPI gateway
 
-```bash
-# Postgres (approvals)
-fly postgres create --name asg-demo-db --region ams
-fly postgres attach asg-demo-db -a asg-demo
+## Architecture
 
-# Upstash Redis (rate limits) — create at console.upstash.com, then:
-fly secrets set REDIS_URL="rediss://..." -a asg-demo
+```mermaid
+flowchart LR
+  Reviewer[Reviewer] --> GW[asg-demo]
+  GW --> OPA[asg-demo-opa]
+  GW --> PG[(Fly Postgres)]
+  GW --> Redis[(Upstash Redis)]
 ```
 
-## 2. Deploy OPA
+## Verify after deploy
 
 ```bash
-cd /path/to/agent-security-gate
-fly launch --config deploy/fly-opa.toml --no-deploy --copy-config
-# Mount policies: use fly volumes or bake policies into a custom OPA image for demo
-fly deploy --config deploy/fly-opa.toml
-```
+curl -s https://asg-demo.fly.dev/health
+curl -s https://asg-demo.fly.dev/demo | jq .
 
-For a minimal demo, point the gateway at a co-located OPA URL:
-
-```bash
-fly secrets set OPA_URL="http://asg-demo-opa.internal:8181" -a asg-demo
-```
-
-## 3. Deploy gateway
-
-```bash
-fly launch --config deploy/fly.toml --no-deploy --copy-config
-fly secrets set \
-  AUTH_TOKEN="demo-$(openssl rand -hex 16)" \
-  APPROVER_TOKEN="approver-$(openssl rand -hex 16)" \
-  JWT_SECRET="$(openssl rand -base64 32)" \
-  -a asg-demo
-fly deploy --config deploy/fly.toml
-```
-
-## 4. Verify
-
-```bash
-fly open /health -a asg-demo
-curl -s "https://asg-demo.fly.dev/health"
-curl -s -X POST "https://asg-demo.fly.dev/agent" \
-  -H "Authorization: Bearer <AUTH_TOKEN>" \
+curl -s -X POST https://asg-demo.fly.dev/agent \
+  -H "Authorization: Bearer test-token" \
   -H "Content-Type: application/json" \
   -d '{"input":"read /internal/secrets.yaml"}'
 ```
 
-## Demo constraints
+## Local alternative
 
-- `ASG_DEMO_MODE=true` — demo tokens only; rotate secrets after sharing URLs publicly
-- Rate limiting enabled
-- Audit log on ephemeral disk (`/tmp`) — not durable across machine restarts
-- Banner in README: reference demo, not production
-
-## One-command local alternative
-
-Reviewers without Fly access can use:
+Reviewers without Fly access:
 
 ```bash
 docker compose up -d --build
+open http://localhost:8000/demo
 ```
 
 ## Update profile README
 
-After deploy, set the live URL in `giselleevita/giselleevita` profile README and [README.md](../README.md) **Try it** section.
+After deploy, confirm the live URL in:
 
-Track remaining tasks: [VISIBILITY_SPRINT.md](./VISIBILITY_SPRINT.md) · verify with `scripts/check_visibility_sprint.sh`
+- [README.md](../README.md) **Try it** section
+- `giselleevita/giselleevita` profile README
+- [portfolio](https://github.com/giselleevita/portfolio) hero CTA
+
+## Manual overrides
+
+```bash
+export ASG_FLY_APP=asg-demo
+export ASG_FLY_REGION=ams
+export ASG_FLY_ORG=personal
+./scripts/fly_demo_bootstrap.sh
+```

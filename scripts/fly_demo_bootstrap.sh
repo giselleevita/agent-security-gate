@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap Agent Security Gate public demo on Fly.io (gateway + OPA + Postgres).
+# Bootstrap Agent Security Gate public demo on Fly.io (gateway + OPA + Postgres + Redis).
 # Prerequisites: flyctl installed and logged in (`flyctl auth login`).
 set -euo pipefail
 
@@ -8,6 +8,8 @@ cd "$ROOT"
 
 APP_GW="${ASG_FLY_APP:-asg-demo}"
 APP_OPA="${ASG_FLY_OPA_APP:-asg-demo-opa}"
+DB_NAME="${ASG_FLY_DB:-asg-demo-db}"
+REDIS_NAME="${ASG_FLY_REDIS:-asg-demo-redis}"
 REGION="${ASG_FLY_REGION:-ams}"
 ORG_ARG=()
 if [ -n "${ASG_FLY_ORG:-}" ]; then
@@ -32,41 +34,39 @@ if ! flyctl apps list --json | jq -e --arg n "$APP_GW" '.[] | select(.Name == $n
   flyctl apps create "$APP_GW" "${ORG_ARG[@]}" || true
 fi
 
-echo "==> Deploy OPA (policies baked into custom image via fly-opa Dockerfile)"
-if [ ! -f deploy/Dockerfile.opa ]; then
-  cat > deploy/Dockerfile.opa <<'DOCKER'
-FROM openpolicyagent/opa:0.65.0-static
-COPY policies /policies
-CMD ["run", "--server", "--addr", ":8181", "/policies"]
-DOCKER
-fi
+echo "==> Deploy OPA (policies baked into image)"
 flyctl deploy \
   --config deploy/fly-opa.toml \
-  --dockerfile deploy/Dockerfile.opa \
   --app "$APP_OPA" \
   --region "$REGION" \
   --ha=false \
   --yes
 
-echo "==> Postgres (create if missing: flyctl postgres create --name asg-demo-db --region $REGION)"
-if ! flyctl postgres list --json 2>/dev/null | jq -e '.[] | select(.Name == "asg-demo-db")' >/dev/null; then
-  echo "Creating Fly Postgres cluster asg-demo-db..."
-  flyctl postgres create --name asg-demo-db --region "$REGION" --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --yes
+echo "==> Postgres (create if missing)"
+if ! flyctl postgres list --json 2>/dev/null | jq -e --arg n "$DB_NAME" '.[] | select(.Name == $n)' >/dev/null; then
+  echo "Creating Fly Postgres cluster ${DB_NAME}..."
+  flyctl postgres create --name "$DB_NAME" --region "$REGION" --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --yes
 fi
-flyctl postgres attach asg-demo-db --app "$APP_GW" --yes || true
+flyctl postgres attach "$DB_NAME" --app "$APP_GW" --yes || true
 
-echo "==> Gateway secrets (rotate in production)"
-AUTH_TOKEN="${ASG_DEMO_AUTH_TOKEN:-demo-$(openssl rand -hex 12)}"
-APPROVER_TOKEN="${ASG_DEMO_APPROVER_TOKEN:-approver-$(openssl rand -hex 12)}"
-JWT_SECRET="${ASG_DEMO_JWT_SECRET:-$(openssl rand -base64 32)}"
+echo "==> Upstash Redis (create if missing)"
+if ! flyctl redis list --json 2>/dev/null | jq -e --arg n "$REDIS_NAME" '.[] | select(.name == $n)' >/dev/null; then
+  echo "Creating Upstash Redis ${REDIS_NAME}..."
+  flyctl redis create --name "$REDIS_NAME" --region "$REGION" --no-replicas --enable-eviction
+fi
+
+REDIS_URL="$(flyctl redis status "$REDIS_NAME" --json 2>/dev/null | jq -r '.private_url // .PrivateURL // empty')"
+if [ -z "$REDIS_URL" ]; then
+  echo "Could not read Redis URL. Set manually:" >&2
+  echo "  flyctl redis status $REDIS_NAME" >&2
+  exit 1
+fi
+
+echo "==> Gateway secrets (demo mode — public tokens documented in /demo)"
 flyctl secrets set \
-  AUTH_TOKEN="$AUTH_TOKEN" \
-  APPROVER_TOKEN="$APPROVER_TOKEN" \
-  JWT_SECRET="$JWT_SECRET" \
   OPA_URL="http://${APP_OPA}.internal:8181" \
-  REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}" \
-  --app "$APP_GW" \
-  --stage
+  REDIS_URL="$REDIS_URL" \
+  --app "$APP_GW"
 
 echo "==> Deploy gateway"
 flyctl deploy \
@@ -79,9 +79,12 @@ flyctl deploy \
 URL="https://${APP_GW}.fly.dev"
 echo ""
 echo "Demo deployed: $URL"
-echo "Health: curl -s ${URL}/health"
-echo "Demo auth token (save for README): $AUTH_TOKEN"
-echo "Approver token: $APPROVER_TOKEN"
 echo ""
-echo "NOTE: Set REDIS_URL to Upstash/Fly Redis before production demo traffic."
-echo "Update README + profile README Live demo link to: $URL"
+echo "Verify:"
+echo "  ./scripts/verify_fly_demo.sh $URL"
+echo ""
+echo "Public demo tokens (ASG_DEMO_MODE=true):"
+echo "  Agent:    test-token"
+echo "  Approver: approver-token"
+echo ""
+echo "Update README Live Demo link to: $URL"
