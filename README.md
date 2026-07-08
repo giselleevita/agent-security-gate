@@ -265,6 +265,9 @@ See [docs/connector-sdk.md](docs/connector-sdk.md) and [`examples/gated_agent.py
   - `asg_opa_errors_total` — OPA query failures
   - `asg_rate_limit_hits_total{bucket}` — requests rejected per rate-limit bucket
   - `asg_approvals_pending` — pending approvals (best-effort, set at scrape)
+  - `asg_approvals_first_approved` — dual-control awaiting a second approver
+- `GET /v1/stats` (approver-only) — JSON operator snapshot: deny breakdown (per-replica in-process counters), approval queue counts, and approval SLA p50/p95 (Postgres, rolling window). See [docs/runbooks/observability.md](docs/runbooks/observability.md).
+- Grafana: import [docs/dashboards/asg-gateway.json](docs/dashboards/asg-gateway.json) for live deny rate, latency, queue depth, and OPA error panels.
 - Structured JSON logs: each decision emits one JSON line (`event: gateway_decision`) with `audit_id`, `tenant_id`, `action`, `tool`, `outcome`, `reason`, `latency_ms`. Metric labels never contain tenant/session identifiers or free text.
 
 ### Output scanning coverage

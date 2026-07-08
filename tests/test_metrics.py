@@ -18,7 +18,7 @@ class _FakeCursor:
         return None
 
     def fetchone(self):
-        return (0,)
+        return (0, 0)
 
     def fetchall(self):
         return []
