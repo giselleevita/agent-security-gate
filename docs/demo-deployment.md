@@ -12,12 +12,17 @@ flowchart LR
   FlyGW --> Redis[Upstash Redis]
 ```
 
-## Prerequisites
+## Quick bootstrap (recommended)
 
-- [Fly CLI](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated (`fly auth login`)
-- Fly Postgres and Upstash Redis (or Fly Redis) provisioned
+```bash
+brew install flyctl
+flyctl auth login
+./scripts/fly_demo_bootstrap.sh
+```
 
-## 1. Provision data stores
+The bootstrap script creates `asg-demo` + `asg-demo-opa`, attaches Postgres, sets secrets, and prints your demo URL and tokens.
+
+## Manual steps
 
 ```bash
 # Postgres (approvals)
@@ -84,3 +89,5 @@ docker compose up -d --build
 ## Update profile README
 
 After deploy, set the live URL in `giselleevita/giselleevita` profile README and [README.md](../README.md) **Try it** section.
+
+Track remaining tasks: [VISIBILITY_SPRINT.md](./VISIBILITY_SPRINT.md) · verify with `scripts/check_visibility_sprint.sh`

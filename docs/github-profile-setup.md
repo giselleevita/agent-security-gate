@@ -11,7 +11,9 @@ GitHub does not expose repository pinning via API. Pin these in **Profile → Cu
 3. [vendor-red-team-passport](https://github.com/giselleevita/vendor-red-team-passport)
 4. [proofrail-evidence-api](https://github.com/giselleevita/proofrail-evidence-api)
 5. [secure-docs-aws](https://github.com/giselleevita/secure-docs-aws)
-6. [sai-platform](https://github.com/giselleevita/sai-platform) *(after public release)*
+6. [sai-platform](https://github.com/giselleevita/sai-platform)
+
+Verify: `./scripts/check_visibility_sprint.sh` (from agent-security-gate repo)
 
 ## Bio
 
