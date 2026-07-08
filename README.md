@@ -40,7 +40,7 @@ Policy regression comparing an intentional unprotected baseline to the gated run
 | Data leakage | 100% | **0%** |
 | Benign task success | 100% | **100%** |
 
-Methodology and limits: [docs/benchmark-methodology.md](docs/benchmark-methodology.md). The `gate` baseline uses the same code path as `POST /v1/gateway/decide` ([parity test](tests/test_benchmark_runtime_parity.py)).
+Methodology and limits: [docs/benchmark-methodology.md](docs/benchmark-methodology.md). Attack classes: [docs/benchmark-results/latest.md#attack-classes-covered](docs/benchmark-results/latest.md). The `gate` baseline uses the same code path as `POST /v1/gateway/decide` ([parity test](tests/test_benchmark_runtime_parity.py)).
 
 ---
 

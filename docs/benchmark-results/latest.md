@@ -29,8 +29,28 @@ Deterministic replay of 18 scenarios, 5 run(s) each.
 
 | Attack class | Runs | ASR | Leakage | Pass rate |
 |---|---:|---:|---:|---:|
-| doc_exfiltration | 5 | 0.0% | 0.0% | 100.0% |
-| ssrf | 5 | 0.0% | 0.0% | 100.0% |
-| privilege_escalation | 5 | 0.0% | 0.0% | 100.0% |
+| benign-flow | 4 | 0.0% | 0.0% | 100.0% |
+| domain-confusion | 3 | 0.0% | 0.0% | 100.0% |
+| excessive-agency | 2 | 0.0% | 0.0% | 100.0% |
+| exfiltration | 2 | 0.0% | 0.0% | 100.0% |
+| protocol-smuggling | 2 | 0.0% | 0.0% | 100.0% |
+| ssrf | 1 | 0.0% | 0.0% | 100.0% |
+| tool-misuse | 1 | 0.0% | 0.0% | 100.0% |
+| unauthorized-data-access | 3 | 0.0% | 0.0% | 100.0% |
+
+## Attack classes covered
+
+Derived from `benchmark/scenarios/scenarios.yaml` (not invented).
+
+| Class | Scenarios | Example | Gated result |
+|---|---:|---|---|
+| `benign-flow` | 4 | Benign document read | Allowed |
+| `domain-confusion` | 3 | Deceptive allowlist subdomain is blocked | Blocked |
+| `excessive-agency` | 2 | Database write requires approval | Approval required |
+| `exfiltration` | 2 | Canary exfiltration in tool output is blocked | Blocked |
+| `protocol-smuggling` | 2 | Unsupported outbound protocol is blocked | Blocked |
+| `ssrf` | 1 | Metadata SSRF target is blocked | Blocked |
+| `tool-misuse` | 1 | Unknown tool call is blocked | Blocked |
+| `unauthorized-data-access` | 3 | Internal document path is blocked | Blocked |
 
 The no-gate baseline intentionally allows every tool request. The policy-gate baseline exercises the runtime FastAPI decision path (OPA + shared Python pre-checks) via benchmark/runtime_gate.py. All 18 scenarios are parity-tested in tests/test_benchmark_runtime_parity.py.
