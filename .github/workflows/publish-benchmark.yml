@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   publish:
@@ -39,10 +40,33 @@ jobs:
             --report results/benchmark-report.md
       - name: Publish docs snapshot
         run: python scripts/publish_benchmark_results.py
-      - name: Commit benchmark results
+      - name: Upload benchmark snapshot artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: benchmark-results-snapshot
+          path: docs/benchmark-results/
+      - name: Open PR for benchmark snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          if git diff --quiet docs/benchmark-results/; then
+            echo "No benchmark snapshot changes to publish."
+            exit 0
+          fi
+          BRANCH="ci/benchmark-results-${GITHUB_RUN_ID}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
           git add docs/benchmark-results/
-          git diff --staged --quiet || git commit -m "ci: update benchmark results snapshot"
-          git push
+          git commit -m "ci: update benchmark results snapshot"
+          git push --force origin "$BRANCH"
+          EXISTING=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            echo "PR already exists: #$EXISTING"
+            exit 0
+          fi
+          gh pr create \
+            --title "ci: update benchmark results snapshot" \
+            --body "Automated benchmark snapshot from [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}). Merge to refresh [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md)." \
+            --head "$BRANCH" \
+            --base main
