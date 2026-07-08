@@ -14,9 +14,8 @@ from typing import Any, Iterator
 
 from fastapi import HTTPException
 
-import app.main as main
+import app.decision as decision
 from app.opa_local import eval_decision
-from app.policy import load_policy_config
 from app.schemas import DecideRequest, DecideResponse
 from audit.events import append_hash_chained_event
 from benchmark.scenarios.schema import ScenarioSchema
@@ -165,6 +164,8 @@ class RuntimeGateClient:
         body = tool_call_to_decide_request(request)
 
         def load_config(tenant_id: str | None = None) -> dict[str, Any]:
+            from app.policy import load_policy_config
+
             base = load_policy_config(tenant_id)
             if not self._policy_overrides:
                 return base
@@ -178,28 +179,28 @@ class RuntimeGateClient:
         def append_audit(_audit_id: str, event: dict[str, Any]) -> None:
             append_hash_chained_event(self.audit_log_path, event)
 
-        _real_evaluate_http_target = main.evaluate_http_target
+        _real_evaluate_http_target = decision.evaluate_http_target
 
         def benchmark_http_target(**kwargs: Any):
             kwargs["resolve_dns"] = False
             return _real_evaluate_http_target(**kwargs)
 
         originals = (
-            main._redis,
-            main._db_connect,
-            main._append_audit_event,
-            main._load_policy_config,
-            main._opa_post,
-            main.evaluate_http_target,
+            decision._redis,
+            decision._db_connect,
+            decision._append_audit_event,
+            decision._load_policy_config,
+            decision._opa_post,
+            decision.evaluate_http_target,
         )
-        main._redis = lambda: self._fake_redis  # type: ignore[method-assign]
-        main._db_connect = _fake_db_connect  # type: ignore[method-assign]
-        main._append_audit_event = append_audit  # type: ignore[method-assign]
-        main._load_policy_config = load_config  # type: ignore[method-assign]
-        main._opa_post = opa_post  # type: ignore[method-assign]
-        main.evaluate_http_target = benchmark_http_target  # type: ignore[method-assign]
+        decision._redis = lambda: self._fake_redis  # type: ignore[method-assign]
+        decision._db_connect = _fake_db_connect  # type: ignore[method-assign]
+        decision._append_audit_event = append_audit  # type: ignore[method-assign]
+        decision._load_policy_config = load_config  # type: ignore[method-assign]
+        decision._opa_post = opa_post  # type: ignore[method-assign]
+        decision.evaluate_http_target = benchmark_http_target  # type: ignore[method-assign]
         try:
-            response = main._decide_tool_call_impl(
+            response = decision.decide_tool_call_impl(
                 body=body,
                 resume_token=None,
                 x_requester_id=None,
@@ -213,12 +214,12 @@ class RuntimeGateClient:
             )
         finally:
             (
-                main._redis,
-                main._db_connect,
-                main._append_audit_event,
-                main._load_policy_config,
-                main._opa_post,
-                main.evaluate_http_target,
+                decision._redis,
+                decision._db_connect,
+                decision._append_audit_event,
+                decision._load_policy_config,
+                decision._opa_post,
+                decision.evaluate_http_target,
             ) = originals
 
         return decision
