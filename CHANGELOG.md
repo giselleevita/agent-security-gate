@@ -12,8 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.6.0] — 2026-07-08
 
-Post-hardening release completing hardening strategy phases 0–3. Diligence checklist and
-revised technical scorecard: [docs/investor-readiness.md](docs/investor-readiness.md).
+Post-hardening release completing hardening strategy phases 0–3. See [docs/technical-brief.md](docs/technical-brief.md) and [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md).
 
 ### Added
 - Investor readiness completion record: `docs/investor-readiness.md` (workstream completion matrix, technical investable checklist, revised scorecard, remaining honest gaps); hardening-strategy finding table updated to Done; investment-assessment addendum; README scope aligned with post-hardening capabilities
