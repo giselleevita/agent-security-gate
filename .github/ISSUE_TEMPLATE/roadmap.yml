@@ -1,0 +1,23 @@
+name: Roadmap item
+description: Track a public roadmap initiative for Agent Security Gate
+title: "[Roadmap] "
+labels:
+  - roadmap
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What outcome does this roadmap item deliver?
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options:
+        - In progress
+        - Planned
+        - Shipped
+    validations:
+      required: true

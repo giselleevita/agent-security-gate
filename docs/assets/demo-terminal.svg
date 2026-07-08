@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 420" font-family="ui-monospace, Menlo, monospace">
+  <rect width="780" height="420" rx="10" fill="#0f172a"/>
+  <rect x="0" y="0" width="780" height="28" rx="10" fill="#1e293b"/>
+  <circle cx="18" cy="14" r="6" fill="#ef4444"/>
+  <circle cx="38" cy="14" r="6" fill="#f59e0b"/>
+  <circle cx="58" cy="14" r="6" fill="#22c55e"/>
+  <text x="80" y="18" fill="#94a3b8" font-size="12">agent-security-gate demo</text>
+  <text x="20" y="58" fill="#94a3b8" font-size="12">$ docker compose up -d --build &amp;&amp; curl -s http://localhost:8000/health</text>
+  <text x="20" y="78" fill="#4ade80" font-size="12">{"status":"ok"}</text>
+  <text x="20" y="108" fill="#94a3b8" font-size="12">$ curl -X POST localhost:8000/agent -d '{"input":"read /internal/secrets.yaml"}'</text>
+  <text x="20" y="128" fill="#f87171" font-size="12">’ denied_doc_prefix</text>
+  <text x="20" y="158" fill="#94a3b8" font-size="12">$ curl -X POST localhost:8000/agent -d '{"input":"fetch http://169.254.169.254/..."}'</text>
+  <text x="20" y="178" fill="#f87171" font-size="12">’ ssrf_blocked_ip_literal</text>
+  <text x="20" y="208" fill="#94a3b8" font-size="12">$ curl -X POST localhost:8000/agent -d '{"input":"update accounts set role=admin"}'</text>
+  <text x="20" y="228" fill="#fbbf24" font-size="12">’ approval_required</text>
+  <text x="20" y="258" fill="#94a3b8" font-size="12">$ curl -X POST localhost:8000/agent -d '{"input":"summarize /public/readme.md"}'</text>
+  <text x="20" y="278" fill="#4ade80" font-size="12">’ allowed</text>
+  <text x="20" y="308" fill="#94a3b8" font-size="12">$ python scripts/verify_audit.py --path audit/events.jsonl</text>
+  <text x="20" y="328" fill="#4ade80" font-size="12"> hash chain verified (4 events)</text>
+  <text x="20" y="368" fill="#64748b" font-size="11">Record a live GIF: make demo-record (requires asciinema + agg)</text>
+</svg>
