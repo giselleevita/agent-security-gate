@@ -1,9 +1,10 @@
 # Fly.io demo deployment (optional — costs money)
 
-> **Skip this for a free portfolio.** Use the README GIF + `docker compose up` instead.
-> Fly Postgres and Redis run 24/7 and typically cost **~$3–10+/month** even when the gateway is idle.
+> **Not currently hosted.** `https://asg-demo.fly.dev` is documented for self-deploy only; there is no live public demo at this time. Use the README GIF + local `docker compose up` instead.
+>
+> **Skip this for a free portfolio.** Fly Postgres and Redis run 24/7 and typically cost **~$3–10+/month** even when the gateway is idle.
 
-Public reference demo for recruiters who need a hosted URL. **Not for production use.**
+Self-hosted reference demo for reviewers who need a public URL. **Not for production use.**
 
 ## Free alternative (recommended)
 
@@ -18,12 +19,12 @@ The README GIF and MP4 work without any hosting bill.
 
 See sections below. Requires a credit card on file.
 
-## Live demo URLs (after paid deploy)
+## URLs after you deploy (not live by default)
 
 | URL | Purpose |
 |-----|---------|
-| https://asg-demo.fly.dev | Gateway |
-| https://asg-demo.fly.dev/demo | Public curl examples |
+| `https://asg-demo.fly.dev` | Gateway (example hostname from bootstrap script) |
+| `https://asg-demo.fly.dev/demo` | Public curl examples |
 
 ## One-command deploy
 

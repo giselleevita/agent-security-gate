@@ -6,6 +6,7 @@ Security fixes are applied to the latest release and the `main` branch.
 
 | Version | Supported |
 |---|---|
+| 0.6.x | Yes |
 | 0.5.x | Yes |
 | < 0.5 | No |
 
