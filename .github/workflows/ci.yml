@@ -45,6 +45,27 @@ jobs:
             --report results/benchmark-report.md
       - name: Enforce benchmark thresholds
         run: python -m benchmark.gate --summary results/summary.json --thresholds ci/thresholds.yaml
+      - name: Publish benchmark results for docs
+        run: python scripts/publish_benchmark_results.py --comparison results/comparison.json --summary results/summary.json
+      - name: Benchmark job summary
+        run: |
+          python <<'PY'
+          import json, os
+          from pathlib import Path
+          c = json.loads(Path("results/comparison.json").read_text())
+          g, n = c["baselines"]["gate"], c["baselines"]["no_gate"]
+          d = c["deltas"]
+          summary = f"""## Benchmark results (policy gate)
+
+          | Metric | No gate | Policy gate | Delta |
+          |---|---:|---:|---:|
+          | ASR | {n['asr']:.1%} | {g['asr']:.1%} | {d['asr_reduction']:.1%} reduction |
+          | Leakage | {n['leakage_rate']:.1%} | {g['leakage_rate']:.1%} | {d['leakage_reduction']:.1%} reduction |
+          | False positives | {n['false_positive_rate']:.1%} | {g['false_positive_rate']:.1%} | {d['false_positive_change']:+.1%} |
+          | Benign task success | {n['task_success_rate']:.1%} | {g['task_success_rate']:.1%} | {d['task_success_change']:+.1%} |
+          """
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text(summary)
+          PY
       - name: Build benchmark evidence bundle
         env:
           ASG_EVIDENCE_SIGNING_KEY: ${{ secrets.ASG_EVIDENCE_SIGNING_KEY }}
@@ -64,6 +85,16 @@ jobs:
         with:
           name: benchmark-evidence
           path: results/evidence
+      - name: Upload benchmark report artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: benchmark-reports
+          path: |
+            results/comparison.json
+            results/summary.json
+            results/benchmark-report.md
+            docs/benchmark-results/latest.md
+            docs/benchmark-results/latest.json
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
         with:

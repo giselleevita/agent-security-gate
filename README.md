@@ -12,6 +12,20 @@ Agent Security Gate (ASG) sits between your AI agent and the tools it calls —
 blocking unsafe actions before they execute, requiring human approval for
 high-risk operations, and producing tamper-evident audit logs for compliance.
 
+![Demo: four policy decisions in the terminal](docs/assets/demo-terminal.svg)
+
+---
+
+## Try it
+
+| Option | Link |
+|---|---|
+| **Local (recommended)** | `docker compose up -d --build` → http://localhost:8000/health |
+| **Approval console** | http://localhost:8000/ui/approvals (approver token) |
+| **Fly.io demo** | Deploy with [docs/demo-deployment.md](docs/demo-deployment.md) → `https://asg-demo.fly.dev` *(set your app URL after deploy)* |
+| **Benchmark results** | [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) |
+| **Demo video** | [docs/DEMO_VIDEO.md](docs/DEMO_VIDEO.md) *(script — record and embed)* |
+
 ---
 
 ## Why ASG?
@@ -92,6 +106,8 @@ deterministically, before execution.
 
 ## How It Works
 
+![Architecture](docs/assets/architecture.svg)
+
 ```
 Agent → POST /v1/gateway/decide → OPA Policy Engine
                                         ↓
@@ -149,6 +165,10 @@ curl -s -X POST http://localhost:8000/agent \
 curl -s "http://localhost:8000/audit?limit=4" \
   -H "Authorization: Bearer approver-token"
 ```
+
+![Approval flow](docs/assets/approval-flow.svg)
+
+Open the **approval console** at `/ui/approvals` to approve or deny pending requests in the browser.
 
 ---
 
@@ -237,6 +257,23 @@ with AsgClient("http://asg:8000", token="...", tenant_id="acme", requester_id="a
 
 Modes: `off` (default), `permissive` (record + verify when present), `strict` (mandatory).
 See [docs/connector-sdk.md](docs/connector-sdk.md) and [`examples/gated_agent.py`](examples/gated_agent.py).
+
+### Integrations
+
+| Framework | Guide | Example |
+|---|---|---|
+| LangGraph | [docs/integrations/langgraph.md](docs/integrations/langgraph.md) | [`examples/langgraph_gated_agent.py`](examples/langgraph_gated_agent.py) |
+
+Install optional extras: `pip install -e '.[integrations]'`
+
+### Approval UI
+
+- `GET /ui/approvals` — minimal approver console (pending + dual-control queue)
+- Uses existing `GET /v1/approvals/{tenant_id}` and approve/deny APIs
+
+![Approval console](docs/assets/approval-console.svg)
+
+---
 
 ### HTTP Adapter
 
@@ -487,6 +524,8 @@ not a certification, legal opinion, or claim that deploying ASG makes a system c
 
 ## Roadmap
 
+See [ROADMAP.md](./ROADMAP.md) for the public AgentOps v2 plan.
+
 - [x] Pre-execution policy enforcement (OPA)
 - [x] SSRF defense
 - [x] Human approval for high-risk tools
@@ -495,9 +534,12 @@ not a certification, legal opinion, or claim that deploying ASG makes a system c
 - [x] DLP response scanner
 - [x] Canary detection
 - [x] CI benchmark/security gate
+- [x] LangGraph connector example
+- [x] Approval console (`/ui/approvals`)
+- [x] Fly.io demo deployment config
 - [ ] Multi-tenant control plane
 - [x] Portable benchmark evidence exports
-- [ ] Dashboard
+- [ ] Full operator dashboard
 - [ ] SIEM integration
 
 ---

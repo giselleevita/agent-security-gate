@@ -568,6 +568,7 @@ from app.routers import (  # noqa: E402
     exceptions as _exceptions_router,
     observability as _observability_router,
     tools as _tools_router,
+    ui as _ui_router,
 )
 
 app.include_router(_observability_router.router)
@@ -577,3 +578,4 @@ app.include_router(_exceptions_router.router)
 app.include_router(_tools_router.router)
 app.include_router(_agent_router.router)
 app.include_router(_decide_router.router)
+app.include_router(_ui_router.router)

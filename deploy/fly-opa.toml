@@ -1,0 +1,19 @@
+# OPA sidecar for Fly.io demo (deploy as separate Fly app: asg-demo-opa)
+
+app = "asg-demo-opa"
+primary_region = "ams"
+
+[build]
+  image = "openpolicyagent/opa:0.65.0-static"
+
+[env]
+
+[[services]]
+  internal_port = 8181
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 8181
+
+[processes]
+  app = "run --server --addr :8181 /policies"
