@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ASG Approval Console</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #0f172a; background: #f8fafc; }
+    body { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.5rem; }
+    .banner { background: #fef3c7; border: 1px solid #f59e0b; padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    th, td { padding: .6rem .75rem; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: .9rem; }
+    th { background: #f1f5f9; }
+    button { margin-right: .4rem; padding: .35rem .7rem; border-radius: 6px; border: 1px solid #cbd5e1; cursor: pointer; }
+    button.approve { background: #dcfce7; border-color: #22c55e; }
+    button.deny { background: #fee2e2; border-color: #ef4444; }
+    .controls { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; align-items: center; }
+    input, select { padding: .4rem .6rem; border: 1px solid #cbd5e1; border-radius: 6px; }
+    #status { margin-top: 1rem; font-size: .9rem; color: #475569; }
+    code { font-size: .85rem; background: #f1f5f9; padding: .1rem .3rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Agent Security Gate — Approval Console</h1>
+  <p class="banner">Reference demo UI. Use approver credentials only. Not for production.</p>
+  <div class="controls">
+    <label>Tenant <input id="tenant" value="acme"/></label>
+    <label>Status
+      <select id="status">
+        <option value="pending">pending</option>
+        <option value="first_approved">first_approved</option>
+      </select>
+    </label>
+    <label>Approver token <input id="token" type="password" placeholder="approver-token" style="min-width:12rem"/></label>
+    <label>Approver ID <input id="approverId" value="alice"/></label>
+    <button type="button" id="refresh">Refresh</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Tool</th><th>Status</th><th>Requester</th><th>Created</th><th>Actions</th></tr>
+    </thead>
+    <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody>
+  </table>
+  <p id="status"></p>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function headers() {
+      const h = { "Authorization": "Bearer " + $("token").value };
+      const aid = $("approverId").value.trim();
+      if (aid) h["X-Approver-Id"] = aid;
+      return h;
+    }
+    async function load() {
+      const tenant = $("tenant").value.trim();
+      const status = $("status").value;
+      const res = await fetch(`/v1/approvals/${encodeURIComponent(tenant)}?status=${status}`, { headers: headers() });
+      if (!res.ok) { $("rows").innerHTML = `<tr><td colspan="6">Error ${res.status}: ${await res.text()}</td></tr>`; return; }
+      const data = await res.json();
+      const items = data.approvals || [];
+      if (!items.length) { $("rows").innerHTML = `<tr><td colspan="6">No ${status} approvals.</td></tr>`; return; }
+      $("rows").innerHTML = items.map((a) => `
+        <tr>
+          <td><code>${a.id.slice(0,8)}…</code></td>
+          <td>${a.tool}</td>
+          <td>${a.status}</td>
+          <td>${a.requester_id || "—"}</td>
+          <td>${a.created_at || "—"}</td>
+          <td>
+            <button class="approve" data-id="${a.id}" data-action="approve">Approve</button>
+            <button class="deny" data-id="${a.id}" data-action="deny">Deny</button>
+          </td>
+        </tr>`).join("");
+      document.querySelectorAll("button[data-action]").forEach((btn) => {
+        btn.onclick = () => resolve(btn.dataset.id, btn.dataset.action);
+      });
+    }
+    async function resolve(id, action) {
+      const res = await fetch(`/v1/approvals/${id}/${action}`, { method: "POST", headers: headers() });
+      const body = await res.json().catch(() => ({}));
+      $("status").textContent = res.ok
+        ? `${action} OK — status=${body.status}${body.resume_token ? " (resume token issued)" : ""}`
+        : `Error ${res.status}: ${JSON.stringify(body)}`;
+      await load();
+    }
+    $("refresh").onclick = load;
+    $("token").addEventListener("change", load);
+    load();
+  </script>
+</body>
+</html>

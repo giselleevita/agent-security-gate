@@ -66,6 +66,8 @@ and operational monitoring. The value of this repo is **visible control points**
 ## Further reading
 
 - [Architecture](architecture.md)
+- [LangGraph integration](integrations/langgraph.md)
 - [Benchmark methodology](benchmark-methodology.md)
+- [Benchmark results](benchmark-results/latest.md)
 - [Threat model](agent-security-gate-threat-model.md)
 - [Release notes](../RELEASE_NOTES.md)

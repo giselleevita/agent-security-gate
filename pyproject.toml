@@ -29,6 +29,10 @@ dev = [
   "pytest-timeout>=2.3.0",
   "ruff>=0.6.0",
 ]
+integrations = [
+  "langgraph>=0.2.0",
+  "typing-extensions>=4.0",
+]
 security = [
   "bandit>=1.9.0",
   "pip-audit>=2.10.0",
