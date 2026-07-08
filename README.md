@@ -22,7 +22,11 @@ Most agent security tools protect at the **prompt layer**. ASG enforces at the *
 
 ### Scope
 
-ASG is a portfolio-grade reference implementation, not a production-hardened security appliance. The demo shows the control points and failure modes that matter: policy-as-code, approval gates, rate limits, DLP/canary scanning, and verifiable audit-chain integrity. Production use would require external identity, secret management, immutable audit storage, deployment hardening, and operational monitoring.
+ASG is a **pilot-ready reference platform** for agent tool-boundary enforcement: policy-as-code (OPA), approval gates, optional mandatory enforcement (SDK + strict mode), OIDC identity, tenant policy isolation, DLP/canary scanning, and verifiable audit chains with optional immutable S3 sink and auditor export packages.
+
+Production pilots still require your own IdP, secret mounts (`*_FILE`), `ASG_ENFORCE_MODE=strict` for binding enforcement, S3 Object Lock for audit durability, and HA Redis/Postgres per the runbooks. ASG is not a managed multi-tenant SaaS.
+
+**Diligence:** [docs/investor-readiness.md](docs/investor-readiness.md) — post-hardening checklist and revised technical scorecard.
 
 ### Who needs this
 
@@ -41,9 +45,10 @@ For a fast technical review:
 3. Inspect `/audit?limit=4` with the approver token and run `python scripts/verify_audit.py --path audit/events.jsonl`.
 4. Review `policies/data/policy_data.json`, `policies/data/dlp_patterns.yaml`, and the integration workflow to see how policy behavior is tested.
 
-The benchmark uses a lightweight local policy model for deterministic scenario replay,
-including explicit `no_gate` versus `gate` comparison and per-attack-class reporting.
-The Docker integration workflow is authoritative for the FastAPI + OPA runtime path.
+The benchmark `gate` baseline exercises the **same runtime decision path** as
+`POST /v1/gateway/decide` (see `benchmark/runtime_gate.py` and
+`tests/test_benchmark_runtime_parity.py`). The Docker integration workflow validates
+the live stack end-to-end.
 See [`docs/benchmark-methodology.md`](docs/benchmark-methodology.md) for metric
 definitions and limitations.
 

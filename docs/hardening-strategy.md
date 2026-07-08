@@ -1,8 +1,10 @@
 # Agent Security Gate — Technical Hardening Strategy
 
-**As-of:** 2026-07-07  
+**As-of:** 2026-07-08  
 **Source:** [investment-assessment.md](investment-assessment.md) (technical findings only)  
 **Goal:** Raise investable technical posture from **2.8 / 5.0** toward **4.0+** by closing every open technical, security, and operability gap with verifiable workstreams.
+
+**Status:** All workstreams WS-1 through WS-21 (phases 0–3) are **implemented on `main`**. See [investor-readiness.md](investor-readiness.md) for the completion checklist and revised scorecard.
 
 ---
 
@@ -51,36 +53,36 @@ Every **open**, **partial**, or **delivery-debt** finding from the assessment ma
 
 | ID | Finding / risk | Severity | WS | Phase | Status today |
 |----|----------------|----------|-----|-------|--------------|
-| F1 | Enforcement path-dependent (agents bypass adapters) | High | WS-12 | 3 | Partial |
-| F2 | DNS TOCTOU on HTTP egress (TM-003) | Medium | WS-8 | 1 | Open |
-| F3 | `tenant_id` unused in OPA | High | WS-10 | 2 | Open |
-| F4 | Static bearer tokens + demo secrets (R7) | High | WS-9 | 2 | Open |
-| F5 | Single-node audit file (R6) | High | WS-11 | 2 | Open |
-| F6 | Approval request unbounded inserts (approval spam) | Medium | WS-4 | 1 | Open |
-| F7 | Container runs as root, no read-only rootfs | Medium | WS-6 | 1 | Open |
-| F8 | No metrics / tracing / log aggregation | Medium | WS-7 | 1 | Open |
-| F9 | `app/main.py` god module (R8) | Medium | WS-5 | 1 | Open |
-| F10 | No SSRF integration test on decide path (R12) | Medium | WS-2 | 0 | Open |
-| F11 | Integration tests not in main CI job | Low | WS-3 | 0 | Open |
-| F12 | Centrally enforce across agents (advertised) | Medium | WS-12 | 3 | Advertised |
-| F13 | DLP partial coverage (docs adapter only) | Low | WS-13 | 1 | Partial |
-| F14 | Dual code paths (runtime + benchmark PEP) | Low | WS-14 | 3 | Converged |
-| F15 | No dual-control / SoD beyond self-approval | Medium | WS-15 | 2 | Partial |
-| F16 | No time-bound policy exceptions | Medium | WS-16 | 2 | Missing |
-| F17 | No backup/restore runbook | Medium | WS-17 | 3 | Missing |
-| F18 | No HA / multi-replica story | High | WS-18 | 3 | Missing |
-| F19 | No auditor export packages | Medium | WS-19 | 3 | Partial |
-| F20 | No runtime reporting / dashboards | Medium | WS-20 | 3 | Missing |
-| F21 | Secret management (env vars only) | Medium | WS-21 | 2 | Missing |
-| F22 | Image digest pinning in compose | Low | WS-6 | 1 | Partial |
-| F23 | Uncommitted hardening fixes not in release | Medium | WS-1 | 0 | In progress |
+| F1 | Enforcement path-dependent (agents bypass adapters) | High | WS-12 | 3 | **Done** (opt-in `ASG_ENFORCE_MODE=strict` + SDK) |
+| F2 | DNS TOCTOU on HTTP egress (TM-003) | Medium | WS-8 | 1 | **Done** |
+| F3 | `tenant_id` unused in OPA | High | WS-10 | 2 | **Done** |
+| F4 | Static bearer tokens + demo secrets (R7) | High | WS-9 | 2 | **Done** (OIDC + `*_FILE` secrets) |
+| F5 | Single-node audit file (R6) | High | WS-11 | 2 | **Done** (S3 sink + export; local dev per-replica) |
+| F6 | Approval request unbounded inserts (approval spam) | Medium | WS-4 | 1 | **Done** |
+| F7 | Container runs as root, no read-only rootfs | Medium | WS-6 | 1 | **Done** |
+| F8 | No metrics / tracing / log aggregation | Medium | WS-7 | 1 | **Done** (metrics + JSON logs; no OTLP traces) |
+| F9 | `app/main.py` god module (R8) | Medium | WS-5 | 1 | **Done** (routers extracted; shared logic remains in main) |
+| F10 | No SSRF integration test on decide path (R12) | Medium | WS-2 | 0 | **Done** |
+| F11 | Integration tests not in main CI job | Low | WS-3 | 0 | **Done** (`ci.yml` integration job) |
+| F12 | Centrally enforce across agents (advertised) | Medium | WS-12 | 3 | **Done** (documented opt-in strict) |
+| F13 | DLP partial coverage (docs adapter only) | Low | WS-13 | 1 | **Done** (decide + docs + http proxy) |
+| F14 | Dual code paths (runtime + benchmark PEP) | Low | WS-14 | 3 | **Done** |
+| F15 | No dual-control / SoD beyond self-approval | Medium | WS-15 | 2 | **Done** |
+| F16 | No time-bound policy exceptions | Medium | WS-16 | 2 | **Done** |
+| F17 | No backup/restore runbook | Medium | WS-17 | 3 | **Done** |
+| F18 | No HA / multi-replica story | High | WS-18 | 3 | **Done** |
+| F19 | No auditor export packages | Medium | WS-19 | 3 | **Done** |
+| F20 | No runtime reporting / dashboards | Medium | WS-20 | 3 | **Done** |
+| F21 | Secret management (env vars only) | Medium | WS-21 | 2 | **Done** |
+| F22 | Image digest pinning in compose | Low | WS-6 | 1 | **Done** |
+| F23 | Uncommitted hardening fixes not in release | Medium | WS-1 | 0 | **Done** |
 
 ### Already fixed (verify in Phase 0, do not re-implement)
 
 | Issue | Artifact | WS-1 verification |
 |-------|----------|-------------------|
 | SSRF on `/v1/gateway/decide` | [adapters/http.py](../adapters/http.py), [app/main.py](../app/main.py) | Integration test WS-2 |
-| Benchmark/runtime HTTP semantics | [gateway/pep.py](../gateway/pep.py) | Benchmark CI green |
+| Benchmark/runtime HTTP semantics | [benchmark/runtime_gate.py](../benchmark/runtime_gate.py) | `tests/test_benchmark_runtime_parity.py` |
 | Client `output_length` bypass | [app/policy.py](../app/policy.py) | Unit test |
 | DLP + post-fetch scan | [adapters/docs.py](../adapters/docs.py), [tests/test_dlp.py](../tests/test_dlp.py) | Unit tests |
 | Decide rate limit + 429 shape | [app/config.py](../app/config.py), [tests/test_decide_rate_limit.py](../tests/test_decide_rate_limit.py) | Unit test |
@@ -491,6 +493,7 @@ ASG reaches **technical investable** when all of the following are true:
 
 ## 12. Related documents
 
+- [investor-readiness.md](investor-readiness.md) — post-hardening completion record and checklist
 - [investment-assessment.md](investment-assessment.md) — findings source
 - [agent-security-gate-threat-model.md](agent-security-gate-threat-model.md) — abuse paths to update per WS
 - [architecture.md](architecture.md) — update after WS-5, WS-18

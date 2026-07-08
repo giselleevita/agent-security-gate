@@ -400,6 +400,16 @@ A single strong backend engineer can maintain and extend ASG. Productizing to en
 
 ---
 
+## Addendum (2026-07-08): Post-hardening status
+
+Phases 0–3 of [hardening-strategy.md](hardening-strategy.md) are **complete on `main`**. Technical blockers called out above that are now addressed in code include: OIDC identity, tenant policy isolation, immutable audit sink + export, connector SDK with opt-in strict enforcement, backup/restore and HA runbooks, runtime metrics/dashboards, and benchmark/runtime PEP consolidation.
+
+**Unchanged:** BSL license, market pull, path-dependent enforcement unless operators enable strict mode, and absence of a turnkey SaaS product.
+
+**Updated technical posture:** See [investor-readiness.md](investor-readiness.md) for the verification checklist and revised weighted technical score (~4.1 / 5.0 vs 2.8 pre-hardening).
+
+---
+
 ## Appendix: Evidence index
 
 | Topic | Primary files |
@@ -410,7 +420,7 @@ A single strong backend engineer can maintain and extend ASG. Productizing to en
 | DLP | [app/dlp.py](../app/dlp.py) |
 | Docs adapter | [adapters/docs.py](../adapters/docs.py) |
 | Audit chain | [audit/events.py](../audit/events.py) |
-| Benchmark PEP | [gateway/pep.py](../gateway/pep.py) |
+| Benchmark gate | [benchmark/runtime_gate.py](../benchmark/runtime_gate.py) |
 | CI | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [integration.yml](../.github/workflows/integration.yml) |
 | Threat model | [agent-security-gate-threat-model.md](agent-security-gate-threat-model.md) |
 | License | [LICENSE](../LICENSE) |
