@@ -1,8 +1,40 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from app.opa_local import eval_decision
 from benchmark.runner import run_benchmark, run_comparison
 from benchmark.scenarios.schema import load_scenarios
+
+
+def _require_opa() -> None:
+    try:
+        eval_decision(
+            {
+                "action": "tool_call",
+                "tool": "docs.read",
+                "context": {"path": "/public/readme.md", "output_length": 0},
+                "session": {"action_count": 1},
+                "config": {
+                    "allowed_tools": ["docs.read"],
+                    "denied_doc_prefixes": [],
+                    "denied_doc_ids": [],
+                    "output_max_chars": 2000,
+                    "approval_required_tools": [],
+                    "allowed_http_domains": [],
+                    "max_actions": 50,
+                },
+                "active_exceptions": [],
+            }
+        )
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _opa_available() -> None:
+    _require_opa()
 
 
 def test_runner_writes_valid_sarif_output(tmp_path: Path) -> None:
