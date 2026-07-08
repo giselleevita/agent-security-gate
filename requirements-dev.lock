@@ -65,8 +65,10 @@ markdown-it-py==4.2.0
     # via rich
 mdurl==0.1.2
     # via markdown-it-py
-msgpack==1.2.0
-    # via cachecontrol
+msgpack==1.2.1
+    # via
+    #   agent-security-gate (pyproject.toml)
+    #   cachecontrol
 packageurl-python==0.17.6
     # via cyclonedx-python-lib
 packaging==26.2
@@ -139,8 +141,10 @@ ruff==0.15.17
     # via agent-security-gate (pyproject.toml)
 sortedcontainers==2.4.0
     # via cyclonedx-python-lib
-starlette==1.3.0
-    # via fastapi
+starlette==1.3.1
+    # via
+    #   agent-security-gate (pyproject.toml)
+    #   fastapi
 stevedore==5.8.0
     # via bandit
 tomli==2.4.1
