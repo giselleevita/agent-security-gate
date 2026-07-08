@@ -1,6 +1,6 @@
 # Architecture
 
-Agent Security Gate is a reference implementation of a policy enforcement point for tool-using agents. The service path is FastAPI + OPA; the older local `gateway/` module is retained for benchmark/unit scenarios and is not the authoritative runtime policy engine.
+Agent Security Gate is a reference implementation of a policy enforcement point for tool-using agents. The service path is FastAPI + OPA. The `gateway/` package retains shared models; benchmark replay routes through the runtime decision path via `benchmark/runtime_gate.py`.
 
 ```mermaid
 flowchart LR
@@ -22,8 +22,8 @@ audit to S3 Object Lock instead of relying on shared local files.
 ## Core modules
 
 - `gateway/`
-  - benchmark-only local policy enforcement used by `benchmark/runner.py`
-  - kept separate from the HTTP service path
+  - shared benchmark models (`ToolCallRequest`, `Decision`)
+  - `pep.py` is a deprecated facade over `benchmark/runtime_gate.RuntimeGateClient`
 - `app/`
   - exposes `/v1/gateway/decide`
   - builds OPA input, evaluates Rego decisions, records audit events
@@ -45,7 +45,8 @@ audit to S3 Object Lock instead of relying on shared local files.
 - `adapters/`
   - wraps tool integrations so policy checks happen before side effects
 - `benchmark/`
-  - replays deterministic scenarios against explicit `no_gate` and `gate` baselines
+  - replays deterministic scenarios against `no_gate` and `gate` baselines
+  - `gate` calls `_decide_tool_call_impl` via `runtime_gate.py` (runtime parity)
   - reports attack success, leakage, utility, latency, and per-attack-class results
 
 ## Notes
@@ -53,6 +54,6 @@ audit to S3 Object Lock instead of relying on shared local files.
 - The local JSONL audit log is tamper-evident, not tamper-proof. Production use should move this behind an append-only audit sink.
 - Multi-replica: set `ASG_REPLICA_ID` (or use `docker-compose.ha.yml`) so each replica owns `events-<replica>.jsonl`; never share one `events.jsonl` across writers.
 - Demo credentials are accepted only when `ASG_DEMO_MODE=true`.
-- The benchmark `gateway/` PEP mirrors runtime tool-policy semantics and shares the exact HTTP egress evaluator (`adapters/http.py::evaluate_http_target`) with the runtime gateway, so SSRF/allowlist decisions are identical across both paths (the benchmark only skips DNS resolution for deterministic replay). Runtime FastAPI + OPA integration tests remain authoritative for the deployed decision engine.
+- The benchmark `gate` baseline exercises `_decide_tool_call_impl` via `RuntimeGateClient`, sharing Python pre-checks, OPA policy, and output scanning with production. HTTP egress uses the same `evaluate_http_target()` with DNS resolution disabled for deterministic offline replay.
 - Database migrations are recorded with checksums in `schema_migrations`; changing an applied migration fails startup.
 - See `docs/agent-security-gate-threat-model.md` for trust boundaries and known security limitations.

@@ -1,8 +1,43 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from app.opa_local import eval_decision
 from gateway.models import ToolCallRequest
 from gateway.pep import PolicyEnforcementPoint
+
+
+def _require_opa() -> None:
+    try:
+        eval_decision(
+            {
+                "action": "tool_call",
+                "tool": "docs.read",
+                "context": {"path": "/public/readme.md", "output_length": 0},
+                "session": {"action_count": 1},
+                "config": {
+                    "allowed_tools": ["docs.read"],
+                    "denied_doc_prefixes": [],
+                    "denied_doc_ids": [],
+                    "output_max_chars": 2000,
+                    "approval_required_tools": [],
+                    "allowed_http_domains": [],
+                    "max_actions": 50,
+                },
+                "active_exceptions": [],
+            }
+        )
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
+
+
+pytestmark = pytest.mark.usefixtures("_opa_available")
+
+
+@pytest.fixture(scope="module")
+def _opa_available() -> None:
+    _require_opa()
 
 
 def build_pep(tmp_path: Path) -> tuple[PolicyEnforcementPoint, Path]:
@@ -35,8 +70,8 @@ def test_output_within_limit_passes_unchanged(tmp_path: Path) -> None:
     assert decision.truncated is False
 
 
-def test_output_exceeding_limit_is_truncated_and_audited(tmp_path: Path) -> None:
-    pep, audit_path = build_pep(tmp_path)
+def test_output_exceeding_limit_is_denied(tmp_path: Path) -> None:
+    pep, _ = build_pep(tmp_path)
     decision = pep.decide(
         ToolCallRequest(
             tool="docs.read",
@@ -45,12 +80,8 @@ def test_output_exceeding_limit_is_truncated_and_audited(tmp_path: Path) -> None
             context={"output_max_chars": 5},
         )
     )
-    assert decision.output == "abcde"
-    assert len(decision.output) == 5
-    assert decision.truncated is True
-
-    events = read_audit_events(audit_path)
-    assert events[-1]["truncated"] is True
+    assert decision.outcome == "deny"
+    assert decision.reason == "output_too_long"
 
 
 def test_denied_doc_prefix_blocks_internal_doc(tmp_path: Path) -> None:
@@ -91,7 +122,7 @@ def test_denied_doc_id_blocks_exact_match(tmp_path: Path) -> None:
         )
     )
     assert decision.outcome == "deny"
-    assert decision.reason == "denied_doc_id: secret-doc"
+    assert decision.reason == "denied_doc_id"
 
 
 def test_allowed_doc_id_passes(tmp_path: Path) -> None:

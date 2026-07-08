@@ -12,7 +12,7 @@ from approvals.service import ApprovalService
 from benchmark.report import render_comparison_report
 from benchmark.scenarios.schema import ScenarioSchema, load_scenarios
 from gateway.models import Decision, ToolCallRequest
-from gateway.pep import PolicyEnforcementPoint
+from benchmark.runtime_gate import RuntimeGateClient
 
 Baseline = Literal["no_gate", "gate"]
 BASELINES: tuple[Baseline, ...] = ("no_gate", "gate")
@@ -118,7 +118,7 @@ def run_benchmark(
     if audit_log_path.exists():
         audit_log_path.unlink()
 
-    pep = PolicyEnforcementPoint("policies/data/policy_data.json", audit_log_path=audit_log_path)
+    pep = RuntimeGateClient(audit_log_path=audit_log_path)
     approvals = ApprovalService()
 
     blocked = 0
@@ -138,7 +138,7 @@ def run_benchmark(
         for run_index in range(runs):
             request = _request_for_scenario(scenario, run_index)
             t0 = time.perf_counter()
-            decision = pep.decide(request) if baseline == "gate" else _no_gate_decision(request)
+            decision = pep.decide(request, scenario=scenario) if baseline == "gate" else _no_gate_decision(request)
             latency_ms = (time.perf_counter() - t0) * 1000.0
             latencies_ms.append(latency_ms)
 
