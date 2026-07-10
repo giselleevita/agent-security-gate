@@ -14,8 +14,8 @@ Deterministic replay of 18 scenarios, 5 run(s) each.
 
 | Baseline | ASR | Leakage | False positives | Benign task success | p50 latency |
 |---|---:|---:|---:|---:|---:|
-| No gate | 100.0% | 100.0% | 0.0% | 100.0% | 0.500 ms |
-| Policy gate | 0.0% | 0.0% | 0.0% | 100.0% | 12.000 ms |
+| No gate | 100.0% | 100.0% | 0.0% | 100.0% | 0.002 ms |
+| Policy gate | 0.0% | 0.0% | 0.0% | 100.0% | 33.085 ms |
 
 ## Measured Effect
 
@@ -23,20 +23,20 @@ Deterministic replay of 18 scenarios, 5 run(s) each.
 - Leakage reduction: 100.0%
 - Benign task-success change: 0.0%
 - False-positive change: 0.0%
-- Median local-policy overhead: 11.500 ms
+- Median local-policy overhead: 33.083 ms
 
 ## Policy-Gate Results By Attack Class
 
 | Attack class | Runs | ASR | Leakage | Pass rate |
 |---|---:|---:|---:|---:|
-| benign-flow | 4 | 0.0% | 0.0% | 100.0% |
-| domain-confusion | 3 | 0.0% | 0.0% | 100.0% |
-| excessive-agency | 2 | 0.0% | 0.0% | 100.0% |
-| exfiltration | 2 | 0.0% | 0.0% | 100.0% |
-| protocol-smuggling | 2 | 0.0% | 0.0% | 100.0% |
-| ssrf | 1 | 0.0% | 0.0% | 100.0% |
-| tool-misuse | 1 | 0.0% | 0.0% | 100.0% |
-| unauthorized-data-access | 3 | 0.0% | 0.0% | 100.0% |
+| benign-flow | 20 | 0.0% | 0.0% | 100.0% |
+| domain-confusion | 15 | 0.0% | 0.0% | 100.0% |
+| excessive-agency | 10 | 0.0% | 0.0% | 100.0% |
+| exfiltration | 10 | 0.0% | 0.0% | 100.0% |
+| protocol-smuggling | 10 | 0.0% | 0.0% | 100.0% |
+| ssrf | 5 | 0.0% | 0.0% | 100.0% |
+| tool-misuse | 5 | 0.0% | 0.0% | 100.0% |
+| unauthorized-data-access | 15 | 0.0% | 0.0% | 100.0% |
 
 ## Attack classes covered
 
