@@ -29,6 +29,7 @@ The thesis findings informed ASG's benchmark scenario design — attack families
 | **Classify** injection risk | ToolShield (private) | Research, model comparison, detection accuracy |
 | **Evaluate** vendor APIs | [vendor-red-team-passport](https://github.com/giselleevita/vendor-red-team-passport) | Procurement, red-team reports |
 | **Enforce** tool-call policy | agent-security-gate | Runtime gateway in agent deployments |
+| **Recover** after policy denial (research) | saferemediate/ | Joint recovery + leakage benchmark (depends on ASG) |
 | **Govern** with cited guidance | [security-compliance-copilot](https://github.com/giselleevita/security-compliance-copilot) | Policy Q&A, not runtime blocking |
 
 Request access to ToolShield artifacts for thesis-level evaluation detail.
