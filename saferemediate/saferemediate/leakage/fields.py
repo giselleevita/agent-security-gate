@@ -114,19 +114,24 @@ def contains_protected_keys(obj: Any, *, allow_strategy_leak: bool = False) -> l
     """Return protected key paths found in a nested structure."""
     found: list[str] = []
 
-    def walk(value: Any, prefix: str = "") -> None:
+    def walk(value: Any, prefix: str = "", *, inside_matched_fields: bool = False) -> None:
         if isinstance(value, dict):
             for k, v in value.items():
                 path = f"{prefix}.{k}" if prefix else k
                 if k in PROTECTED_FIELD_NAMES:
-                    if allow_strategy_leak and k in ("rule_id", "matched_fields", "reason"):
+                    if allow_strategy_leak and (
+                        k in ("rule_id", "matched_fields", "reason") or inside_matched_fields
+                    ):
                         pass
                     else:
                         found.append(path)
-                walk(v, path)
+                child_inside = inside_matched_fields or (
+                    allow_strategy_leak and k == "matched_fields"
+                )
+                walk(v, path, inside_matched_fields=child_inside)
         elif isinstance(value, list):
             for i, item in enumerate(value):
-                walk(item, f"{prefix}[{i}]")
+                walk(item, f"{prefix}[{i}]", inside_matched_fields=inside_matched_fields)
 
     walk(obj)
     return found

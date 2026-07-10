@@ -17,6 +17,7 @@ def validate_dry_run_plan(
     planned_keys: list[str],
     dataset_ref: str,
     policy_hash_value: str,
+    provider: str = "mock",
 ) -> dict[str, Any]:
     expected = len(episodes) * len(strategies) * trials
     unique = set(planned_keys)
@@ -30,8 +31,10 @@ def validate_dry_run_plan(
         errors.append(f"planned_runs {len(planned_keys)} != expected {expected}")
     if len(unique) != len(planned_keys):
         errors.append("duplicate run IDs detected")
-    if model != "gpt-4.1-mini-2025-04-14":
-        errors.append(f"model snapshot must be gpt-4.1-mini-2025-04-14, got {model}")
+    if provider == "openai" and model != "gpt-4.1-mini-2025-04-14":
+        errors.append(f"openai model snapshot must be gpt-4.1-mini-2025-04-14, got {model}")
+    if provider == "mock" and model != "deterministic-mock-v1":
+        errors.append(f"mock model must be deterministic-mock-v1, got {model}")
     if dataset_ref == "unknown":
         errors.append("episode dataset ref is unknown")
     if policy_hash_value == "unknown":
@@ -53,6 +56,7 @@ def validate_dry_run_plan(
         "planned_runs": len(planned_keys),
         "unique_run_ids": len(unique),
         "model": model,
+        "provider": provider,
         "episode_dataset_ref": dataset_ref,
         "policy_hash": policy_hash_value,
     }
