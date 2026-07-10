@@ -199,27 +199,28 @@ class RuntimeGateClient:
         decision._load_policy_config = load_config  # type: ignore[method-assign]
         decision._opa_post = opa_post  # type: ignore[method-assign]
         decision.evaluate_http_target = benchmark_http_target  # type: ignore[method-assign]
+        decision_module = decision
         try:
-            response = decision.decide_tool_call_impl(
+            response = decision_module.decide_tool_call_impl(
                 body=body,
                 resume_token=None,
                 x_requester_id=None,
             )
-            decision = decide_response_to_decision(response, request)
+            result = decide_response_to_decision(response, request)
         except HTTPException as exc:
-            decision = Decision(
+            result = Decision(
                 outcome="deny",
                 reason=str(exc.detail),
                 policy_id="runtime-gate",
             )
         finally:
             (
-                decision._redis,
-                decision._db_connect,
-                decision._append_audit_event,
-                decision._load_policy_config,
-                decision._opa_post,
-                decision.evaluate_http_target,
+                decision_module._redis,
+                decision_module._db_connect,
+                decision_module._append_audit_event,
+                decision_module._load_policy_config,
+                decision_module._opa_post,
+                decision_module.evaluate_http_target,
             ) = originals
 
-        return decision
+        return result
