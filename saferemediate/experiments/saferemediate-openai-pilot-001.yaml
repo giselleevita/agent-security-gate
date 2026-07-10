@@ -1,0 +1,11 @@
+experiment_id: saferemediate-openai-pilot-001
+artifact_kind: live_model_pilot_integrity_validation
+# dataset_commit and git_tag are filled at run time from repo_revision()
+asg_version: "0.6.0"
+model: "gpt-4.1-mini-2025-04-14"
+episodes: 10
+strategies: [B0, B1, B2, B3, B4, B5, B6]
+trials: 5
+temperature: 0
+primary_purpose: benchmark integrity validation
+hypothesis_evidence: false

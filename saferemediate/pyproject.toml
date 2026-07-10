@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saferemediate"
+version = "0.1.0"
+description = "Benchmark for denial-feedback recovery and protected-state inference in tool-using agents."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.6",
+  "PyYAML>=6.0",
+  "httpx>=0.27.0",
+  "PyJWT[crypto]>=2.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6.0",
+]
+
+[project.scripts]
+saferemediate-phase0 = "saferemediate.run_phase0:main"
+saferemediate-phase1 = "saferemediate.run_phase1:main"
+saferemediate-pilot = "saferemediate.run_pilot:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["saferemediate*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", ".."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
