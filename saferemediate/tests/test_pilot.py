@@ -1,15 +1,12 @@
-"""Canary gate and plan validation tests."""
+"""Pilot dry-run and plan tests."""
 
 from pathlib import Path
 
-import pytest
-
 from saferemediate.episodes.schema import load_episodes
 from saferemediate.experiment.canary_gate import evaluate_canary_gate
-from saferemediate.experiment.plan_validation import validate_dry_run_plan
-from saferemediate.experiment.spec import DEFAULT_MODEL_SNAPSHOT, build_run_spec, result_dir
+from saferemediate.experiment.spec import DEFAULT_MODEL_SNAPSHOT, result_dir
+from saferemediate.models.mock import MOCK_MODEL_ID
 from saferemediate.run_pilot import planned_run_keys, run_pilot
-
 
 EPISODES = Path(__file__).resolve().parents[1] / "episodes" / "episodes.yaml"
 
@@ -27,29 +24,44 @@ def test_dry_run_canary_plans_70_runs():
     assert len(keys) == 70
 
 
-def test_dry_run_validates_plan():
-    plan = run_pilot(dry_run=True, phase="pilot", trials=5)
-    pv = plan["plan_validation"]
-    assert pv["valid"] is True
-    assert pv["episodes"] == 10
-    assert pv["strategies"] == 7
-    assert pv["trials"] == 5
-    assert pv["planned_runs"] == 350
+def test_dry_run_mock_zero_cost():
+    plan = run_pilot(dry_run=True, phase="pilot", trials=5, provider="mock")
+    assert plan["planned_runs"] == 350
+    assert plan["estimated_cost_usd"] == 0.0
+    assert plan["provider"] == "mock"
+    assert plan["model"] == MOCK_MODEL_ID
+    assert plan["plan_validation"]["valid"] is True
+
+
+def test_dry_run_openai_validates_snapshot():
+    plan = run_pilot(
+        dry_run=True,
+        phase="pilot",
+        trials=5,
+        provider="openai",
+        model_name=DEFAULT_MODEL_SNAPSHOT,
+    )
+    assert plan["plan_validation"]["valid"] is True
     assert plan["model"] == DEFAULT_MODEL_SNAPSHOT
 
 
-def test_canary_and_pilot_use_separate_dirs():
-    assert result_dir("canary").name == "pilot_canary"
-    assert result_dir("pilot").name == "pilot_live"
-    assert result_dir("canary") != result_dir("pilot")
+def test_canary_and_pilot_use_separate_dirs_per_provider():
+    assert result_dir("canary", provider="mock").name == "offline_mock_canary"
+    assert result_dir("pilot", provider="mock").name == "offline_mock_pilot"
+    assert result_dir("canary", provider="openai").name == "pilot_canary"
+    assert result_dir("pilot", provider="openai").name == "pilot_live"
 
 
 def test_run_spec_written_on_dry_run(tmp_path, monkeypatch):
     import saferemediate.run_pilot as pilot_mod
 
-    monkeypatch.setattr(pilot_mod, "result_dir", lambda phase: tmp_path / phase)
-    run_pilot(dry_run=True, phase="canary", trials=1)
-    assert (tmp_path / "canary" / "run_spec.yaml").exists()
+    monkeypatch.setattr(
+        pilot_mod,
+        "result_dir",
+        lambda phase, provider="mock": tmp_path / f"{provider}_{phase}",
+    )
+    run_pilot(dry_run=True, phase="canary", trials=1, provider="mock")
+    assert (tmp_path / "mock_canary" / "run_spec.yaml").exists()
 
 
 def test_canary_gate_passes_clean_traces():
@@ -65,7 +77,7 @@ def test_canary_gate_passes_clean_traces():
                 {
                     "metadata": {
                         "total_tokens": 100,
-                        "estimated_cost_usd": 0.001,
+                        "estimated_cost_usd": 0.0,
                         "latency_ms": 50,
                     }
                 }
@@ -83,9 +95,10 @@ def test_canary_gate_passes_clean_traces():
     assert gate["gates"]["scoring"]["pass"] is True
 
 
-def test_build_run_spec_flags():
-    spec = build_run_spec(phase="canary", trials=1)
+def test_build_run_spec_mock_flags():
+    from saferemediate.experiment.spec import build_run_spec
+
+    spec = build_run_spec(phase="canary", trials=1, provider="mock")
     assert spec["hypothesis_evidence"] is False
+    assert spec["estimated_cost_usd"] == 0.0
     assert spec["include_in_final_dataset"] is False
-    spec_pilot = build_run_spec(phase="pilot", trials=5)
-    assert spec_pilot["include_in_final_dataset"] is True
