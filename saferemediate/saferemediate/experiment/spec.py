@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Literal
@@ -9,7 +10,12 @@ from typing import Any, Literal
 import yaml
 
 from saferemediate.feedback.base import StrategyId
-from saferemediate.labelling import LIVE_MODEL_PILOT, OFFLINE_MOCK_PILOT
+from saferemediate.labelling import (
+    LIVE_MODEL_PILOT,
+    OFFLINE_MOCK_PILOT,
+    REAL_MODEL_CANARY,
+    REAL_MODEL_PILOT,
+)
 from saferemediate.models.factory import ProviderName
 from saferemediate.models.mock import MOCK_MODEL_ID
 from saferemediate.trace.metadata import asg_version, episode_dataset_ref, git_commit, policy_hash
@@ -49,9 +55,23 @@ def repo_revision(*, episodes_path: Path | None = None) -> dict[str, str]:
     }
 
 
+def slugify_model(model: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower()[:40]
+
+
+def make_experiment_id(*, provider: ProviderName, model: str, phase: PilotPhase) -> str:
+    commit = git_commit(_REPO_ROOT)[:7]
+    slug = slugify_model(model)
+    if provider == "local":
+        return f"saferemediate-local-{slug}-{commit}"
+    if provider == "openai":
+        return f"saferemediate-openai-{slug}-{commit}"
+    return f"saferemediate-mock-{phase}-{commit}"
+
+
 def build_run_spec(
     *,
-    provider: ProviderName = "mock",
+    provider: ProviderName,
     model: str | None = None,
     episodes: int = 10,
     strategies: list[StrategyId] | None = None,
@@ -59,18 +79,30 @@ def build_run_spec(
     temperature: float = 0.0,
     phase: PilotPhase = "pilot",
     episodes_path: Path | None = None,
+    base_url: str | None = None,
+    hardware_description: str | None = None,
+    inference_runtime: str | None = None,
+    quantization: str | None = None,
+    context_length: int | None = None,
 ) -> dict[str, Any]:
     strategies = strategies or ALL_STRATEGIES
     rev = repo_revision(episodes_path=episodes_path)
+
     if provider == "mock":
         resolved_model = model or MOCK_MODEL_ID
-        experiment_id = EXPERIMENT_ID_MOCK
         artifact_kind = OFFLINE_MOCK_PILOT
+    elif provider == "local":
+        if not model:
+            raise ValueError("local provider requires --model")
+        resolved_model = model
+        artifact_kind = REAL_MODEL_CANARY if phase == "canary" else REAL_MODEL_PILOT
     else:
         resolved_model = model or DEFAULT_MODEL_SNAPSHOT
-        experiment_id = EXPERIMENT_ID
         artifact_kind = LIVE_MODEL_PILOT
-    return {
+
+    experiment_id = make_experiment_id(provider=provider, model=resolved_model, phase=phase)
+
+    spec: dict[str, Any] = {
         "experiment_id": experiment_id,
         "phase": phase,
         "artifact_kind": artifact_kind,
@@ -85,18 +117,39 @@ def build_run_spec(
         "strategies": list(strategies),
         "trials": trials,
         "temperature": temperature,
-        "estimated_cost_usd": 0.0 if provider == "mock" else None,
+        "estimated_cost_usd": 0.0 if provider in ("mock", "local") else None,
         "primary_purpose": "benchmark integrity validation",
         "hypothesis_evidence": False,
+        "llm_evidence": provider in ("openai", "local"),
+        "publication_ready": False,
         "include_in_final_dataset": phase == "pilot",
     }
+    if provider == "local":
+        spec["base_url"] = base_url
+        spec["hardware_description"] = hardware_description
+        spec["inference_runtime"] = inference_runtime
+        spec["quantization"] = quantization
+        spec["context_length"] = context_length
+    return spec
 
 
-def result_dir(phase: PilotPhase, *, provider: ProviderName = "mock") -> Path:
+def result_dir(
+    phase: PilotPhase,
+    *,
+    provider: ProviderName = "mock",
+    experiment_id: str | None = None,
+) -> Path:
     if provider == "mock":
         name = "offline_mock_canary" if phase == "canary" else "offline_mock_pilot"
-    else:
-        name = "pilot_canary" if phase == "canary" else "pilot_live"
+        return _SR_ROOT / "results" / name
+    if provider == "local":
+        root = "local_model_canary" if phase == "canary" else "local_model_pilot"
+        if experiment_id:
+            return _SR_ROOT / "results" / root / experiment_id
+        return _SR_ROOT / "results" / root / "_pending"
+    name = "pilot_canary" if phase == "canary" else "pilot_live"
+    if experiment_id:
+        return _SR_ROOT / "results" / name / experiment_id
     return _SR_ROOT / "results" / name
 
 
@@ -112,6 +165,7 @@ def write_run_spec(path: Path, spec: dict[str, Any]) -> None:
 def enrich_artifact(spec: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     """Attach frozen revision metadata to every result artifact."""
     provider = spec.get("provider", "mock")
+    llm = spec.get("llm_evidence", provider in ("openai", "local"))
     return {
         "experiment_id": spec["experiment_id"],
         "phase": spec["phase"],
@@ -119,8 +173,9 @@ def enrich_artifact(spec: dict[str, Any], payload: dict[str, Any]) -> dict[str, 
         "git_tag": spec.get("git_tag") or None,
         "artifact_kind": spec.get("artifact_kind"),
         "provider": provider,
-        "llm_evidence": provider != "mock",
+        "llm_evidence": llm,
         "hypothesis_evidence": False,
+        "publication_ready": False,
         "run_spec": spec,
         **payload,
     }

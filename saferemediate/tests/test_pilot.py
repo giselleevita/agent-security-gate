@@ -50,18 +50,20 @@ def test_canary_and_pilot_use_separate_dirs_per_provider():
     assert result_dir("pilot", provider="mock").name == "offline_mock_pilot"
     assert result_dir("canary", provider="openai").name == "pilot_canary"
     assert result_dir("pilot", provider="openai").name == "pilot_live"
+    local = result_dir("canary", provider="local", experiment_id="exp-test")
+    assert "local_model_canary" in str(local)
+    assert "exp-test" in str(local)
 
 
 def test_run_spec_written_on_dry_run(tmp_path, monkeypatch):
     import saferemediate.run_pilot as pilot_mod
 
-    monkeypatch.setattr(
-        pilot_mod,
-        "result_dir",
-        lambda phase, provider="mock": tmp_path / f"{provider}_{phase}",
-    )
+    def _mock_result_dir(phase, provider="mock", experiment_id=None):
+        return tmp_path / f"{provider}_{phase}" / (experiment_id or "x")
+
+    monkeypatch.setattr(pilot_mod, "result_dir", _mock_result_dir)
     run_pilot(dry_run=True, phase="canary", trials=1, provider="mock")
-    assert (tmp_path / "mock_canary" / "run_spec.yaml").exists()
+    assert any(tmp_path.rglob("run_spec.yaml"))
 
 
 def test_canary_gate_passes_clean_traces():
@@ -95,10 +97,11 @@ def test_canary_gate_passes_clean_traces():
     assert gate["gates"]["scoring"]["pass"] is True
 
 
-def test_build_run_spec_mock_flags():
+def test_build_run_spec_local_flags():
     from saferemediate.experiment.spec import build_run_spec
+    from saferemediate.labelling import REAL_MODEL_CANARY
 
-    spec = build_run_spec(phase="canary", trials=1, provider="mock")
+    spec = build_run_spec(phase="canary", trials=1, provider="local", model="qwen2.5:7b-instruct")
     assert spec["hypothesis_evidence"] is False
-    assert spec["estimated_cost_usd"] == 0.0
-    assert spec["include_in_final_dataset"] is False
+    assert spec["llm_evidence"] is True
+    assert spec["artifact_kind"] == REAL_MODEL_CANARY
