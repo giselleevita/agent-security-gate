@@ -9,10 +9,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from saferemediate.models.protocol import RunMetadata, ToolSchema
+from saferemediate.models.protocol import RunMetadata, ToolSchema, InferenceExtras
 
 _ASG_ROOT = Path(__file__).resolve().parents[3]
 _SR_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = _SR_ROOT.parent
 _FEEDBACK_VERSION = "0.1.0"
 
 
@@ -70,8 +71,10 @@ def build_run_metadata(
     estimated_cost_usd: float | None = None,
     provider_error: str | None = None,
     raw_response_redacted: dict | None = None,
+    inference_extras: InferenceExtras | None = None,
 ) -> RunMetadata:
     usage = token_usage or {}
+    extras = inference_extras or InferenceExtras()
     return RunMetadata(
         provider=provider,
         requested_model=requested_model,
@@ -86,6 +89,7 @@ def build_run_metadata(
         feedback_strategy_version=_FEEDBACK_VERSION,
         asg_version=asg_version(),
         policy_hash=policy_hash(),
+        saferemediate_commit=git_commit(_REPO_ROOT),
         latency_ms=latency_ms,
         prompt_tokens=usage.get("prompt_tokens"),
         completion_tokens=usage.get("completion_tokens"),
@@ -93,12 +97,26 @@ def build_run_metadata(
         estimated_cost_usd=estimated_cost_usd,
         provider_error=provider_error,
         raw_response_redacted=raw_response_redacted or {},
+        base_url_redacted=extras.base_url_redacted,
+        inference_runtime=extras.inference_runtime,
+        inference_runtime_version=extras.inference_runtime_version,
+        quantization=extras.quantization,
+        context_length=extras.context_length,
+        tool_calling_mode=extras.tool_calling_mode,
+        hardware_description=extras.hardware_description,
     )
 
 
 def redact_secrets(obj: Any) -> Any:
     """Remove likely secrets before persisting raw provider payloads."""
-    secret_keys = {"api_key", "authorization", "bearer", "token", "secret", "password"}
+    secret_keys = {
+        "api_key",
+        "authorization",
+        "bearer",
+        "token",
+        "secret",
+        "password",
+    }
     if isinstance(obj, dict):
         return {
             k: ("[REDACTED]" if k.lower() in secret_keys else redact_secrets(v))
