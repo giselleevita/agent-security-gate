@@ -3,41 +3,43 @@
 Joint benchmark for **legitimate recovery after policy denial** and **protected-state
 inference** under shared deterministic enforcement (ASG).
 
-This package is a **separate research artifact** from
-[Agent Security Gate](../README.md).
+## Result kinds
 
-## Result kinds (read this first)
-
-| Artifact | Agent backend | Cost | Evidence scope |
+| Artifact | Provider | Cost | Evidence |
 |---|---|---|---|
-| `synthetic_pilot_rule_based_*.json` | Rule-based harness | $0 | Harness/scoring — **not** LLM evidence, **not** H1–H3 |
-| `offline_mock_*` | `--provider mock` | **$0** | Pipeline/trace validation — **not** LLM behaviour |
-| `pilot_live/*` | `--provider openai` | Paid | Live-model integrity pilot — **not** final H1–H3 test |
+| `offline_mock_*` | `--provider mock` | $0 | Pipeline integrity only — **not** LLM evidence |
+| `local_model_canary/*` | `--provider local` | $0 API | Real model canary — **not** H1–H3 |
+| `local_model_pilot/*` | `--provider local` | $0 API | Behavioural pilot — exploratory only |
+| `pilot_live/*` | `--provider openai` | Paid | Live-model integrity pilot |
 
-**`--provider` is required** on every `run_pilot` invocation so the active backend is always explicit.
+**`--provider` is required on every `run_pilot` invocation.**
 
-## Commands
+Mock validation is complete (`saferemediate-v0.3.0-offline-validated`). Do not run more mock experiments.
+
+## Next milestone: local real-model canary (free)
 
 ```bash
+# Install Ollama + pull model (see docs/local_canary_setup.md)
+ollama pull qwen2.5:7b-instruct
+
 cd saferemediate
-PYTHONPATH=.:.. python3.11 -m pytest
-
-# Offline mock canary (70 runs, $0)
 PYTHONPATH=.:.. python3.11 -m saferemediate.run_pilot \
-  --provider mock --phase canary --trials 1 --no-resume
-
-# Offline mock full pilot (350 runs, $0)
-PYTHONPATH=.:.. python3.11 -m saferemediate.run_pilot \
-  --provider mock --phase pilot --trials 5 --no-resume
+  --provider local \
+  --base-url http://localhost:11434/v1 \
+  --model qwen2.5:7b-instruct \
+  --hardware-description "YOUR_MACHINE" \
+  --phase canary \
+  --trials 1 \
+  --no-resume
 ```
-
-## ASG pin
-
-Version in `ASG_PINNED_VERSION` (currently 0.6.0). Requires OPA CLI or `OPA_URL`.
 
 ## Docs
 
-- [novelty_audit.md](docs/novelty_audit.md)
-- [leakage_audit.md](docs/leakage_audit.md)
-- [canary_protocol.md](docs/canary_protocol.md)
-- [pilot_readiness_audit.md](docs/pilot_readiness_audit.md)
+- [preregistration-v0.1.md](docs/preregistration-v0.1.md)
+- [local_canary_setup.md](docs/local_canary_setup.md)
+- [local_canary_readiness.md](docs/local_canary_readiness.md)
+- [offline_validation_milestone.md](docs/offline_validation_milestone.md)
+
+## ASG pin
+
+Version in `ASG_PINNED_VERSION` (0.6.0). Requires OPA CLI.

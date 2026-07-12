@@ -35,6 +35,8 @@ def validate_dry_run_plan(
         errors.append(f"openai model snapshot must be gpt-4.1-mini-2025-04-14, got {model}")
     if provider == "mock" and model != "deterministic-mock-v1":
         errors.append(f"mock model must be deterministic-mock-v1, got {model}")
+    if provider == "local" and not model:
+        errors.append("local provider requires --model")
     if dataset_ref == "unknown":
         errors.append("episode dataset ref is unknown")
     if policy_hash_value == "unknown":
