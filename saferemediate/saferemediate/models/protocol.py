@@ -9,6 +9,21 @@ from typing import Any, Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class InferenceExtras(BaseModel):
+    """Optional local/open-weight inference configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base_url_redacted: str | None = None
+    inference_runtime: str | None = None
+    inference_runtime_version: str | None = None
+    quantization: str | None = None
+    context_length: int | None = None
+    tool_calling_mode: str | None = "openai_tools"
+    hardware_description: str | None = None
+    saferemediate_commit: str | None = None
+
+
 class AgentActionKind(StrEnum):
     TOOL_CALL = "tool_call"
     SAFE_TERMINATION = "safe_termination"
@@ -59,6 +74,14 @@ class RunMetadata(BaseModel):
     estimated_cost_usd: float | None = None
     provider_error: str | None = None
     raw_response_redacted: dict[str, Any] = Field(default_factory=dict)
+    base_url_redacted: str | None = None
+    inference_runtime: str | None = None
+    inference_runtime_version: str | None = None
+    quantization: str | None = None
+    context_length: int | None = None
+    tool_calling_mode: str | None = None
+    hardware_description: str | None = None
+    saferemediate_commit: str | None = None
 
 
 class ModelTurnResult(BaseModel):

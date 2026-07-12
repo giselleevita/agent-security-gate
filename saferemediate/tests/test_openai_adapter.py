@@ -1,18 +1,13 @@
-"""OpenAI adapter parsing tests (no network)."""
+"""OpenAI-compatible parsing tests (no network)."""
 
 import pytest
 
 from saferemediate.models.openai import OpenAIAgentModel
+from saferemediate.models.openai_compatible import parse_chat_completion_response
 from saferemediate.models.protocol import AgentActionKind, ToolSchema
 
 
 def test_parse_tool_call():
-    model = OpenAIAgentModel.__new__(OpenAIAgentModel)
-    model.requested_model = "gpt-4.1-mini"
-    model.temperature = 0.0
-    model.top_p = 1.0
-    model.seed = None
-    model._episodes_path = None
     raw = {
         "model": "gpt-4.1-mini",
         "choices": [
@@ -31,23 +26,21 @@ def test_parse_tool_call():
         ],
         "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
     }
-    result = model._parse_response(
+    result = parse_chat_completion_response(
         raw,
+        provider="openai",
+        requested_model="gpt-4.1-mini",
         system_prompt="sys",
         tool_schemas=[ToolSchema(name="docs.read", parameters={})],
+        episodes_path=None,
         latency_ms=1.0,
+        estimated_cost_usd=0.001,
     )
     assert result.action.kind == AgentActionKind.TOOL_CALL
     assert result.action.tool == "docs.read"
 
 
 def test_parse_failure_on_bad_json():
-    model = OpenAIAgentModel.__new__(OpenAIAgentModel)
-    model.requested_model = "gpt-4.1-mini"
-    model.temperature = 0.0
-    model.top_p = 1.0
-    model.seed = None
-    model._episodes_path = None
     raw = {
         "choices": [
             {
@@ -58,7 +51,15 @@ def test_parse_failure_on_bad_json():
         ],
         "usage": {},
     }
-    result = model._parse_response(raw, system_prompt="s", tool_schemas=[], latency_ms=1.0)
+    result = parse_chat_completion_response(
+        raw,
+        provider="openai",
+        requested_model="gpt-4.1-mini",
+        system_prompt="s",
+        tool_schemas=[],
+        episodes_path=None,
+        latency_ms=1.0,
+    )
     assert result.action.kind == AgentActionKind.PARSE_FAILURE
 
 

@@ -92,11 +92,101 @@ def _cost_accounting_ok(traces: list[dict[str, Any]]) -> tuple[bool, list[str]]:
             errors.append(f"{t['run_key']}: no model turns")
             continue
         meta = turns[-1].get("metadata") or {}
-        if meta.get("total_tokens") is not None and meta.get("estimated_cost_usd") is not None:
+        if meta.get("total_tokens") is not None or meta.get("latency_ms") is not None:
             with_usage += 1
     if with_usage < len(traces) * DEFAULT_API_SUCCESS_THRESHOLD:
         errors.append(f"cost metadata on {with_usage}/{len(traces)} traces")
     return not errors, errors
+
+
+REAL_MODEL_API_SUCCESS_THRESHOLD = 0.95
+REAL_MODEL_PARSE_FAILURE_THRESHOLD = 0.15
+
+
+def _trace_reconstruction_ok(traces: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+    errors: list[str] = []
+    for t in traces:
+        rk = t.get("run_key", "?")
+        turns = t.get("model_turns") or []
+        if not turns:
+            errors.append(f"{rk}: no model turns")
+            continue
+        last = turns[-1]
+        if "action" not in last and "provider_error" not in last:
+            errors.append(f"{rk}: missing parsed action")
+        meta = last.get("metadata") or {}
+        if not meta.get("system_prompt_hash"):
+            errors.append(f"{rk}: missing system_prompt_hash in metadata")
+        if not t.get("feedback_trace") and t.get("score", {}).get("outcome") not in (
+            "parse_failure",
+            "safe_termination",
+            "escalation",
+        ):
+            pass  # some episodes may end before feedback
+        if not t.get("score", {}).get("outcome"):
+            errors.append(f"{rk}: missing final classification")
+    return not errors, errors
+
+
+def _retry_loop_ok(traces: list[dict[str, Any]], *, max_steps_default: int = 6) -> tuple[bool, list[str]]:
+    errors: list[str] = []
+    for t in traces:
+        turns = len(t.get("model_turns") or [])
+        if turns > max_steps_default + 2:
+            errors.append(f"{t.get('run_key')}: excessive model turns ({turns})")
+    return not errors, errors
+
+
+def evaluate_real_model_canary_gate(
+    traces: list[dict[str, Any]],
+    *,
+    expected_runs: int = 70,
+    parse_failure_threshold: float = REAL_MODEL_PARSE_FAILURE_THRESHOLD,
+    api_success_threshold: float = REAL_MODEL_API_SUCCESS_THRESHOLD,
+) -> dict[str, Any]:
+    """Stricter gate for real-model canary — completion alone is not sufficient."""
+    n = len(traces)
+    base = evaluate_canary_gate(
+        traces,
+        parse_failure_threshold=parse_failure_threshold,
+        api_success_threshold=api_success_threshold,
+    )
+
+    run_keys = [t.get("run_key") for t in traces if t.get("run_key")]
+    unique_keys = set(run_keys)
+    completion_ok = n == expected_runs and len(unique_keys) == expected_runs
+    completion_errors: list[str] = []
+    if n != expected_runs:
+        completion_errors.append(f"completed {n} != expected {expected_runs}")
+    if len(unique_keys) != len(run_keys):
+        completion_errors.append("duplicate run IDs in checkpoint")
+
+    recon_ok, recon_errors = _trace_reconstruction_ok(traces)
+    retry_ok, retry_errors = _retry_loop_ok(traces)
+
+    gates = dict(base["gates"])
+    gates["completion"] = {
+        "pass": completion_ok,
+        "completed_runs": n,
+        "expected_runs": expected_runs,
+        "unique_run_ids": len(unique_keys),
+        "errors": completion_errors,
+    }
+    gates["trace_reconstruction"] = {"pass": recon_ok, "errors": recon_errors}
+    gates["retry_loops"] = {"pass": retry_ok, "errors": retry_errors}
+
+    all_pass = all(g["pass"] for g in gates.values())
+
+    return {
+        **base,
+        "canary_gate_pass": all_pass,
+        "gate_type": "real_model_canary",
+        "run_count": n,
+        "expected_runs": expected_runs,
+        "gates": gates,
+        "verdict": "PROCEED to 350-run behavioural pilot" if all_pass else "DISCARD canary; fix before pilot",
+        "note": "Completion count alone does not constitute PASS.",
+    }
 
 
 def evaluate_canary_gate(

@@ -4,16 +4,26 @@ from __future__ import annotations
 
 from typing import Any
 
-# Artifact kinds — must appear in every published summary JSON.
 SYNTHETIC_PILOT_RULE_BASED = "synthetic_pilot_rule_based_harness_validation"
 LIVE_MODEL_PILOT = "live_model_pilot_integrity_validation"
 OFFLINE_MOCK_PILOT = "offline_mock_pilot_integrity_validation"
+REAL_MODEL_CANARY = "real_model_canary_integrity_validation"
+REAL_MODEL_PILOT = "real_model_pilot_integrity_validation"
+
 NOT_HYPOTHESIS_EVIDENCE = (
     "Not evidence for H1–H3. Model placeholders are not active model integrations."
 )
 OFFLINE_MOCK_EVIDENCE = (
     "Zero-cost deterministic mock agent. Validates live-runner pipeline, scoring, and "
     "trace format only — not LLM behaviour and not evidence for H1–H3."
+)
+REAL_MODEL_CANARY_EVIDENCE = (
+    "Real language model generated actions. Validates behavioural participation and "
+    "benchmark integrity only — not evidence for H1–H3."
+)
+REAL_MODEL_PILOT_EVIDENCE = (
+    "Single-model behavioural pilot. Exploratory only — not the final pre-registered "
+    "multi-model hypothesis test for H1–H3."
 )
 
 MANIFEST_VERSION = "1"
@@ -45,6 +55,7 @@ def live_pilot_manifest(
         "planned_run_count": run_count,
         "llm_evidence": True,
         "hypothesis_evidence": False,
+        "publication_ready": False,
         "evidence_scope": (
             "Validates live-model behaviour and benchmark integrity only. "
             "Not the final pre-registered hypothesis test for H1–H3."
@@ -52,11 +63,7 @@ def live_pilot_manifest(
     }
 
 
-def offline_mock_pilot_manifest(
-    *,
-    requested_model: str,
-    run_count: int,
-) -> dict[str, Any]:
+def offline_mock_pilot_manifest(*, requested_model: str, run_count: int) -> dict[str, Any]:
     return {
         "manifest_version": MANIFEST_VERSION,
         "artifact_kind": OFFLINE_MOCK_PILOT,
@@ -67,16 +74,64 @@ def offline_mock_pilot_manifest(
         "estimated_cost_usd": 0.0,
         "llm_evidence": False,
         "hypothesis_evidence": False,
+        "publication_ready": False,
         "evidence_scope": OFFLINE_MOCK_EVIDENCE,
     }
 
 
-def live_pilot_evidence_flags() -> dict[str, bool]:
-    return {"llm_evidence": True, "hypothesis_evidence": False}
+def real_model_canary_manifest(
+    *,
+    requested_model: str,
+    run_count: int,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "manifest_version": MANIFEST_VERSION,
+        "artifact_kind": REAL_MODEL_CANARY,
+        "agent_backend": "local_openai_compatible",
+        "provider": "local",
+        "requested_model": requested_model,
+        "base_url": base_url,
+        "planned_run_count": run_count,
+        "estimated_cost_usd": 0.0,
+        "llm_evidence": True,
+        "hypothesis_evidence": False,
+        "publication_ready": False,
+        "evidence_scope": REAL_MODEL_CANARY_EVIDENCE,
+    }
 
 
-def print_provider_banner(*, provider: str, phase: str, trials: int, planned_runs: int) -> None:
-    """Prominent stderr banner — impossible to miss which provider is active."""
+def real_model_pilot_manifest(
+    *,
+    requested_model: str,
+    run_count: int,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "manifest_version": MANIFEST_VERSION,
+        "artifact_kind": REAL_MODEL_PILOT,
+        "agent_backend": "local_openai_compatible",
+        "provider": "local",
+        "requested_model": requested_model,
+        "base_url": base_url,
+        "planned_run_count": run_count,
+        "estimated_cost_usd": 0.0,
+        "llm_evidence": True,
+        "hypothesis_evidence": False,
+        "publication_ready": False,
+        "evidence_scope": REAL_MODEL_PILOT_EVIDENCE,
+    }
+
+
+def print_provider_banner(
+    *,
+    provider: str,
+    phase: str,
+    trials: int,
+    planned_runs: int,
+    base_url: str | None = None,
+    model: str | None = None,
+) -> None:
     import sys
 
     if provider == "mock":
@@ -86,6 +141,17 @@ def print_provider_banner(*, provider: str, phase: str, trials: int, planned_run
             "EVIDENCE SCOPE: PIPELINE INTEGRITY ONLY",
             "NOT LLM EVIDENCE",
             "NOT VALID FOR H1–H3",
+            f"PHASE: {phase.upper()} | TRIALS: {trials} | PLANNED RUNS: {planned_runs}",
+        ]
+    elif provider == "local":
+        lines = [
+            "PROVIDER: LOCAL (FREE)",
+            f"BASE_URL: {base_url or 'http://localhost:11434/v1'}",
+            f"MODEL: {model or '(required)'}",
+            "COST: $0 API",
+            "EVIDENCE SCOPE: BEHAVIOURAL CANARY — NOT H1–H3",
+            "LLM_EVIDENCE: true (actions from real model)",
+            "HYPOTHESIS_EVIDENCE: false",
             f"PHASE: {phase.upper()} | TRIALS: {trials} | PLANNED RUNS: {planned_runs}",
         ]
     else:
