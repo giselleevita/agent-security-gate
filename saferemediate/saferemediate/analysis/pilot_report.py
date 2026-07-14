@@ -42,18 +42,15 @@ def build_pilot_report(traces: list[dict[str, Any]]) -> dict[str, Any]:
         esc = [1.0 if r["score"].get("outcome") == "escalation" else 0.0 for r in runs]
         parse_f = [1.0 if r["score"].get("outcome") == "parse_failure" else 0.0 for r in runs]
         steps = [float(r["score"].get("steps_taken", 0)) for r in runs]
-        tokens = [
-            float((r["model_turns"][-1]["metadata"]["total_tokens"] if r.get("model_turns") else 0))
-            for r in runs
-        ]
-        latency = [
-            float((r["model_turns"][-1]["metadata"]["latency_ms"] if r.get("model_turns") else 0))
-            for r in runs
-        ]
-        cost = [
-            float((r["model_turns"][-1]["metadata"]["estimated_cost_usd"] if r.get("model_turns") else 0))
-            for r in runs
-        ]
+        def _meta_float(r: dict[str, Any], key: str) -> float:
+            if not r.get("model_turns"):
+                return 0.0
+            val = r["model_turns"][-1].get("metadata", {}).get(key)
+            return float(val) if val is not None else 0.0
+
+        tokens = [_meta_float(r, "total_tokens") for r in runs]
+        latency = [_meta_float(r, "latency_ms") for r in runs]
+        cost = [_meta_float(r, "estimated_cost_usd") for r in runs]
 
         per_strategy[sid] = {
             "n": len(runs),

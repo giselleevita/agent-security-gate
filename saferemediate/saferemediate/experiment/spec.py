@@ -12,10 +12,14 @@ import yaml
 from saferemediate.feedback.base import StrategyId
 from saferemediate.labelling import (
     LIVE_MODEL_PILOT,
+    NATURAL_ENTRY_EXPLORATORY_CANARY,
     OFFLINE_MOCK_PILOT,
     REAL_MODEL_CANARY,
     REAL_MODEL_PILOT,
+    SEEDED_DENIAL_CANARY,
+    SEEDED_DENIAL_PILOT,
 )
+from saferemediate.harness.entry_mode import NATURAL_ENTRY_MODE, EntryMode
 from saferemediate.models.factory import ProviderName
 from saferemediate.models.mock import MOCK_MODEL_ID
 from saferemediate.trace.metadata import asg_version, episode_dataset_ref, git_commit, policy_hash
@@ -59,14 +63,24 @@ def slugify_model(model: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower()[:40]
 
 
-def make_experiment_id(*, provider: ProviderName, model: str, phase: PilotPhase) -> str:
+def make_experiment_id(
+    *,
+    provider: ProviderName,
+    model: str,
+    phase: PilotPhase,
+    run_label: str | None = None,
+) -> str:
     commit = git_commit(_REPO_ROOT)[:7]
     slug = slugify_model(model)
     if provider == "local":
-        return f"saferemediate-local-{slug}-{commit}"
-    if provider == "openai":
-        return f"saferemediate-openai-{slug}-{commit}"
-    return f"saferemediate-mock-{phase}-{commit}"
+        base = f"saferemediate-local-{slug}-{commit}"
+    elif provider == "openai":
+        base = f"saferemediate-openai-{slug}-{commit}"
+    else:
+        base = f"saferemediate-mock-{phase}-{commit}"
+    if run_label:
+        return f"{base}-{slugify_model(run_label)}"
+    return base
 
 
 def build_run_spec(
@@ -84,6 +98,8 @@ def build_run_spec(
     inference_runtime: str | None = None,
     quantization: str | None = None,
     context_length: int | None = None,
+    run_label: str | None = None,
+    entry_mode: EntryMode = NATURAL_ENTRY_MODE,
 ) -> dict[str, Any]:
     strategies = strategies or ALL_STRATEGIES
     rev = repo_revision(episodes_path=episodes_path)
@@ -95,12 +111,19 @@ def build_run_spec(
         if not model:
             raise ValueError("local provider requires --model")
         resolved_model = model
-        artifact_kind = REAL_MODEL_CANARY if phase == "canary" else REAL_MODEL_PILOT
+        if entry_mode == "seeded-denial":
+            artifact_kind = SEEDED_DENIAL_CANARY if phase == "canary" else SEEDED_DENIAL_PILOT
+        elif phase == "canary" and entry_mode == "natural":
+            artifact_kind = NATURAL_ENTRY_EXPLORATORY_CANARY
+        else:
+            artifact_kind = REAL_MODEL_CANARY if phase == "canary" else REAL_MODEL_PILOT
     else:
         resolved_model = model or DEFAULT_MODEL_SNAPSHOT
         artifact_kind = LIVE_MODEL_PILOT
 
-    experiment_id = make_experiment_id(provider=provider, model=resolved_model, phase=phase)
+    experiment_id = make_experiment_id(
+        provider=provider, model=resolved_model, phase=phase, run_label=run_label
+    )
 
     spec: dict[str, Any] = {
         "experiment_id": experiment_id,
@@ -123,6 +146,7 @@ def build_run_spec(
         "llm_evidence": provider in ("openai", "local"),
         "publication_ready": False,
         "include_in_final_dataset": phase == "pilot",
+        "entry_mode": entry_mode,
     }
     if provider == "local":
         spec["base_url"] = base_url
@@ -138,15 +162,17 @@ def result_dir(
     *,
     provider: ProviderName = "mock",
     experiment_id: str | None = None,
+    entry_mode: EntryMode = NATURAL_ENTRY_MODE,
 ) -> Path:
     if provider == "mock":
         name = "offline_mock_canary" if phase == "canary" else "offline_mock_pilot"
         return _SR_ROOT / "results" / name
     if provider == "local":
         root = "local_model_canary" if phase == "canary" else "local_model_pilot"
+        base = _SR_ROOT / "results" / root / entry_mode
         if experiment_id:
-            return _SR_ROOT / "results" / root / experiment_id
-        return _SR_ROOT / "results" / root / "_pending"
+            return base / experiment_id
+        return base / "_pending"
     name = "pilot_canary" if phase == "canary" else "pilot_live"
     if experiment_id:
         return _SR_ROOT / "results" / name / experiment_id
@@ -173,6 +199,7 @@ def enrich_artifact(spec: dict[str, Any], payload: dict[str, Any]) -> dict[str, 
         "git_tag": spec.get("git_tag") or None,
         "artifact_kind": spec.get("artifact_kind"),
         "provider": provider,
+        "entry_mode": spec.get("entry_mode", NATURAL_ENTRY_MODE),
         "llm_evidence": llm,
         "hypothesis_evidence": False,
         "publication_ready": False,

@@ -58,7 +58,7 @@ def test_canary_and_pilot_use_separate_dirs_per_provider():
 def test_run_spec_written_on_dry_run(tmp_path, monkeypatch):
     import saferemediate.run_pilot as pilot_mod
 
-    def _mock_result_dir(phase, provider="mock", experiment_id=None):
+    def _mock_result_dir(phase, provider="mock", experiment_id=None, entry_mode="natural"):
         return tmp_path / f"{provider}_{phase}" / (experiment_id or "x")
 
     monkeypatch.setattr(pilot_mod, "result_dir", _mock_result_dir)
@@ -99,9 +99,13 @@ def test_canary_gate_passes_clean_traces():
 
 def test_build_run_spec_local_flags():
     from saferemediate.experiment.spec import build_run_spec
-    from saferemediate.labelling import REAL_MODEL_CANARY
+    from saferemediate.labelling import NATURAL_ENTRY_EXPLORATORY_CANARY, SEEDED_DENIAL_CANARY
 
-    spec = build_run_spec(phase="canary", trials=1, provider="local", model="qwen2.5:7b-instruct")
+    spec = build_run_spec(phase="canary", trials=1, provider="local", model="qwen3.5:9b")
     assert spec["hypothesis_evidence"] is False
     assert spec["llm_evidence"] is True
-    assert spec["artifact_kind"] == REAL_MODEL_CANARY
+    assert spec["artifact_kind"] == NATURAL_ENTRY_EXPLORATORY_CANARY
+    seeded = build_run_spec(
+        phase="canary", trials=1, provider="local", model="qwen3.5:9b", entry_mode="seeded-denial"
+    )
+    assert seeded["artifact_kind"] == SEEDED_DENIAL_CANARY
