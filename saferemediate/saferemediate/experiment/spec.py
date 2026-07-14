@@ -19,6 +19,7 @@ from saferemediate.labelling import (
     SEEDED_DENIAL_CANARY,
     SEEDED_DENIAL_PILOT,
 )
+from saferemediate.episodes.schema import load_dataset_manifest
 from saferemediate.harness.entry_mode import NATURAL_ENTRY_MODE, EntryMode
 from saferemediate.models.factory import ProviderName
 from saferemediate.models.mock import MOCK_MODEL_ID
@@ -103,6 +104,7 @@ def build_run_spec(
 ) -> dict[str, Any]:
     strategies = strategies or ALL_STRATEGIES
     rev = repo_revision(episodes_path=episodes_path)
+    manifest = load_dataset_manifest(episodes_path) if episodes_path and episodes_path.exists() else None
 
     if provider == "mock":
         resolved_model = model or MOCK_MODEL_ID
@@ -134,6 +136,7 @@ def build_run_spec(
         "asg_version": rev["asg_version"],
         "policy_hash": rev["policy_hash"],
         "episode_dataset_ref": rev["episode_dataset_ref"],
+        "dataset_version": manifest.dataset_version if manifest else None,
         "model": resolved_model,
         "provider": provider,
         "episodes": episodes,
