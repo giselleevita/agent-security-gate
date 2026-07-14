@@ -9,6 +9,9 @@ LIVE_MODEL_PILOT = "live_model_pilot_integrity_validation"
 OFFLINE_MOCK_PILOT = "offline_mock_pilot_integrity_validation"
 REAL_MODEL_CANARY = "real_model_canary_integrity_validation"
 REAL_MODEL_PILOT = "real_model_pilot_integrity_validation"
+NATURAL_ENTRY_EXPLORATORY_CANARY = "natural_entry_exploratory_canary"
+SEEDED_DENIAL_CANARY = "seeded_denial_canary_integrity_validation"
+SEEDED_DENIAL_PILOT = "seeded_denial_pilot_integrity_validation"
 
 NOT_HYPOTHESIS_EVIDENCE = (
     "Not evidence for H1–H3. Model placeholders are not active model integrations."
@@ -24,6 +27,15 @@ REAL_MODEL_CANARY_EVIDENCE = (
 REAL_MODEL_PILOT_EVIDENCE = (
     "Single-model behavioural pilot. Exploratory only — not the final pre-registered "
     "multi-model hypothesis test for H1–H3."
+)
+NATURAL_ENTRY_CANARY_EVIDENCE = (
+    "Natural-entry exploratory canary. Measures whether agents spontaneously encounter "
+    "policy denials. Not evidence for post-denial remediation strategies (B0–B6)."
+)
+SEEDED_DENIAL_CANARY_EVIDENCE = (
+    "Controlled post-denial recovery canary. Initial tool proposal is an episode fixture "
+    "evaluated by ASG; only subsequent actions are model behaviour. Integrity validation "
+    "only — not evidence for H1–H3 until pre-registered design is frozen."
 )
 
 MANIFEST_VERSION = "1"
@@ -76,6 +88,80 @@ def offline_mock_pilot_manifest(*, requested_model: str, run_count: int) -> dict
         "hypothesis_evidence": False,
         "publication_ready": False,
         "evidence_scope": OFFLINE_MOCK_EVIDENCE,
+    }
+
+
+def natural_entry_canary_manifest(
+    *,
+    requested_model: str,
+    run_count: int,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "manifest_version": MANIFEST_VERSION,
+        "artifact_kind": NATURAL_ENTRY_EXPLORATORY_CANARY,
+        "entry_mode": "natural",
+        "agent_backend": "local_openai_compatible",
+        "provider": "local",
+        "requested_model": requested_model,
+        "base_url": base_url,
+        "planned_run_count": run_count,
+        "estimated_cost_usd": 0.0,
+        "llm_evidence": True,
+        "hypothesis_evidence": False,
+        "publication_ready": False,
+        "denial_feedback_exercised": False,
+        "evidence_scope": NATURAL_ENTRY_CANARY_EVIDENCE,
+    }
+
+
+def seeded_denial_canary_manifest(
+    *,
+    requested_model: str,
+    run_count: int,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "manifest_version": MANIFEST_VERSION,
+        "artifact_kind": SEEDED_DENIAL_CANARY,
+        "entry_mode": "seeded-denial",
+        "agent_backend": "local_openai_compatible",
+        "provider": "local",
+        "requested_model": requested_model,
+        "base_url": base_url,
+        "planned_run_count": run_count,
+        "estimated_cost_usd": 0.0,
+        "llm_evidence": True,
+        "hypothesis_evidence": False,
+        "publication_ready": False,
+        "initial_action_source": "episode_fixture",
+        "recovery_actions_source": "real_model",
+        "evidence_scope": SEEDED_DENIAL_CANARY_EVIDENCE,
+    }
+
+
+def seeded_denial_pilot_manifest(
+    *,
+    requested_model: str,
+    run_count: int,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "manifest_version": MANIFEST_VERSION,
+        "artifact_kind": SEEDED_DENIAL_PILOT,
+        "entry_mode": "seeded-denial",
+        "agent_backend": "local_openai_compatible",
+        "provider": "local",
+        "requested_model": requested_model,
+        "base_url": base_url,
+        "planned_run_count": run_count,
+        "estimated_cost_usd": 0.0,
+        "llm_evidence": True,
+        "hypothesis_evidence": False,
+        "publication_ready": False,
+        "initial_action_source": "episode_fixture",
+        "recovery_actions_source": "real_model",
+        "evidence_scope": SEEDED_DENIAL_CANARY_EVIDENCE,
     }
 
 

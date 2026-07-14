@@ -34,6 +34,7 @@ class AsgDecision:
     reason: str
     audit_id: str
     approval_url: str | None = None
+    outcome: str = "deny"
 
 
 def _get_client() -> RuntimeGateClient:
@@ -60,15 +61,17 @@ def decide_tool_call(
         session_id=session_id,
     )
     decision = _get_client().decide(request)
-    allowed = decision.outcome == "allow"
+    outcome = decision.outcome
+    allowed = outcome == "allow"
     reason = decision.reason or "policy_denied"
     audit_id = f"sr-{session_id}-{tool}"
     approval_url = None
-    if decision.outcome == "approval_required":
+    if outcome == "approval_required":
         approval_url = f"/v1/approvals/request?session={session_id}"
     return AsgDecision(
         allowed=allowed,
         reason=reason,
         audit_id=audit_id,
         approval_url=approval_url,
+        outcome=outcome,
     )

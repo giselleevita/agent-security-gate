@@ -18,12 +18,13 @@ def validate_dry_run_plan(
     dataset_ref: str,
     policy_hash_value: str,
     provider: str = "mock",
+    expect_full_episode_set: bool = True,
 ) -> dict[str, Any]:
     expected = len(episodes) * len(strategies) * trials
     unique = set(planned_keys)
     errors: list[str] = []
 
-    if len(episodes) != 10:
+    if expect_full_episode_set and len(episodes) != 10:
         errors.append(f"expected 10 episodes, got {len(episodes)}")
     if len(strategies) != 7:
         errors.append(f"expected 7 strategies, got {len(strategies)}")

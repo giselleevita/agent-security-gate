@@ -13,6 +13,7 @@ from saferemediate.episodes.schema import EpisodeSchema, load_episodes
 from saferemediate.experiment.canary_gate import (
     evaluate_canary_gate,
     evaluate_real_model_canary_gate,
+    evaluate_seeded_denial_canary_gate,
 )
 from saferemediate.experiment.plan_validation import validate_dry_run_plan
 from saferemediate.experiment.spec import (
@@ -24,16 +25,20 @@ from saferemediate.experiment.spec import (
     result_dir,
     write_run_spec_yaml,
 )
+from saferemediate.harness.entry_mode import NATURAL_ENTRY_MODE, EntryMode
 from saferemediate.experiment.trace_inspect import sample_traces_for_review
 from saferemediate.experiment.trace_review import write_trace_review_manifest
 from saferemediate.feedback.base import StrategyId
 from saferemediate.harness.live_runner import run_live_episode
 from saferemediate.labelling import (
     live_pilot_manifest,
+    natural_entry_canary_manifest,
     offline_mock_pilot_manifest,
     print_provider_banner,
     real_model_canary_manifest,
     real_model_pilot_manifest,
+    seeded_denial_canary_manifest,
+    seeded_denial_pilot_manifest,
 )
 from saferemediate.models.factory import ProviderName, build_agent_model
 from saferemediate.models.local import DEFAULT_LOCAL_BASE_URL
@@ -73,8 +78,10 @@ def _paths(
     phase: PilotPhase,
     provider: ProviderName,
     experiment_id: str,
+    *,
+    entry_mode: EntryMode = NATURAL_ENTRY_MODE,
 ) -> tuple[Path, Path, Path, Path]:
-    base = result_dir(phase, provider=provider, experiment_id=experiment_id)
+    base = result_dir(phase, provider=provider, experiment_id=experiment_id, entry_mode=entry_mode)
     return (
         base,
         base / "checkpoint.jsonl",
@@ -98,6 +105,13 @@ def load_traces(checkpoint: Path) -> list[dict[str, Any]]:
     if not checkpoint.exists():
         return []
     return [json.loads(line) for line in checkpoint.read_text().splitlines() if line.strip()]
+
+
+def _checkpoint_entry_mode(checkpoint: Path) -> EntryMode | None:
+    traces = load_traces(checkpoint)
+    if not traces:
+        return None
+    return traces[0].get("entry_mode")  # type: ignore[return-value]
 
 
 def append_checkpoint(checkpoint: Path, trace: dict[str, Any]) -> None:
@@ -127,12 +141,21 @@ def _pilot_manifest(
     *,
     base_url: str | None = None,
     phase: PilotPhase = "pilot",
+    entry_mode: EntryMode = NATURAL_ENTRY_MODE,
 ) -> dict[str, Any]:
     if provider == "mock":
         return offline_mock_pilot_manifest(requested_model=model_name, run_count=n)
     if provider == "local":
+        if entry_mode == "seeded-denial":
+            if phase == "canary":
+                return seeded_denial_canary_manifest(
+                    requested_model=model_name, run_count=n, base_url=base_url
+                )
+            return seeded_denial_pilot_manifest(
+                requested_model=model_name, run_count=n, base_url=base_url
+            )
         if phase == "canary":
-            return real_model_canary_manifest(
+            return natural_entry_canary_manifest(
                 requested_model=model_name, run_count=n, base_url=base_url
             )
         return real_model_pilot_manifest(
@@ -146,7 +169,10 @@ def _evaluate_gate(
     traces: list[dict[str, Any]],
     *,
     expected_runs: int,
+    entry_mode: EntryMode = NATURAL_ENTRY_MODE,
 ) -> dict[str, Any]:
+    if provider == "local" and entry_mode == "seeded-denial":
+        return evaluate_seeded_denial_canary_gate(traces, expected_runs=expected_runs)
     if provider == "local":
         return evaluate_real_model_canary_gate(traces, expected_runs=expected_runs)
     return evaluate_canary_gate(traces)
@@ -173,9 +199,22 @@ async def run_pilot_async(
     phase: PilotPhaseArg | None = None,
     validate_canary: bool = False,
     max_runs: int | None = None,
+    episode_ids: list[str] | None = None,
+    run_label: str | None = None,
+    entry_mode: EntryMode = NATURAL_ENTRY_MODE,
 ) -> dict[str, Any]:
     ep_path = episodes_path or DEFAULT_EPISODES
-    episodes = load_episodes(ep_path)
+    all_episodes = load_episodes(ep_path)
+    if episode_ids:
+        id_set = set(episode_ids)
+        episodes = [e for e in all_episodes if e.episode_id in id_set]
+        missing = id_set - {e.episode_id for e in episodes}
+        if missing:
+            raise ValueError(f"unknown episode_id(s): {sorted(missing)}")
+        if not run_label:
+            run_label = f"ep-{'-'.join(episode_ids)[:48]}"
+    else:
+        episodes = all_episodes
     strategies = strategies or ALL_STRATEGIES
     pilot_phase = _infer_phase(trials, phase)
 
@@ -202,10 +241,14 @@ async def run_pilot_async(
         inference_runtime=inference_runtime,
         quantization=quantization,
         context_length=context_length,
+        run_label=run_label,
+        entry_mode=entry_mode,
     )
 
     experiment_id = spec["experiment_id"]
-    out_dir, checkpoint, summary_path, spec_path = _paths(pilot_phase, provider, experiment_id)
+    out_dir, checkpoint, summary_path, spec_path = _paths(
+        pilot_phase, provider, experiment_id, entry_mode=entry_mode
+    )
 
     est_cost = 0.0 if provider in ("mock", "local") else estimate_cost_usd(
         EST_PROMPT_TOKENS * n, EST_COMPLETION_TOKENS * n
@@ -220,10 +263,16 @@ async def run_pilot_async(
         dataset_ref=spec["episode_dataset_ref"],
         policy_hash_value=spec["policy_hash"],
         provider=provider,
+        expect_full_episode_set=not episode_ids,
     )
 
     manifest = _pilot_manifest(
-        provider, model_name or "", n, base_url=base_url, phase=pilot_phase
+        provider,
+        model_name or "",
+        n,
+        base_url=base_url,
+        phase=pilot_phase,
+        entry_mode=entry_mode,
     )
     print_provider_banner(
         provider=provider,
@@ -233,6 +282,7 @@ async def run_pilot_async(
         base_url=base_url,
         model=model_name,
     )
+    print(f"=== ENTRY_MODE: {entry_mode} ===", flush=True)
 
     plan = enrich_artifact(
         spec,
@@ -266,7 +316,9 @@ async def run_pilot_async(
 
     if validate_canary:
         traces = load_traces(checkpoint)
-        gate = _evaluate_gate(provider, traces, expected_runs=n)
+        gate = _evaluate_gate(
+            provider, traces, expected_runs=n, entry_mode=entry_mode
+        )
         families = {ep.episode_id: ep.family for ep in episodes}
         inspection = sample_traces_for_review(traces, episode_families=families)
         result = enrich_artifact(
@@ -285,6 +337,19 @@ async def run_pilot_async(
     completed = load_completed_keys(checkpoint) if resume else set()
     if not resume and checkpoint.exists():
         checkpoint.unlink()
+
+    existing_mode = _checkpoint_entry_mode(checkpoint)
+    if existing_mode and existing_mode != entry_mode:
+        raise ValueError(
+            f"checkpoint entry_mode {existing_mode!r} does not match requested {entry_mode!r}"
+        )
+
+    done_count = len(completed)
+    total_pending = len([k for k in keys if k not in completed])
+    if max_runs is not None:
+        total_pending = min(total_pending, max_runs)
+    if total_pending and not dry_run:
+        print(f"=== RUNNING {total_pending} episodes ({done_count}/{n} already done) ===", flush=True)
 
     sem = asyncio.Semaphore(concurrency)
     model = build_agent_model(
@@ -307,9 +372,19 @@ async def run_pilot_async(
         trial = int(trial_s)
         ep = next(e for e in episodes if e.episode_id == ep_id)
         async with sem:
-            trace = await run_live_episode(ep, sid, model, trial=trial)  # type: ignore[arg-type]
+            trace = await run_live_episode(
+                ep,
+                sid,
+                model,
+                trial=trial,
+                entry_mode=entry_mode,  # type: ignore[arg-type]
+            )
             record = enrich_artifact(spec, trace.to_dict())
             append_checkpoint(checkpoint, record)
+            nonlocal done_count
+            done_count += 1
+            outcome = trace.score.get("outcome", "?")
+            print(f"[{done_count}/{n}] {run_key} -> {outcome}", flush=True)
             if rate_limit_delay_s > 0:
                 await asyncio.sleep(rate_limit_delay_s)
 
@@ -349,7 +424,9 @@ async def run_pilot_async(
     summary_path.write_text(json.dumps(summary, indent=2, default=str))
 
     if pilot_phase == "canary":
-        gate = _evaluate_gate(provider, traces, expected_runs=n)
+        gate = _evaluate_gate(
+            provider, traces, expected_runs=n, entry_mode=entry_mode
+        )
         families = {ep.episode_id: ep.family for ep in episodes}
         inspection = sample_traces_for_review(traces, episode_families=families)
         gate_report = enrich_artifact(
@@ -403,6 +480,24 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--rate-limit-delay", type=float, default=0.25)
     parser.add_argument("--max-runs", type=int, default=None)
+    parser.add_argument(
+        "--episode-id",
+        action="append",
+        dest="episode_ids",
+        metavar="ID",
+        help="Restrict to episode(s); repeat for multiple. Auto-suffixes experiment id.",
+    )
+    parser.add_argument(
+        "--run-label",
+        default=None,
+        help="Suffix for experiment id (e.g. precaneary7) to isolate partial runs",
+    )
+    parser.add_argument(
+        "--entry-mode",
+        choices=["natural", "seeded-denial"],
+        default="natural",
+        help="natural=model chooses first action; seeded-denial=ASG denial then model recovery",
+    )
     parser.add_argument("--no-resume", action="store_true")
     args = parser.parse_args()
 
@@ -431,6 +526,9 @@ def main() -> None:
         phase=phase,
         validate_canary=args.validate_canary,
         max_runs=args.max_runs,
+        episode_ids=args.episode_ids,
+        run_label=args.run_label,
+        entry_mode=args.entry_mode,  # type: ignore[arg-type]
     )
     print(json.dumps(result, indent=2))
 
