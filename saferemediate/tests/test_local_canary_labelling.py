@@ -49,6 +49,6 @@ def test_local_dry_run_canary():
         trials=1,
         entry_mode="natural",
     )
-    assert plan["planned_runs"] == 70
+    assert plan["planned_runs"] == 77
     assert plan["artifact_kind"] == NATURAL_ENTRY_EXPLORATORY_CANARY
     assert plan["entry_mode"] == "natural"
