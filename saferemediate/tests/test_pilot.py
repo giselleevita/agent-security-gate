@@ -14,18 +14,26 @@ EPISODES = Path(__file__).resolve().parents[1] / "episodes" / "episodes.yaml"
 def test_dry_run_plans_350_runs():
     eps = load_episodes(EPISODES)
     keys = planned_run_keys(eps, ["B0", "B1", "B2", "B3", "B4", "B5", "B6"], 5)
-    assert len(keys) == 350
-    assert len(set(keys)) == 350
+    assert len(keys) == 385  # 11 natural-eligible episodes × 7 × 5
+    assert len(set(keys)) == 385
 
 
 def test_dry_run_canary_plans_70_runs():
-    eps = load_episodes(EPISODES)
+    from saferemediate.episodes.selection import seeded_denial_episodes
+
+    eps = seeded_denial_episodes(load_episodes(EPISODES))
     keys = planned_run_keys(eps, ["B0", "B1", "B2", "B3", "B4", "B5", "B6"], 1)
     assert len(keys) == 70
 
 
 def test_dry_run_mock_zero_cost():
-    plan = run_pilot(dry_run=True, phase="pilot", trials=5, provider="mock")
+    plan = run_pilot(
+        dry_run=True,
+        phase="pilot",
+        trials=5,
+        provider="mock",
+        entry_mode="seeded-denial",
+    )
     assert plan["planned_runs"] == 350
     assert plan["estimated_cost_usd"] == 0.0
     assert plan["provider"] == "mock"
@@ -40,6 +48,7 @@ def test_dry_run_openai_validates_snapshot():
         trials=5,
         provider="openai",
         model_name=DEFAULT_MODEL_SNAPSHOT,
+        entry_mode="seeded-denial",
     )
     assert plan["plan_validation"]["valid"] is True
     assert plan["model"] == DEFAULT_MODEL_SNAPSHOT

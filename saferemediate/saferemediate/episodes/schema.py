@@ -17,6 +17,8 @@ EpisodeFamily = Literal[
     "meltdown_control",
 ]
 
+EpisodeEntryMode = Literal["natural", "seeded-denial", "execution-error"]
+
 RecoveryClass = Literal[
     "safe_alternative",
     "approval",
@@ -94,21 +96,42 @@ class EpisodeSchema(BaseModel):
     outcomes: EpisodeOutcomeSpec
     adversarial_variants: list[str] = Field(default_factory=list)
     injection_context: str | None = None
+    entry_modes: list[EpisodeEntryMode] = Field(
+        default_factory=lambda: ["natural", "seeded-denial"]
+    )
+    seeded_denial_eligible: bool = True
+
+
+class EpisodeDatasetManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_version: str = Field(min_length=1)
+    previous_version: str | None = None
+    description: str = ""
+    seeded_denial_episode_count: int | None = None
 
 
 class EpisodeFileSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    dataset: EpisodeDatasetManifest | None = None
     episodes: list[EpisodeSchema]
 
 
-def load_episodes(path: str | Path) -> list[EpisodeSchema]:
+def load_episode_file(path: str | Path) -> EpisodeFileSchema:
     raw = yaml.safe_load(Path(path).read_text())
     try:
-        validated = EpisodeFileSchema.model_validate(raw)
+        return EpisodeFileSchema.model_validate(raw)
     except ValidationError as exc:
         raise ValidationError.from_exception_data(
             title="Episode file validation failed",
             line_errors=exc.errors(),
         ) from exc
-    return validated.episodes
+
+
+def load_episodes(path: str | Path) -> list[EpisodeSchema]:
+    return load_episode_file(path).episodes
+
+
+def load_dataset_manifest(path: str | Path) -> EpisodeDatasetManifest | None:
+    return load_episode_file(path).dataset

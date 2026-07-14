@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from saferemediate.analysis.pilot_report import build_pilot_report
-from saferemediate.episodes.schema import EpisodeSchema, load_episodes
+from saferemediate.episodes.schema import EpisodeSchema, load_dataset_manifest, load_episodes
+from saferemediate.episodes.selection import select_episodes
 from saferemediate.experiment.canary_gate import (
     evaluate_canary_gate,
     evaluate_real_model_canary_gate,
@@ -30,6 +31,7 @@ from saferemediate.experiment.trace_inspect import sample_traces_for_review
 from saferemediate.experiment.trace_review import write_trace_review_manifest
 from saferemediate.feedback.base import StrategyId
 from saferemediate.harness.live_runner import run_live_episode
+from saferemediate.harness.seed_preflight import SeedPreflightError, assert_seed_preflight_passes
 from saferemediate.labelling import (
     live_pilot_manifest,
     natural_entry_canary_manifest,
@@ -211,10 +213,16 @@ async def run_pilot_async(
         missing = id_set - {e.episode_id for e in episodes}
         if missing:
             raise ValueError(f"unknown episode_id(s): {sorted(missing)}")
+        if entry_mode == "seeded-denial":
+            ineligible = [e.episode_id for e in episodes if not e.seeded_denial_eligible]
+            if ineligible:
+                raise ValueError(
+                    f"episode(s) ineligible for seeded-denial: {sorted(ineligible)}"
+                )
         if not run_label:
             run_label = f"ep-{'-'.join(episode_ids)[:48]}"
     else:
-        episodes = all_episodes
+        episodes = select_episodes(all_episodes, entry_mode)
     strategies = strategies or ALL_STRATEGIES
     pilot_phase = _infer_phase(trials, phase)
 
@@ -343,6 +351,30 @@ async def run_pilot_async(
         raise ValueError(
             f"checkpoint entry_mode {existing_mode!r} does not match requested {entry_mode!r}"
         )
+
+    if resume and checkpoint.exists():
+        prior_traces = load_traces(checkpoint)
+        if prior_traces:
+            prior_spec = prior_traces[0].get("run_spec") or {}
+            prior_ref = prior_spec.get("episode_dataset_ref") or prior_traces[0].get(
+                "episode_dataset_ref"
+            )
+            if prior_ref and prior_ref != spec.get("episode_dataset_ref"):
+                raise ValueError(
+                    "checkpoint episode_dataset_ref does not match current episodes file "
+                    f"({prior_ref} != {spec.get('episode_dataset_ref')}); "
+                    "start a fresh run with --no-resume"
+                )
+            prior_version = prior_spec.get("dataset_version")
+            current_version = spec.get("dataset_version")
+            if prior_version and current_version and prior_version != current_version:
+                raise ValueError(
+                    f"checkpoint dataset_version {prior_version!r} != current "
+                    f"{current_version!r}; use --no-resume for a fresh run"
+                )
+
+    if entry_mode == "seeded-denial" and not dry_run:
+        assert_seed_preflight_passes(episodes, entry_mode=entry_mode, episodes_path=ep_path)
 
     done_count = len(completed)
     total_pending = len([k for k in keys if k not in completed])
