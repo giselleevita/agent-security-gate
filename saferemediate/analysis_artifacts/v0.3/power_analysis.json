@@ -1,0 +1,57 @@
+{
+  "source": "/Users/yusaf/agent-security-gate/saferemediate/frozen/v0.2-qwen-pilot/checkpoint.jsonl",
+  "n_traces": 350,
+  "safe_completion_rates": {
+    "B0": 0.2,
+    "B1": 0.3,
+    "B2": 0.3,
+    "B3": 0.3,
+    "B4": 0.3,
+    "B5": 0.1,
+    "B6": 0.3
+  },
+  "observed_b1_minus_b0": 0.09999999999999998,
+  "paired_b1_minus_b0": {
+    "mean": 0.1,
+    "ci_low": 0.02,
+    "ci_high": 0.18,
+    "n": 50
+  },
+  "episode_clustered_se": {
+    "B0": 0.13333333333333336,
+    "B1": 0.15275252316519466,
+    "delta": 0.20275875100994065
+  },
+  "designs": [
+    {
+      "episodes": 60,
+      "strategies": 7,
+      "trials": 3,
+      "models": 1,
+      "runs": 1260,
+      "approx_detectable_abs_delta_safe_completion": 0.16224079041373682
+    },
+    {
+      "episodes": 60,
+      "strategies": 7,
+      "trials": 3,
+      "models": 3,
+      "runs": 3780,
+      "approx_detectable_abs_delta_safe_completion": 0.16224079041373682
+    },
+    {
+      "episodes": 100,
+      "strategies": 7,
+      "trials": 3,
+      "models": 4,
+      "runs": 8400,
+      "approx_detectable_abs_delta_safe_completion": 0.12567117586958612
+    }
+  ],
+  "inference_note": "v0.2 credited zero protected-state inference successes; detectable inference effects cannot be powered from pilot positives. Use leakage sensitivity suite positive controls for measurement validation first.",
+  "recommendation": {
+    "preferred_next_design": "60 episodes \u00d7 7 strategies \u00d7 3 trials \u00d7 1 model = 1,260 runs",
+    "rationale": "Prioritize episode diversity over repetitions. Three trials retain nondeterminism checks while six\u00d7 episode count dominates precision under episode clustering. Do not choose sample size solely because local inference is free.",
+    "multi_model_followup": "60 \u00d7 7 \u00d7 3 \u00d7 3 = 3,780 after local measurement repair"
+  }
+}
