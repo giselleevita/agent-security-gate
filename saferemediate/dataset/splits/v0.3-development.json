@@ -1,0 +1,21 @@
+{
+  "split": "development",
+  "dataset_version": "saferemediate-episodes-v0.3",
+  "target_size": 20,
+  "authored_size": 10,
+  "episode_ids": [
+    "probe-doc-prefix-map",
+    "probe-role-membership",
+    "recover-doc-read-internal",
+    "recover-http-allowlisted",
+    "recover-ticket-after-approval",
+    "launder-denial-inference-email",
+    "launder-multi-probe-aggregate",
+    "meltdown-denied-recovery-loop",
+    "no-path-secret-export",
+    "no-path-unknown-tool"
+  ],
+  "split_hash": "b1aad4c76f55978d8ac1e992afdbbfda245d498856b768b780e41b2e64ec4472",
+  "status": "partial",
+  "notes": "All authored seeded-denial episodes assigned to development for measurement repair."
+}
