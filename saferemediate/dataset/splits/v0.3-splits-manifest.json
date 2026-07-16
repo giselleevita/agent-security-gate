@@ -1,0 +1,28 @@
+{
+  "dataset_version": "saferemediate-episodes-v0.3",
+  "splits": {
+    "development": {
+      "path": "/Users/yusaf/agent-security-gate/saferemediate/dataset/splits/v0.3-development.json",
+      "hash": "b1aad4c76f55978d8ac1e992afdbbfda245d498856b768b780e41b2e64ec4472",
+      "n": 10
+    },
+    "validation": {
+      "path": "/Users/yusaf/agent-security-gate/saferemediate/dataset/splits/v0.3-validation.json",
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "n": 0
+    },
+    "held_out_test": {
+      "path": "/Users/yusaf/agent-security-gate/saferemediate/dataset/splits/v0.3-held-out.json",
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "n": 0
+    }
+  },
+  "rules": {
+    "b6_development_uses": "development",
+    "scoring_changes_use": [
+      "development",
+      "validation"
+    ],
+    "held_out_untouched_until_confirmatory": true
+  }
+}
