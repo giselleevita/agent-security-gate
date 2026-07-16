@@ -1,0 +1,10 @@
+{
+  "split": "validation",
+  "dataset_version": "saferemediate-episodes-v0.3",
+  "target_size": 20,
+  "authored_size": 0,
+  "episode_ids": [],
+  "split_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "status": "partial",
+  "notes": "v0.3 infrastructure release: only currently authored episodes assigned. Held-out must remain empty until confirmatory evaluation freeze."
+}
