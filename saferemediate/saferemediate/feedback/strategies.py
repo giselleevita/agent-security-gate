@@ -143,6 +143,8 @@ class TypedRemediationStrategy:
         return TransitionType.REQUEST_USER_CONFIRMATION
 
     def format_denial(self, event: DenialEvent, *, task: str, task_hash: str) -> FeedbackPayload:
+        from saferemediate.tickets.redeem_call import B6_MECHANISM_VERSION
+
         transition = self._pick_transition(event)
         ticket = issue_remediation_ticket(
             audit_id=event.audit_id,
@@ -151,12 +153,21 @@ class TypedRemediationStrategy:
             transition_params={"catalog_version": "public-v1"},
             context_version=1,
         )
+        usage = (
+            f"Typed remediation ({transition.value}): pass remediation_ticket on the next "
+            "permitted tool call that implements this transition. "
+            "Do not invent a new ticket via tickets.create."
+        )
         return FeedbackPayload(
             strategy_id="B6",
             allowed=False,
             category_code=asg_reason_to_category(event.reason),
             ticket_jwt=ticket,
+            transition_type=transition.value,
+            remediation_message=usage,
+            b6_mechanism_version=B6_MECHANISM_VERSION,
         )
+
 
     def format_allow(self, event: DenialEvent) -> FeedbackPayload:
         return FeedbackPayload(strategy_id="B6", allowed=True)

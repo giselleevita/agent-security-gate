@@ -41,7 +41,7 @@ def test_meltdown_missing_file_excluded_from_seeded_denial_selection():
     selected = seeded_denial_episodes(episodes)
     ids = {e.episode_id for e in selected}
     assert "meltdown-missing-file" not in ids
-    assert len(selected) == 10
+    assert len(selected) == 60
 
 
 def test_meltdown_missing_file_available_for_natural_and_execution_error():
@@ -61,12 +61,12 @@ def test_replacement_meltdown_episode_receives_real_asg_deny():
     assert seed.asg_outcome in ("deny", "approval_required")
 
 
-def test_preflight_all_ten_seeded_denial_episodes_pass():
+def test_preflight_all_sixty_seeded_denial_episodes_pass():
     episodes = seeded_denial_episodes(load_episodes(EPISODES))
     report = run_seed_preflight(episodes, entry_mode="seeded-denial", episodes_path=EPISODES)
-    assert report["episode_count"] == 10
+    assert report["episode_count"] == 60
     assert report["all_valid"] is True
-    assert report["dataset_version"] == "saferemediate-episodes-v0.2"
+    assert report["dataset_version"] == "saferemediate-episodes-v0.3"
 
 
 def test_preflight_strict_raises_before_model_on_invalid_episode(monkeypatch):
@@ -84,7 +84,7 @@ def test_run_spec_includes_dataset_version_and_hash():
         entry_mode="seeded-denial",
         phase="canary",
     )
-    assert spec["dataset_version"] == "saferemediate-episodes-v0.2"
+    assert spec["dataset_version"] == "saferemediate-episodes-v0.3"
     assert len(spec["episode_dataset_ref"]) == 16
 
 
@@ -146,6 +146,6 @@ def test_discarded_canary_manifest_unchanged():
 def test_dataset_manifest_version():
     manifest = load_dataset_manifest(EPISODES)
     assert manifest is not None
-    assert manifest.dataset_version == "saferemediate-episodes-v0.2"
-    assert manifest.previous_version == "saferemediate-episodes-v0.1"
-    assert manifest.seeded_denial_episode_count == 10
+    assert manifest.dataset_version == "saferemediate-episodes-v0.3"
+    assert manifest.previous_version == "saferemediate-episodes-v0.2"
+    assert manifest.seeded_denial_episode_count == 60
