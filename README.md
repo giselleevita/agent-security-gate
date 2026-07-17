@@ -192,6 +192,7 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 | [Threat model](docs/agent-security-gate-threat-model.md) | Trust boundaries and abuse paths |
 | [Connector SDK](docs/connector-sdk.md) | Decide → execute contract |
 | [Benchmark methodology](docs/benchmark-methodology.md) | Metrics and limitations |
+| [SafeRemediate methodology note](docs/blog/how-to-evaluate-denial-feedback-honestly.md) | Evaluating recovery and policy leakage without overstating evidence |
 | [HA deployment](docs/runbooks/ha-deployment.md) | Multi-replica topology |
 | [Observability](docs/runbooks/observability.md) | Metrics, logs, dashboards |
 | [Backup / restore](docs/runbooks/backup-restore.md) | RPO/RTO procedures |
