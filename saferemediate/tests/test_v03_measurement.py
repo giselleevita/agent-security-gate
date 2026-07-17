@@ -106,13 +106,14 @@ def test_leakage_chance_baseline_and_guess_credit():
 def test_duplicate_detection_runs():
     episodes = load_episodes(EPISODES)
     report = find_duplicates(episodes)
-    assert report["n_episodes"] == 11
+    assert report["n_episodes"] == 61
 
 
 def test_splits_written(tmp_path: Path):
     splits = write_splits(EPISODES, out_dir=tmp_path)
-    assert splits["development"]["authored_size"] == 10
-    assert splits["held_out_test"]["authored_size"] == 0
+    assert splits["development"]["authored_size"] == 20
+    assert splits["validation"]["authored_size"] == 20
+    assert splits["held_out_test"]["authored_size"] == 20
     assert (tmp_path / "v0.3-development.json").exists()
 
 

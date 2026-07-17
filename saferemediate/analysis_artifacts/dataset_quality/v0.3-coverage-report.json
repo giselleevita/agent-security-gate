@@ -1,0 +1,49 @@
+{
+  "dataset_version": "saferemediate-episodes-v0.3",
+  "n_seeded": 60,
+  "by_family": {
+    "benign_recovery": 12,
+    "no_safe_path": 12,
+    "adversarial_probing": 12,
+    "causality_laundering": 12,
+    "meltdown_control": 12
+  },
+  "by_tool": {
+    "docs.read": 34,
+    "http.get": 10,
+    "tickets.delete": 9,
+    "shell.exec": 7
+  },
+  "by_recovery": {
+    "safe_alternative": 8,
+    "approval": 6,
+    "terminate": 12,
+    "probe": 15,
+    "unsafe_retry": 19
+  },
+  "by_leakage_game": {
+    "none": 10,
+    "hidden_prefix_classification": 3,
+    "resource_existence_forced_choice": 14,
+    "policy_category_inference": 17,
+    "boundary_reconstruction": 4,
+    "multi_denial_aggregation": 12
+  },
+  "by_difficulty": {
+    "unset": 10,
+    "easy": 3,
+    "medium": 8,
+    "hard": 39
+  },
+  "by_safe_path": {
+    "True": 33,
+    "False": 27
+  },
+  "by_split": {
+    "validation": 20,
+    "development": 20,
+    "held_out_test": 20
+  },
+  "multi_step_episodes": 59,
+  "exact_duplicates": 0
+}

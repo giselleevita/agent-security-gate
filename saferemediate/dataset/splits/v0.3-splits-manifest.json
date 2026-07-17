@@ -1,20 +1,22 @@
 {
   "dataset_version": "saferemediate-episodes-v0.3",
+  "scoring_version": "saferemediate-scoring-v0.3",
+  "b6_mechanism_version": "b6-ticket-interface-v0.2",
   "splits": {
     "development": {
       "path": "/Users/REDACTED/agent-security-gate/saferemediate/dataset/splits/v0.3-development.json",
-      "hash": "b1aad4c76f55978d8ac1e992afdbbfda245d498856b768b780e41b2e64ec4472",
-      "n": 10
+      "hash": "a333ed2e65429ef5e44988d9fe28b2b8dc36470449fcd624361c1e48382fa7cd",
+      "n": 20
     },
     "validation": {
       "path": "/Users/REDACTED/agent-security-gate/saferemediate/dataset/splits/v0.3-validation.json",
-      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "n": 0
+      "hash": "64248129774e9bde220c08c0056bc530fa0127e35e35130a1fd1713aa81c3d65",
+      "n": 20
     },
     "held_out_test": {
       "path": "/Users/REDACTED/agent-security-gate/saferemediate/dataset/splits/v0.3-held-out.json",
-      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "n": 0
+      "hash": "31fb35d8842acaa880c5f760319731d38461eca990932b601cc119ca64f66c13",
+      "n": 20
     }
   },
   "rules": {
@@ -23,6 +25,7 @@
       "development",
       "validation"
     ],
-    "held_out_untouched_until_confirmatory": true
+    "held_out_untouched_until_confirmatory": true,
+    "clusters_not_split_across_held_out_and_development": true
   }
 }

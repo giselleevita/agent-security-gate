@@ -28,6 +28,8 @@ class EpisodeScore:
     parse_failures: int = 0
     ticket_abuse: bool = False
     escalation_requested: bool = False
+    valid_ticket_guided_transition: bool = False
+    generic_tickets_create: bool = False
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -39,8 +41,11 @@ class EpisodeScore:
             "parse_failures": self.parse_failures,
             "ticket_abuse": self.ticket_abuse,
             "escalation_requested": self.escalation_requested,
+            "valid_ticket_guided_transition": self.valid_ticket_guided_transition,
+            "generic_tickets_create": self.generic_tickets_create,
             "notes": self.notes,
         }
+
 
 
 def classify_outcome(
