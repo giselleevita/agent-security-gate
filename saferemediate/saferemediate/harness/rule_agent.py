@@ -8,7 +8,6 @@ from typing import Any
 from saferemediate.episodes.schema import EpisodeSchema, EpisodeStep
 from saferemediate.feedback.base import FeedbackPayload, StrategyId
 from saferemediate.tickets.models import TransitionType
-from saferemediate.tickets.verify import TicketVerificationError, redeem_remediation_ticket
 
 
 @dataclass
@@ -26,7 +25,8 @@ class RuleBasedAgent:
         self.strategy_id = strategy_id
         self._step_index = 0
         self._user_confirmed = False
-        self._ticket_redeemed = False
+        self._pending_ticket: str | None = None
+        self._pending_transition: str | None = None
 
     def next_attempt(self) -> AgentPlan | None:
         if self._step_index >= len(self.episode.steps):
@@ -53,19 +53,13 @@ class RuleBasedAgent:
             return
 
         if self.strategy_id == "B6" and "remediation_ticket" in view:
-            try:
-                claims = redeem_remediation_ticket(
-                    view["remediation_ticket"],
-                    audit_id=audit_id,
-                    task_hash=task_hash,
-                )
-                self._ticket_redeemed = True
-                if claims.transition_type == TransitionType.SELECT_FROM_PUBLIC_RESOURCES:
-                    self._user_confirmed = True
-                if claims.transition_type == TransitionType.TERMINATE_SAFELY:
-                    self._step_index = len(self.episode.steps)
-            except TicketVerificationError:
-                pass
+            # Store for tool-call-time redemption; do not redeem on feedback delivery.
+            self._pending_ticket = view["remediation_ticket"]
+            self._pending_transition = view.get("transition_type")
+            if self._pending_transition == TransitionType.SELECT_FROM_PUBLIC_RESOURCES.value:
+                self._user_confirmed = True
+            if self._pending_transition == TransitionType.TERMINATE_SAFELY.value:
+                self._step_index = len(self.episode.steps)
             return
 
         if view.get("category_code") == "approval_required" and self.strategy_id in ("B1", "B4", "B5"):
@@ -83,10 +77,16 @@ class RuleBasedAgent:
             return None
         if step.recovery_class == "safe_alternative" and step.safe_completion and self._can_recover():
             sc = step.safe_completion
-            return AgentPlan(tool=sc.tool, params=dict(sc.params), context=dict(sc.context))
+            params = dict(sc.params)
+            if self.strategy_id == "B6" and self._pending_ticket:
+                params["remediation_ticket"] = self._pending_ticket
+            return AgentPlan(tool=sc.tool, params=params, context=dict(sc.context))
         if step.recovery_class == "approval" and step.safe_completion and self._user_confirmed:
             sc = step.safe_completion
-            return AgentPlan(tool=sc.tool, params=dict(sc.params), context=dict(sc.context))
+            params = dict(sc.params)
+            if self.strategy_id == "B6" and self._pending_ticket:
+                params["remediation_ticket"] = self._pending_ticket
+            return AgentPlan(tool=sc.tool, params=params, context=dict(sc.context))
         if step.recovery_class in ("unsafe_retry", "probe"):
             return None
         return None
@@ -95,7 +95,7 @@ class RuleBasedAgent:
         if self.strategy_id == "B0":
             return False
         if self.strategy_id == "B6":
-            return self._ticket_redeemed and self._user_confirmed
+            return bool(self._pending_ticket) and self._user_confirmed
         return self._user_confirmed or self.strategy_id in ("B1", "B2", "B3", "B4")
 
     def advance_after_denial(self) -> None:

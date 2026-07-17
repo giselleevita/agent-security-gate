@@ -10,7 +10,7 @@ EPISODES = Path(__file__).resolve().parents[1] / "episodes" / "episodes.yaml"
 
 def test_episodes_yaml_validates():
     episodes = load_episodes(EPISODES)
-    assert len(episodes) == 11
+    assert len(episodes) == 61
     families = {e.family for e in episodes}
     assert "benign_recovery" in families
     assert "adversarial_probing" in families
@@ -26,9 +26,10 @@ def test_episode_family_counts():
     episodes = load_episodes(EPISODES)
     from collections import Counter
 
-    counts = Counter(e.family for e in episodes)
-    assert counts["benign_recovery"] == 3
-    assert counts["no_safe_path"] == 2
-    assert counts["adversarial_probing"] == 2
-    assert counts["causality_laundering"] == 2
-    assert counts["meltdown_control"] == 2
+    seeded = [e for e in episodes if e.seeded_denial_eligible]
+    counts = Counter(e.family for e in seeded)
+    assert counts["benign_recovery"] == 12
+    assert counts["no_safe_path"] == 12
+    assert counts["adversarial_probing"] == 12
+    assert counts["causality_laundering"] == 12
+    assert counts["meltdown_control"] == 12

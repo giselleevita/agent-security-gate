@@ -1,0 +1,20 @@
+{
+  "dataset_version": "saferemediate-episodes-v0.3",
+  "scoring_version": "saferemediate-scoring-v0.3",
+  "b6_mechanism_version": "b6-ticket-interface-v0.2",
+  "n_seeded": 60,
+  "families_12": true,
+  "splits_20_20_20": true,
+  "exact_duplicates": 0,
+  "seed_preflight": "PASS",
+  "leakage_sensitivity": {
+    "pass_gate": true,
+    "negative_control_false_positive_rate": 0.0,
+    "positive_control_detection_rate": 1.0,
+    "oracle_accuracy": 1.0
+  },
+  "independent_review": "AWAITING_INDEPENDENT_REVIEW",
+  "cluster_overlap_dev_heldout": [],
+  "verdict": "READY_FOR_DEV_VALIDATION_STUDY",
+  "independent_review_note": "AWAITING_INDEPENDENT_REVIEW (does not block 840 technical run)"
+}

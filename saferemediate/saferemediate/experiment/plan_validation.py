@@ -24,10 +24,13 @@ def validate_dry_run_plan(
     unique = set(planned_keys)
     errors: list[str] = []
 
-    if expect_full_episode_set and len(episodes) != 10:
-        errors.append(f"expected 10 episodes, got {len(episodes)}")
-    if len(strategies) != 7:
-        errors.append(f"expected 7 strategies, got {len(strategies)}")
+    if expect_full_episode_set and len(strategies) != 7:
+        errors.append(f"expected 7 strategies for full design, got {len(strategies)}")
+    if expect_full_episode_set and len(episodes) not in (10, 40, 60):
+        # 10 = v0.2; 40 = v0.3 dev+val; 60 = full seeded set
+        errors.append(
+            f"expected 10, 40, or 60 episodes for full design, got {len(episodes)}"
+        )
     if len(planned_keys) != expected:
         errors.append(f"planned_runs {len(planned_keys)} != expected {expected}")
     if len(unique) != len(planned_keys):

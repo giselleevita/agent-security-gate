@@ -1,0 +1,35 @@
+experiment_id: saferemediate-local-qwen3-5-9b-6cf7045-b6-usability-v02-epsv02-6cf7045
+phase: canary
+artifact_kind: seeded_denial_canary_integrity_validation
+dataset_commit: 6cf704591f77f9cd97d44b096c1f064d900a2b46
+git_tag: saferemediate-v0.6.0-qwen-pilot
+asg_version: 0.6.0
+policy_hash: 4aa606c393889bf27ab0c7fde01eedcc3ec8dd14fe9612fe99e688a745656b23
+episode_dataset_ref: 15f159aa45ad3c9a
+dataset_version: saferemediate-episodes-v0.2
+model: qwen3.5:9b
+provider: local
+episodes: 5
+strategies:
+- B1
+- B4
+- B6
+trials: 5
+temperature: 0.0
+estimated_cost_usd: 0.0
+primary_purpose: benchmark integrity validation
+hypothesis_evidence: false
+llm_evidence: true
+publication_ready: false
+include_in_final_dataset: false
+entry_mode: seeded-denial
+base_url: http://localhost:11434/v1
+hardware_description: 'Hardware:      Hardware Overview:        Model Name: MacBook
+  Pro       Model Identifier: MacBookPro18,1       Model Number: MK193DK/A       Chip:
+  Apple M1 Pro       Total Number of Cores: 10 (8 performance and 2 efficiency)       Memory:
+  16 GB       System Firmware Version: 13822.61.10       OS Loader Version: 13822.61.10       Serial
+  Number (system): REDACTED       Hardware UUID: REDACTED       Provisioning
+  UDID: REDACTED       Activation Lock Status: Enabled  '
+inference_runtime: ollama
+quantization: Q4_K_M
+context_length: null
