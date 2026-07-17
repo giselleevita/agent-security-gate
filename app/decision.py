@@ -301,12 +301,21 @@ def decide_tool_call_impl(
     return response
 
 
-def enforce_tool_execution(*, audit_id: str | None, op_key: str) -> None:
+def enforce_tool_execution(
+    *,
+    audit_id: str | None,
+    op_key: str | None = None,
+    operation_key: str | None = None,
+) -> None:
     """
     Gate a side-effecting tool endpoint on a prior decide grant.
 
     Grants are single-use (atomic GETDEL) so a captured ``audit_id`` cannot be replayed.
+    ``operation_key`` is accepted as a backward-compatible alias for ``op_key``.
     """
+    key = operation_key if operation_key is not None else op_key
+    if key is None:
+        raise TypeError("enforce_tool_execution() missing required argument: 'op_key'")
     mode = _enforce_mode()
     if mode == "off":
         return
@@ -326,7 +335,7 @@ def enforce_tool_execution(*, audit_id: str | None, op_key: str) -> None:
             status_code=403,
             detail="enforcement token not found, expired, or already used",
         )
-    if str(stored) != op_key:
+    if str(stored) != key:
         raise HTTPException(
             status_code=403,
             detail="enforcement token does not match the requested operation",
