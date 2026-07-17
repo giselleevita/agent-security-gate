@@ -5,14 +5,14 @@
 | Field | Value |
 |-------|-------|
 | Branch | `cursor/v0.3-measurement-dataset` |
-| HEAD at authoring | `6cf704591f77f9cd97d44b096c1f064d900a2b46` (pre-freeze; see latest commit after Phase 1) |
+| HEAD at authoring | `a4ed033` · tag `saferemediate-v0.7.0-b6-v02-validated` |
 | Active dataset | `saferemediate-episodes-v0.3` |
 | Seeded episodes | **60** (12 × 5 families) + 1 execution-error control |
 | Scoring | `saferemediate-scoring-v0.3` |
 | B6 mechanism | **`b6-ticket-interface-v0.2` (FROZEN / KEEP)** |
 | Splits | 20 / 20 / 20 |
 | Independent review | `AWAITING_INDEPENDENT_REVIEW` |
-| Next gate | Technical readiness → **840-run development/validation study** |
+| Next gate | **840-run development/validation study** (in progress or next) |
 | Paid APIs | **0** (local Ollama only) |
 
 ## Completed experiments (do not rerun)
