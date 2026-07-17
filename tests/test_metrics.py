@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from fastapi.testclient import TestClient
 
 import app.main as main
+from app import decision
 
 
 class _FakeCursor:
@@ -99,6 +100,7 @@ def test_metrics_increment_on_allow_and_deny(monkeypatch) -> None:
         return {"allow": True, "approval_required": False, "deny_reason": ""}
 
     monkeypatch.setattr(main, "_opa_post", fake_opa_post)
+    monkeypatch.setattr(decision, "_opa_post", fake_opa_post)
 
     client = TestClient(main.app)
     headers = {"Authorization": "Bearer test-token"}
@@ -154,6 +156,7 @@ def test_metrics_counts_rate_limit_hits(monkeypatch) -> None:
         return {"allow": True, "approval_required": False, "deny_reason": ""}
 
     monkeypatch.setattr(main, "_opa_post", fake_opa_post)
+    monkeypatch.setattr(decision, "_opa_post", fake_opa_post)
 
     client = TestClient(main.app)
     headers = {"Authorization": "Bearer test-token"}
