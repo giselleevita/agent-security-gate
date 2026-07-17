@@ -124,6 +124,7 @@ def test_decide_records_policy_exception_id_in_audit(monkeypatch) -> None:
         ],
     )
     monkeypatch.setattr(main, "_append_audit_event", lambda _id, evt: audit_events.append(evt))
+    monkeypatch.setattr(decision, "_append_audit_event", lambda _id, evt: audit_events.append(evt))
     monkeypatch.setattr(main.redis.Redis, "from_url", staticmethod(lambda *_a, **_k: _FakeRedis()))
 
     def fake_opa_post(_client, _path, _opa_input):
