@@ -32,16 +32,21 @@ from app.decision import (
     record_enforcement_grant as _record_enforcement_grant,
 )
 from app.dlp import load_canaries as _load_canaries
+from app.exceptions import load_active_policy_exceptions as _load_active_policy_exceptions
 from app import metrics as _metrics
-from app.schemas import RateLimitExceededResponse
+from app.policy import opa_post as _opa_post
+from app.schemas import DecideResponse, RateLimitExceededResponse
 
 # Re-export decision entrypoints for routers/tests that patch `app.main`.
 __all__ = [
     "GatedHttpClient",
+    "DecideResponse",
     "app",
     "_append_audit_event",
     "_http",
     "_redis",
+    "_opa_post",
+    "_load_active_policy_exceptions",
     "_decide_tool_call",
     "_decide_tool_call_impl",
     "_enforce_key",
