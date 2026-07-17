@@ -8,7 +8,7 @@ Integrates with any agent runtime via the connector SDK; **this repo does not in
 ![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
 ![Tests](https://img.shields.io/badge/tests-167%20passing-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-BSL--1.1-orange)
+![License](https://img.shields.io/badge/license-Apache--2.0-green)
 ![Version](https://img.shields.io/badge/version-0.6.0-informational)
 
 <p align="center">
@@ -214,4 +214,4 @@ Report vulnerabilities via [GitHub private advisories](https://github.com/gisell
 
 ## License
 
-Business Source License 1.1 — non-production and internal security evaluation permitted; see [LICENSE](LICENSE). Converts to Apache 2.0 on 2030-03-25.
+Apache License 2.0 — see [LICENSE](LICENSE).
