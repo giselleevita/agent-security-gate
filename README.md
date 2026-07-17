@@ -188,6 +188,7 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 
 | Doc | Purpose |
 |---|---|
+| [Architecture decisions (ADRs)](docs/adr/README.md) | Why the non-obvious calls were made, and what was rejected |
 | [Threat model](docs/agent-security-gate-threat-model.md) | Trust boundaries and abuse paths |
 | [Connector SDK](docs/connector-sdk.md) | Decide → execute contract |
 | [Benchmark methodology](docs/benchmark-methodology.md) | Metrics and limitations |

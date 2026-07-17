@@ -49,6 +49,12 @@ audit to S3 Object Lock instead of relying on shared local files.
   - `gate` calls `_decide_tool_call_impl` via `runtime_gate.py` (runtime parity)
   - reports attack success, leakage, utility, latency, and per-attack-class results
 
+## Design decisions
+
+The reasoning behind the non-obvious choices below — egress checks in Python, one decision
+path for runtime and benchmark, single-use grants, per-replica audit chains, and the
+hash-chain-plus-WORM design — is recorded as [ADRs](adr/README.md).
+
 ## Notes
 
 - The local JSONL audit log is tamper-evident, not tamper-proof. Production use should move this behind an append-only audit sink.
