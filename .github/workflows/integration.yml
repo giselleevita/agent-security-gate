@@ -34,6 +34,10 @@ jobs:
           pip install --constraint requirements-dev.lock -e ".[dev]"
           pytest -m integration --timeout=30
 
+      - name: Show stack logs on test failure
+        if: failure()
+        run: docker compose logs --no-color
+
       - name: Tear down
         if: always()
         run: docker compose down -v
