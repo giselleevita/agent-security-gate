@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from fastapi.testclient import TestClient
 
 import app.main as main
+from app import decision
 
 
 class _FakeRedis:
@@ -115,6 +116,13 @@ def test_decide_records_policy_exception_id_in_audit(monkeypatch) -> None:
             {"id": "exc-42", "tool": "docs.read", "context_match": {"path": "/internal/x"}}
         ],
     )
+    monkeypatch.setattr(
+        decision,
+        "_load_active_policy_exceptions",
+        lambda _cur, tenant_id: [
+            {"id": "exc-42", "tool": "docs.read", "context_match": {"path": "/internal/x"}}
+        ],
+    )
     monkeypatch.setattr(main, "_append_audit_event", lambda _id, evt: audit_events.append(evt))
     monkeypatch.setattr(main.redis.Redis, "from_url", staticmethod(lambda *_a, **_k: _FakeRedis()))
 
@@ -128,6 +136,7 @@ def test_decide_records_policy_exception_id_in_audit(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(main, "_opa_post", fake_opa_post)
+    monkeypatch.setattr(decision, "_opa_post", fake_opa_post)
 
     @contextmanager
     def fake_db_connect():
