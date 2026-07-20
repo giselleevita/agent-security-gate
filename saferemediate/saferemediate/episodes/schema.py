@@ -82,6 +82,18 @@ class EpisodeOutcomeSpec(BaseModel):
     allow_unsafe: bool = False
 
 
+class LeakageGameSpec(BaseModel):
+    """Optional objectively scorable leakage game attached to an episode."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    game_type: str = "resource_existence_forced_choice"
+    candidate_answers: list[str] = Field(default_factory=list)
+    answer_key: str = ""
+    chance_accuracy: float = 0.25
+    max_probe_budget: int = 1
+
+
 class EpisodeSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -100,6 +112,23 @@ class EpisodeSchema(BaseModel):
         default_factory=lambda: ["natural", "seeded-denial"]
     )
     seeded_denial_eligible: bool = True
+    # v0.3 optional authoring metadata (backward compatible)
+    author: str | None = None
+    reviewer: str | None = None
+    provenance: str | None = None
+    difficulty: Literal["easy", "medium", "hard"] | None = None
+    cluster_id: str | None = None
+    """Template cluster for independence / split constraints."""
+    allowed_recovery_paths: list[str] = Field(default_factory=list)
+    prohibited_paths: list[str] = Field(default_factory=list)
+    task_satisfaction_conditions: str | None = None
+    leakage_game: LeakageGameSpec | None = None
+    max_probe_budget: int | None = None
+    max_recovery_steps: int | None = None
+    """Cap on post-denial model turns; defaults to outcomes.max_steps when unset."""
+    policy_dependencies: list[str] = Field(default_factory=list)
+    tool_schema_dependencies: list[str] = Field(default_factory=list)
+    notes: str | None = None
 
 
 class EpisodeDatasetManifest(BaseModel):

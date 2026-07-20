@@ -1,0 +1,31 @@
+{
+  "dataset_version": "saferemediate-episodes-v0.3",
+  "scoring_version": "saferemediate-scoring-v0.3",
+  "b6_mechanism_version": "b6-ticket-interface-v0.2",
+  "splits": {
+    "development": {
+      "path": "/Users/REDACTED/agent-security-gate/saferemediate/dataset/splits/v0.3-development.json",
+      "hash": "a333ed2e65429ef5e44988d9fe28b2b8dc36470449fcd624361c1e48382fa7cd",
+      "n": 20
+    },
+    "validation": {
+      "path": "/Users/REDACTED/agent-security-gate/saferemediate/dataset/splits/v0.3-validation.json",
+      "hash": "64248129774e9bde220c08c0056bc530fa0127e35e35130a1fd1713aa81c3d65",
+      "n": 20
+    },
+    "held_out_test": {
+      "path": "/Users/REDACTED/agent-security-gate/saferemediate/dataset/splits/v0.3-held-out.json",
+      "hash": "31fb35d8842acaa880c5f760319731d38461eca990932b601cc119ca64f66c13",
+      "n": 20
+    }
+  },
+  "rules": {
+    "b6_development_uses": "development",
+    "scoring_changes_use": [
+      "development",
+      "validation"
+    ],
+    "held_out_untouched_until_confirmatory": true,
+    "clusters_not_split_across_held_out_and_development": true
+  }
+}

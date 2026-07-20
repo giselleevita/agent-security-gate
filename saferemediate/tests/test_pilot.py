@@ -11,19 +11,19 @@ from saferemediate.run_pilot import planned_run_keys, run_pilot
 EPISODES = Path(__file__).resolve().parents[1] / "episodes" / "episodes.yaml"
 
 
-def test_dry_run_plans_350_runs():
+def test_dry_run_plans_full_natural_grid():
     eps = load_episodes(EPISODES)
     keys = planned_run_keys(eps, ["B0", "B1", "B2", "B3", "B4", "B5", "B6"], 5)
-    assert len(keys) == 385  # 11 natural-eligible episodes × 7 × 5
-    assert len(set(keys)) == 385
+    assert len(keys) == len(eps) * 7 * 5
+    assert len(set(keys)) == len(keys)
 
 
-def test_dry_run_canary_plans_70_runs():
+def test_dry_run_canary_plans_seeded_grid():
     from saferemediate.episodes.selection import seeded_denial_episodes
 
     eps = seeded_denial_episodes(load_episodes(EPISODES))
     keys = planned_run_keys(eps, ["B0", "B1", "B2", "B3", "B4", "B5", "B6"], 1)
-    assert len(keys) == 70
+    assert len(keys) == 60 * 7
 
 
 def test_dry_run_mock_zero_cost():
@@ -34,7 +34,7 @@ def test_dry_run_mock_zero_cost():
         provider="mock",
         entry_mode="seeded-denial",
     )
-    assert plan["planned_runs"] == 350
+    assert plan["planned_runs"] == 60 * 7 * 5
     assert plan["estimated_cost_usd"] == 0.0
     assert plan["provider"] == "mock"
     assert plan["model"] == MOCK_MODEL_ID
