@@ -204,9 +204,37 @@ async def run_pilot_async(
     episode_ids: list[str] | None = None,
     run_label: str | None = None,
     entry_mode: EntryMode = NATURAL_ENTRY_MODE,
+    splits: list[str] | None = None,
+    release_held_out: bool = False,
 ) -> dict[str, Any]:
     ep_path = episodes_path or DEFAULT_EPISODES
     all_episodes = load_episodes(ep_path)
+    if splits:
+        from saferemediate.episodes.splits import (
+            HeldOutProtectionError,
+            load_split,
+        )
+
+        split_ids: list[str] = []
+        split_meta: list[dict[str, Any]] = []
+        for split_name in splits:
+            if split_name == "held_out_test" and not release_held_out:
+                raise HeldOutProtectionError(
+                    "Refusing to run held_out_test without --release-held-out"
+                )
+            meta = load_split(split_name)  # type: ignore[arg-type]
+            split_meta.append(
+                {
+                    "split": split_name,
+                    "split_hash": meta["split_hash"],
+                    "n": meta["authored_size"],
+                }
+            )
+            split_ids.extend(meta["episode_ids"])
+        if episode_ids:
+            episode_ids = [i for i in episode_ids if i in set(split_ids)]
+        else:
+            episode_ids = sorted(set(split_ids))
     if episode_ids:
         id_set = set(episode_ids)
         episodes = [e for e in all_episodes if e.episode_id in id_set]
@@ -530,6 +558,23 @@ def main() -> None:
         default="natural",
         help="natural=model chooses first action; seeded-denial=ASG denial then model recovery",
     )
+    parser.add_argument(
+        "--strategies",
+        default=None,
+        help="Comma-separated strategy IDs (e.g. B1,B4,B6). Default: all B0–B6.",
+    )
+    parser.add_argument(
+        "--split",
+        action="append",
+        dest="splits",
+        choices=["development", "validation", "held_out_test"],
+        help="Restrict to frozen split(s); repeatable. held_out_test requires --release-held-out.",
+    )
+    parser.add_argument(
+        "--release-held-out",
+        action="store_true",
+        help="Permit selecting held_out_test episodes for a confirmatory run.",
+    )
     parser.add_argument("--no-resume", action="store_true")
     args = parser.parse_args()
 
@@ -539,6 +584,10 @@ def main() -> None:
     else:
         phase = args.phase
         trials = args.trials
+
+    strategies = None
+    if args.strategies:
+        strategies = [s.strip() for s in args.strategies.split(",") if s.strip()]
 
     result = run_pilot(
         provider=args.provider,  # type: ignore[arg-type]
@@ -550,6 +599,7 @@ def main() -> None:
         inference_runtime_version=args.inference_runtime_version,
         quantization=args.quantization,
         context_length=args.context_length,
+        strategies=strategies,  # type: ignore[arg-type]
         trials=trials,
         concurrency=args.concurrency,
         rate_limit_delay_s=args.rate_limit_delay,
@@ -561,6 +611,8 @@ def main() -> None:
         episode_ids=args.episode_ids,
         run_label=args.run_label,
         entry_mode=args.entry_mode,  # type: ignore[arg-type]
+        splits=args.splits,
+        release_held_out=args.release_held_out,
     )
     print(json.dumps(result, indent=2))
 

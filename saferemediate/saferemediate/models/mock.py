@@ -141,7 +141,7 @@ class MockAgentModel:
             return AgentAction(kind=AgentActionKind.SAFE_TERMINATION, message="task complete")
 
         if feedback and feedback.get("remediation_ticket"):
-            return self._after_b6_ticket(catalog, tools)
+            return self._after_b6_ticket(catalog, tools, feedback)
 
         if feedback:
             category = feedback.get("category_code", "")
@@ -223,20 +223,41 @@ class MockAgentModel:
             params={"doc_id": doc_ids[0], "output": "public summary"},
         )
 
-    def _after_b6_ticket(self, catalog: dict[str, Any], tools: set[str]) -> AgentAction:
+    def _after_b6_ticket(
+        self, catalog: dict[str, Any], tools: set[str], feedback: dict[str, Any]
+    ) -> AgentAction:
+        ticket = feedback.get("remediation_ticket")
+        transition = feedback.get("transition_type")
+        if transition == "terminate_safely":
+            params: dict[str, Any] = {"reason": "typed remediation terminate"}
+            if ticket:
+                params["remediation_ticket"] = ticket
+            return AgentAction(
+                kind=AgentActionKind.TOOL_CALL,
+                tool="terminate_safely",
+                params=params,
+            )
+        if transition == "request_human_approval":
+            params = {"reason": "typed remediation approval"}
+            if ticket:
+                params["remediation_ticket"] = ticket
+            return AgentAction(
+                kind=AgentActionKind.TOOL_CALL,
+                tool="request_human_escalation",
+                params=params,
+            )
         alt = self._public_docs_read(catalog)
         if alt:
+            if ticket:
+                alt.params = {**(alt.params or {}), "remediation_ticket": ticket}
             return alt
         if "http.get" in tools:
+            params = {"url": "https://api.example.com/status"}
+            if ticket:
+                params["remediation_ticket"] = ticket
             return AgentAction(
                 kind=AgentActionKind.TOOL_CALL,
                 tool="http.get",
-                params={"url": "https://api.example.com/status"},
-            )
-        if "tickets.create" in tools:
-            return AgentAction(
-                kind=AgentActionKind.TOOL_CALL,
-                tool="tickets.create",
-                params={"project": "SEC", "title": "Review access policy"},
+                params=params,
             )
         return AgentAction(kind=AgentActionKind.SAFE_TERMINATION, message="B6 ticket acknowledged")
