@@ -109,6 +109,28 @@ The SDK couples **decide → execute** and passes `X-ASG-Audit-Id` so adapters r
 
 ---
 
+## How this differs from other LLM security tools
+
+Most LLM security tooling inspects **text**. ASG authorizes **actions**. The two are complementary — a content scanner and an enforcement point solve different halves of the problem.
+
+| | Primary question | Where it runs |
+|---|---|---|
+| [NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails) | "Should the model say/discuss this?" | Around the conversation, often LLM-in-the-loop |
+| [llm-guard](https://github.com/protectai/llm-guard) | "Does this text contain injection / PII / toxicity?" | Scanners on prompt and response text |
+| [OPA](https://github.com/open-policy-agent/opa) alone | "Is this request allowed?" | A policy engine — you still build the enforcement point around it |
+| **Agent Security Gate** | **"Should this exact tool call execute, for this principal, right now?"** | **A PEP at the tool-call boundary, before side effects** |
+
+What follows from being an enforcement point rather than a classifier:
+
+- **Deterministic, not probabilistic.** Decisions come from OPA/Rego policy plus explicit pre-checks (SSRF with DNS pinning, DLP), so the same call yields the same decision — no model in the decision path.
+- **Fail closed.** An unknown tool is denied by default rather than passed through.
+- **Binding, not advisory.** In `strict` mode the adapters refuse any call without a valid single-use grant, so an agent cannot skip the gate and call the tool directly.
+- **Answers "what happened?"** Every decision lands in a hash-chained audit log built for after-the-fact review, with human approvals and dual-control for risky operations.
+
+If you need topic control or content filtering, use one of the tools above — ideally alongside this one. If you need a deterministic, auditable answer to *whether an action may run*, that is what ASG is for.
+
+---
+
 ## Architecture
 
 ```
