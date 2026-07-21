@@ -36,7 +36,7 @@ ASG evaluates the proposal **before** the adapter executes it. OPA/Rego policy r
 
 ## What a serious gate must prove
 
-Recruiters and reviewers should not have to trust a README diagram. A credible reference
+Nobody should have to trust a README diagram. A credible reference
 implementation needs verifiable properties:
 
 1. **Fail closed** — unknown tools and unsupported actions deny by default.
@@ -53,7 +53,7 @@ ASG v0.5.0 documents these properties and ships a 15-minute evaluation path:
 
 ## Scope honesty
 
-ASG is a **portfolio-grade reference**, not a certified security appliance. Production
+ASG is a **reference implementation**, not a certified security appliance. Production
 would still need external identity, secret management, immutable audit storage, and
 operational monitoring. The value is in showing **where** controls belong and **how** to
 test them — at the tool-call decision boundary.
@@ -66,7 +66,7 @@ cd agent-security-gate
 docker compose up -d --build
 ```
 
-Then follow the [Reviewer Quick Start](https://github.com/giselleevita/agent-security-gate#reviewer-quick-start)
+Then follow the [Evaluate it in 15 minutes](https://github.com/giselleevita/agent-security-gate#evaluate-it-in-15-minutes)
 in the README.
 
 ---
