@@ -18,7 +18,7 @@ What it demonstrates (verifiable in ~15 minutes):
 → Hash-chained tamper-evident audit log
 → Benchmark with explicit no_gate vs gate baselines (18 scenarios: ASR 100% → 0%)
 
-Scope honesty: portfolio-grade reference, not a certified appliance. The value is showing where controls belong and how to test them.
+Scope honesty: reference implementation, not a certified appliance. The value is showing where controls belong and how to test them.
 
 🔗 Repo (watch the GIF first): https://github.com/giselleevita/agent-security-gate
 🏷️ Release v0.6.0: https://github.com/giselleevita/agent-security-gate/releases/tag/v0.6.0

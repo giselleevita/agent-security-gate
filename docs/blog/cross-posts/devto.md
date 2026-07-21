@@ -48,9 +48,9 @@ Watch the **terminal GIF** at the top of the README for the full block → audit
 
 - [Technical brief](https://github.com/giselleevita/agent-security-gate/blob/main/docs/technical-brief.md)
 - [v0.6.0 release](https://github.com/giselleevita/agent-security-gate/releases/tag/v0.6.0)
-- [Reviewer quick start](https://github.com/giselleevita/agent-security-gate#reviewer-quick-start)
+- [Evaluate it in 15 minutes](https://github.com/giselleevita/agent-security-gate#evaluate-it-in-15-minutes)
 
-ASG is a **portfolio-grade reference**, not a certified appliance — but it shows where controls belong and how to test them.
+ASG is a **reference implementation**, not a certified appliance — but it shows where controls belong and how to test them.
 
 ---
 
