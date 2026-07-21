@@ -15,7 +15,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Post-hardening release completing hardening strategy phases 0–3. See [docs/technical-brief.md](docs/technical-brief.md) and [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md).
 
 ### Added
-- Investor readiness completion record: `docs/investor-readiness.md` (workstream completion matrix, technical investable checklist, revised scorecard, remaining honest gaps); hardening-strategy finding table updated to Done; investment-assessment addendum; README scope aligned with post-hardening capabilities
 - Benchmark PEP consolidation: the `gate` baseline now routes through `benchmark/runtime_gate.RuntimeGateClient`, which calls `_decide_tool_call_impl` (same path as `POST /v1/gateway/decide`) with offline OPA evaluation via `app/opa_local.py` (HTTP `OPA_URL` or `opa eval` CLI). Removes the duplicate policy implementation from `gateway/pep.py` (now a thin deprecated facade). Adds parity test for all 18 scenarios and `open-policy-agent/setup-opa` in CI
 - Runtime reporting and dashboards: approver-only `GET /v1/stats` returns deny breakdown (in-process Prometheus counters), approval queue counts, and approval SLA p50/p95 from Postgres; new `asg_approvals_first_approved` gauge; importable Grafana dashboard at `docs/dashboards/asg-gateway.json`; operator runbook at `docs/runbooks/observability.md`
 - HA multi-replica deployment: `docker-compose.ha.yml` overlay runs two stateless gateway replicas behind an nginx load balancer (`deploy/nginx.ha.conf`); shared session/rate-limit/enforcement state stays in Redis, approvals in Postgres. `ASG_REPLICA_ID` (auto-set to hostname in the overlay) gives each replica its own `events-<replica>.jsonl` audit stream so a shared volume never forks the chain; production should use the S3 Object Lock sink. `scripts/migrate_db.py` serialises startup migrations with a Postgres advisory lock. `scripts/backup.sh`/`restore.sh` include all per-replica audit streams. Opt-in integration test `ASG_HA=1 pytest tests/integration/test_ha.py`. Documented in `docs/runbooks/ha-deployment.md` and `docs/architecture.md`
@@ -39,7 +38,6 @@ Post-hardening release completing hardening strategy phases 0–3. See [docs/tec
 - Approval rate-limit unit test (`tests/test_approvals_rate_limit.py`) and opt-in expiry integration test (`tests/integration/test_approvals_flow.py`)
 - Decide-path SSRF and HTTP allowlist integration tests (`tests/integration/test_decide.py`)
 - Integration test job in main CI workflow (`.github/workflows/ci.yml`)
-- Investment diligence assessment (`docs/investment-assessment.md`)
 - Technical hardening strategy (`docs/hardening-strategy.md`)
 - DLP unit tests (`tests/test_dlp.py`) and decide rate-limit test (`tests/test_decide_rate_limit.py`)
 - Shared HTTP egress evaluator `evaluate_http_target()` used by runtime gateway and benchmark PEP
@@ -84,7 +82,7 @@ Post-hardening release completing hardening strategy phases 0–3. See [docs/tec
 ## [0.4.0] — 2026-06-13
 
 ### Added
-- Shareable technical brief for recruiters and security reviewers (`docs/technical-brief.md`)
+- Shareable technical brief for security reviewers (`docs/technical-brief.md`)
 - Public blog post on enforcing agent security at the tool-call boundary (`docs/blog/agent-security-at-tool-boundary.md`)
 - README links to brief and blog for faster onboarding
 
@@ -93,7 +91,7 @@ Post-hardening release completing hardening strategy phases 0–3. See [docs/tec
 ## [0.3.0] — 2026-06-12
 
 ### Changed
-- Replaced recruiter-facing compliance and performance overclaims with bounded, verifiable language
+- Replaced compliance and performance overclaims with bounded, verifiable language
 - Added complete BUSL-1.1 terms and clarified the source-available licensing model
 - Added exact runtime and development dependency constraints
 - Pinned container versions and GitHub Actions to immutable commits
