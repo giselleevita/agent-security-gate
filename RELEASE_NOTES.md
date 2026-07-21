@@ -1,7 +1,6 @@
 ## Agent Security Gate v0.6.0
 
-**Post-hardening platform release** — reference implementation for design-partner pilots
-and technical review. See [docs/technical-brief.md](docs/technical-brief.md) and
+**Platform hardening release** — reference implementation for technical evaluation. See [docs/technical-brief.md](docs/technical-brief.md) and
 [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md).
 
 ### Highlights
