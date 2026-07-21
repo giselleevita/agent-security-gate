@@ -168,14 +168,14 @@ Details: [docs/architecture.md](docs/architecture.md)
 
 ---
 
-## Reviewer quick start (15 minutes)
+## Evaluate it in 15 minutes
 
 1. `docker compose up -d --build` and run the four curls above.
 2. `python scripts/verify_audit.py --path audit/events.jsonl`
 3. Skim `policies/asg.rego`, `app/main.py` (`_decide_tool_call_impl`), and `tests/integration/test_decide.py`.
 4. Optional: `ASG_ENFORCE_MODE=strict` + `examples/gated_agent.py`.
 
-Shareable write-up: [docs/technical-brief.md](docs/technical-brief.md)
+Deeper write-up: [docs/technical-brief.md](docs/technical-brief.md)
 
 For a minimal simulated agent flow, see [`examples/injected_agent_tool_call.py`](examples/injected_agent_tool_call.py). It demonstrates how an agent-produced tool call is checked before execution (no in-tree LLM).
 
