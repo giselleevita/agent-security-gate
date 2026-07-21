@@ -23,9 +23,8 @@ API gateways — applied to autonomous agents.
 
 ## What ASG demonstrates
 
-The current release is deliberately bounded: a portfolio-grade reference, not a
-certified appliance. It still shows concrete controls recruiters and reviewers can
-verify in minutes:
+The current release is deliberately bounded: a reference implementation, not a
+certified appliance. It still shows concrete controls an engineer can verify in minutes:
 
 | Control | Mechanism |
 |---------|-----------|
