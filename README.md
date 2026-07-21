@@ -49,21 +49,29 @@ curl http://localhost:8000/health
 curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" -H "Content-Type: application/json" \
   -d '{"input": "read /internal/secrets.yaml"}'
+# {"allowed":false,"reason":"denied_doc_prefix: /internal/","tool":"docs.read",
+#  "audit_id":"evt_e8c556b4…","approval_url":null}
 
 # 2. SSRF → blocked
 curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" -H "Content-Type: application/json" \
   -d '{"input": "fetch http://169.254.169.254/latest/meta-data/"}'
+# {"allowed":false,"reason":"ssrf_blocked_ip_literal","tool":"http.get",
+#  "audit_id":"evt_3fe242a0…","approval_url":null}
 
 # 3. Privilege escalation → approval required
 curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" -H "Content-Type: application/json" \
   -d '{"input": "update accounts set role=admin"}'
+# {"allowed":false,"reason":"approval_required","tool":"db.write",
+#  "audit_id":"evt_ba036129…","approval_url":"/v1/approvals/request"}
 
 # 4. Legitimate read → allowed
 curl -s -X POST http://localhost:8000/agent \
   -H "Authorization: Bearer test-token" -H "Content-Type: application/json" \
   -d '{"input": "summarize /public/readme.md"}'
+# {"allowed":true,"reason":"allow","tool":"docs.read",
+#  "audit_id":"evt_ea118016…","approval_url":null}
 
 # Audit trail
 curl -s "http://localhost:8000/audit?limit=4" -H "Authorization: Bearer approver-token"
