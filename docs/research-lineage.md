@@ -2,9 +2,9 @@
 
 Agent Security Gate builds on prior work in prompt-injection detection and agent security benchmarking.
 
-## ToolShield (thesis research)
+## ToolShield (prior research)
 
-**ToolShield** is a private research repository developed for bachelor's thesis work on prompt-injection detection in tool-using LLM agents. It includes:
+**ToolShield** is a private research repository on prompt-injection detection in tool-using LLM agents. It includes:
 
 - Synthetic dataset generation for benign and adversarial tool-call prompts
 - Split protocols for generalization testing
@@ -16,7 +16,7 @@ ToolShield asks: *can we detect injection before a tool executes?*
 
 ASG asks a complementary question: *can we enforce policy deterministically at the tool boundary regardless of model behavior?*
 
-The thesis findings informed ASG's benchmark scenario design — attack families in ToolShield (instruction override, tool-schema abuse, exfiltration goals) map to adversarial scenarios in `benchmark/scenarios/scenarios.yaml`.
+Those findings informed ASG's benchmark scenario design — attack families in ToolShield (instruction override, tool-schema abuse, exfiltration goals) map to adversarial scenarios in `benchmark/scenarios/scenarios.yaml`.
 
 ## Archived benchmark
 
@@ -31,5 +31,3 @@ The thesis findings informed ASG's benchmark scenario design — attack families
 | **Enforce** tool-call policy | agent-security-gate | Runtime gateway in agent deployments |
 | **Recover** after policy denial (research) | saferemediate/ | Joint recovery + leakage benchmark (depends on ASG) |
 | **Govern** with cited guidance | [security-compliance-copilot](https://github.com/giselleevita/security-compliance-copilot) | Policy Q&A, not runtime blocking |
-
-Request access to ToolShield artifacts for thesis-level evaluation detail.
