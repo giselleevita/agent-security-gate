@@ -61,7 +61,19 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
         m._append_audit_event(audit_id, {"agent_input": body.model_dump(), "response": resp.model_dump()})
         return resp
 
-    if "drop table" in text or "select * from users" in text or "db.write" in text:
+    # Demo façade: route plain text to a db.write tool call. Covers the explicit
+    # `db.write` prefix plus common destructive/privilege-escalating SQL phrasings,
+    # so the README quickstart works whether or not the caller names the tool.
+    _db_write_markers = (
+        "db.write",
+        "drop table",
+        "select * from users",
+        "delete from",
+        "alter table",
+        "grant all",
+    )
+    _is_sql_update = "update " in text and "set " in text
+    if any(marker in text for marker in _db_write_markers) or _is_sql_update:
         decide = DecideRequest(
             tenant_id=body.tenant_id,
             session_id=body.session_id,
