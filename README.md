@@ -1,12 +1,9 @@
 # Agent Security Gate
 
-Deterministic policy enforcement **before** agent tool execution — OPA Rego, human approvals, hash-chained audit. **Reference implementation**, not a hosted product.
-
-Integrates with any agent runtime via the connector SDK; **this repo does not include an LLM**. The `/agent` endpoint is a demo façade that maps plain text to tool calls.
+Deterministic policy enforcement **before** agent tool execution — OPA Rego, human approvals, hash-chained audit. Integrates with any agent runtime via the connector SDK.
 
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
 ![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-167%20passing-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 ![Version](https://img.shields.io/badge/version-0.6.0-informational)
@@ -18,15 +15,6 @@ Integrates with any agent runtime via the connector SDK; **this repo does not in
 <p align="center"><em>Blocks unsafe tool calls before execution and records an auditable decision trace.</em></p>
 
 **Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) · **Technical brief:** [docs/technical-brief.md](docs/technical-brief.md)
-
----
-
-## Scope and limitations
-
-- **Tool-boundary PEP** — policy runs on proposed tool calls, not inside the model. A malicious agent that never calls the gate is out of scope.
-- **Policy regression benchmark** — 18 hand-authored scenarios with an intentional no-gate baseline; not adaptive red-team coverage.
-- **Demo defaults** — `ASG_ENFORCE_MODE=off` in `docker compose` so local try is frictionless. **Pilots should use `strict`** so tool endpoints require a prior allow decision (see below).
-- **Not production SaaS** — bring your own IdP (`OIDC_*`), secret mounts (`*_FILE`), immutable audit sink, and HA Redis/Postgres per the runbooks.
 
 ---
 
@@ -86,6 +74,16 @@ Demo metadata: `GET /demo` · Approval UI: http://localhost:8000/ui/approvals ·
 
 ---
 
+## Scope and limitations
+
+- **Tool-boundary PEP** — policy runs on proposed tool calls, not inside the model. A malicious agent that never calls the gate is out of scope.
+- **No LLM in this repo** — the `/agent` endpoint is a demo façade that maps plain text to tool calls; real agents integrate via the connector SDK.
+- **Policy regression benchmark** — 18 hand-authored scenarios with an intentional no-gate baseline; not adaptive red-team coverage.
+- **Demo defaults** — `ASG_ENFORCE_MODE=off` in `docker compose` so local try is frictionless. **Pilots should use `strict`** so tool endpoints require a prior allow decision (see below).
+- **Reference implementation, not a hosted product** — bring your own IdP (`OIDC_*`), secret mounts (`*_FILE`), immutable audit sink, and HA Redis/Postgres per the runbooks.
+
+---
+
 ## Strict enforcement (binding control)
 
 Without strict mode, `/v1/gateway/decide` is advisory — agents can call tool endpoints directly. For enforceable governance:
@@ -136,7 +134,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 - Hash-chained audit log; optional HMAC signing and S3 Object Lock mirror
 - OIDC JWT auth (`asg:agent` / `asg:approver` roles)
 - Per-tenant policy files; Prometheus metrics and Grafana dashboard JSON
-- 167 tests (unit, integration, benchmark parity); CI benchmark threshold gate
+- Test suite spanning unit, integration, and benchmark parity; CI benchmark threshold gate
 
 ---
 

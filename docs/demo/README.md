@@ -14,8 +14,7 @@ curl -sf http://localhost:8000/health
 # 2. Install VHS (macOS)
 brew install vhs
 
-# 3. Record (from repo root; update cd path in tape if needed)
-chmod +x scripts/record_demo_gif.sh
+# 3. Record (from repo root)
 vhs docs/demo/asg-demo.tape
 ```
 
@@ -23,4 +22,4 @@ The tape file is `docs/demo/asg-demo.tape`. Output is written to `docs/assets/as
 
 ### CI note
 
-GIF generation requires a running gateway on `localhost:8000`. It is checked into the repo so CI does not need to re-record on every run. Re-run locally after visible API or demo script changes.
+GIF generation requires a running gateway on `localhost:8000`. It is checked into the repo so CI does not need to re-record on every run. Re-run locally after visible API or demo flow changes.
