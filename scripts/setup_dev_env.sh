@@ -50,7 +50,7 @@ echo ""
 echo "==> Fly.io (optional — costs money, skip for free portfolio)"
 if command -v flyctl >/dev/null 2>&1; then
   if flyctl auth whoami >/dev/null 2>&1; then
-    echo "Fly logged in. Paid deploy only: ./scripts/deploy_demo_now.sh"
+    echo "Fly logged in. Paid deploy only: ./scripts/fly_demo_bootstrap.sh"
     echo "See docs/demo-deployment.md for cost warning."
   else
     echo "Fly optional. Skip unless you want a paid hosted URL."
