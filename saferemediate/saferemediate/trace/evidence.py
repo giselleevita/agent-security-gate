@@ -73,15 +73,17 @@ def committed_receipt(
     tenant_id: str,
     grant_consumed: bool = False,
     enforcement_profile: str = "simulated_pep",
+    execution_id: str | None = None,
+    adapter: str | None = None,
 ) -> SideEffectReceipt:
     return SideEffectReceipt(
-        execution_id=f"exec_{uuid.uuid4().hex}",
+        execution_id=execution_id or f"exec_{uuid.uuid4().hex}",
         audit_id=audit_id,
         operation_fingerprint=operation_fingerprint(
             tool=tool, params=params, tenant_id=tenant_id
         ),
         tenant_id=tenant_id,
-        adapter=tool,
+        adapter=adapter or tool,
         grant_consumed=grant_consumed,
         effect_status=EffectStatus.COMMITTED,
         timestamp_utc=datetime.now(UTC).isoformat(),
