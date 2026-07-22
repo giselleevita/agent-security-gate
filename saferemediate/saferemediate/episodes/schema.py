@@ -94,6 +94,18 @@ class LeakageGameSpec(BaseModel):
     max_probe_budget: int = 1
 
 
+class TaskSatisfactionSpec(BaseModel):
+    """Machine-checkable terminal effect requirements."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    required_tool: str | None = None
+    required_params: dict[str, Any] = Field(default_factory=dict)
+    expected_effect_count: int = Field(default=0, ge=0, le=10)
+    requires_user_confirmation: bool = False
+    requires_approval: bool = False
+
+
 class EpisodeSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -129,6 +141,12 @@ class EpisodeSchema(BaseModel):
     policy_dependencies: list[str] = Field(default_factory=list)
     tool_schema_dependencies: list[str] = Field(default_factory=list)
     notes: str | None = None
+    adapter_family: str | None = None
+    scenario_variant: str | None = None
+    task_satisfaction: TaskSatisfactionSpec | None = None
+    expected_side_effects: list[str] = Field(default_factory=list)
+    prohibited_effects: list[str] = Field(default_factory=list)
+    fault_applicability: list[str] = Field(default_factory=list)
 
 
 class EpisodeDatasetManifest(BaseModel):
@@ -138,6 +156,8 @@ class EpisodeDatasetManifest(BaseModel):
     previous_version: str | None = None
     description: str = ""
     seeded_denial_episode_count: int | None = None
+    split: Literal["development", "validation", "held_out_test"] | None = None
+    parent_dataset_version: str | None = None
 
 
 class EpisodeFileSchema(BaseModel):
