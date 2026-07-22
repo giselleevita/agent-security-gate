@@ -5,6 +5,8 @@ from __future__ import annotations
 from saferemediate.episodes.schema import EpisodeSchema, PublicCatalog
 from saferemediate.feedback.base import StrategyId
 from saferemediate.models.protocol import ToolSchema
+from saferemediate.tickets.models import TransitionType
+from saferemediate.tickets.redeem_call import B6_MECHANISM_V03, TRANSITION_ALLOWED_TOOLS
 
 _TICKET_PROP = {
     "type": "string",
@@ -128,8 +130,59 @@ def schemas_for_episode(
     episode: EpisodeSchema,
     *,
     strategy_id: StrategyId | None = None,
+    b6_mechanism_version: str | None = None,
 ) -> list[ToolSchema]:
-    include = strategy_id == "B6"
+    include = strategy_id == "B6" and b6_mechanism_version != B6_MECHANISM_V03
     return schemas_from_catalog(
         episode.public_catalog, include_remediation_ticket=include
     )
+
+
+def schemas_for_recovery(
+    episode: EpisodeSchema,
+    *,
+    strategy_id: StrategyId,
+    feedback_view: dict,
+    b6_mechanism_version: str,
+) -> list[ToolSchema]:
+    """Narrow B6 v0.3 to the advertised transition and safe exit tools."""
+    if strategy_id != "B6" or b6_mechanism_version != B6_MECHANISM_V03:
+        return schemas_for_episode(
+            episode,
+            strategy_id=strategy_id,
+            b6_mechanism_version=b6_mechanism_version,
+        )
+
+    try:
+        transition = TransitionType(str(feedback_view.get("transition_type")))
+    except ValueError:
+        transition = TransitionType.REQUEST_USER_CONFIRMATION
+    transition_tools = TRANSITION_ALLOWED_TOOLS.get(transition, frozenset())
+    explicit_ticket_task = any(
+        path == "tickets.create" or path.startswith("tickets.create:")
+        for path in episode.allowed_recovery_paths
+    )
+    keep = set(transition_tools) | {"terminate_safely", "request_human_escalation"}
+    if explicit_ticket_task:
+        keep.add("tickets.create")
+
+    schemas = schemas_from_catalog(
+        episode.public_catalog, include_remediation_ticket=False
+    )
+    narrowed: list[ToolSchema] = []
+    for schema in schemas:
+        if schema.name not in keep:
+            continue
+        data = schema.model_dump()
+        if schema.name in transition_tools and schema.name != "tickets.create":
+            params = dict(data["parameters"])
+            properties = dict(params.get("properties", {}))
+            properties["remediation_ticket"] = dict(_TICKET_PROP)
+            params["properties"] = properties
+            required = list(params.get("required", []))
+            if "remediation_ticket" not in required:
+                required.append("remediation_ticket")
+            params["required"] = required
+            data["parameters"] = params
+        narrowed.append(ToolSchema.model_validate(data))
+    return narrowed

@@ -6,9 +6,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from saferemediate.tickets.models import TransitionType
-from saferemediate.tickets.verify import TicketVerificationError, redeem_remediation_ticket
+from saferemediate.tickets.verify import (
+    TicketVerificationError,
+    consume_ticket_claims,
+    verify_remediation_ticket,
+)
 
-B6_MECHANISM_VERSION = "b6-ticket-interface-v0.2"
+B6_MECHANISM_V02 = "b6-ticket-interface-v0.2"
+B6_MECHANISM_V03 = "b6-ticket-interface-v0.3"
+B6_MECHANISM_VERSION = B6_MECHANISM_V02
 
 TRANSITION_ALLOWED_TOOLS: dict[TransitionType, frozenset[str]] = {
     TransitionType.SELECT_FROM_PUBLIC_RESOURCES: frozenset({"docs.read", "http.get"}),
@@ -80,7 +86,7 @@ def handle_tool_call_ticket(
     if token != pending.token:
         # Still attempt verify against pending binding — wrong token → abuse
         try:
-            redeem_remediation_ticket(
+            claims = verify_remediation_ticket(
                 token,
                 audit_id=pending.audit_id,
                 task_hash=pending.task_hash,
@@ -92,7 +98,15 @@ def handle_tool_call_ticket(
                 ticket_abuse=True,
                 abuse_reason=str(exc),
             )
-        # Redeemed unexpected token that somehow verified — treat as abuse
+        try:
+            consume_ticket_claims(claims)
+        except TicketVerificationError as exc:
+            return TicketCallResult(
+                params=cleaned,
+                ticket_abuse=True,
+                abuse_reason=str(exc),
+            )
+        # A valid but unexpected token is consumed and treated as abuse.
         return TicketCallResult(
             params=cleaned,
             ticket_abuse=True,
@@ -100,7 +114,7 @@ def handle_tool_call_ticket(
         )
 
     try:
-        claims = redeem_remediation_ticket(
+        claims = verify_remediation_ticket(
             token,
             audit_id=pending.audit_id,
             task_hash=pending.task_hash,
@@ -115,6 +129,15 @@ def handle_tool_call_ticket(
 
     allowed = TRANSITION_ALLOWED_TOOLS.get(claims.transition_type, frozenset())
     if tool not in allowed:
+        try:
+            consume_ticket_claims(claims)
+        except TicketVerificationError as exc:
+            return TicketCallResult(
+                params=cleaned,
+                ticket_abuse=True,
+                abuse_reason=str(exc),
+                transition_type=claims.transition_type.value,
+            )
         return TicketCallResult(
             params=cleaned,
             ticket_abuse=True,
@@ -122,6 +145,15 @@ def handle_tool_call_ticket(
             transition_type=claims.transition_type.value,
         )
 
+    try:
+        consume_ticket_claims(claims)
+    except TicketVerificationError as exc:
+        return TicketCallResult(
+            params=cleaned,
+            ticket_abuse=True,
+            abuse_reason=str(exc),
+            transition_type=claims.transition_type.value,
+        )
     return TicketCallResult(
         params=cleaned,
         valid_ticket_guided_transition=True,

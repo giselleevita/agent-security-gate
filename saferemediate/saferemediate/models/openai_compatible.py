@@ -43,10 +43,17 @@ def message_to_action(message: dict[str, Any]) -> AgentAction:
                 parse_errors=[f"tool arguments JSON: {exc}"],
             )
         if name == "terminate_safely":
-            return AgentAction(kind=AgentActionKind.SAFE_TERMINATION, message=params.get("reason"))
+            return AgentAction(
+                kind=AgentActionKind.SAFE_TERMINATION,
+                tool=name,
+                params=params,
+                message=params.get("reason"),
+            )
         if name == "request_human_escalation":
             return AgentAction(
                 kind=AgentActionKind.HUMAN_ESCALATION,
+                tool=name,
+                params=params,
                 message=params.get("reason"),
             )
         return AgentAction(kind=AgentActionKind.TOOL_CALL, tool=name, params=params)
@@ -76,6 +83,8 @@ def parse_chat_completion_response(
     seed: int | None = None,
     estimated_cost_usd: float | None = None,
     inference_extras: InferenceExtras | None = None,
+    request_bytes: int | None = None,
+    response_bytes: int | None = None,
 ) -> ModelTurnResult:
     choice = raw.get("choices", [{}])[0]
     message = choice.get("message", {})
@@ -83,6 +92,8 @@ def parse_chat_completion_response(
     returned_model = raw.get("model")
     pt = int(usage.get("prompt_tokens", 0))
     ct = int(usage.get("completion_tokens", 0))
+    details = usage.get("completion_tokens_details") or {}
+    reasoning_tokens = int(usage.get("reasoning_tokens") or details.get("reasoning_tokens") or 0)
 
     action = message_to_action(message)
     meta = build_run_metadata(
@@ -99,7 +110,10 @@ def parse_chat_completion_response(
         token_usage={
             "prompt_tokens": pt,
             "completion_tokens": ct,
+            "reasoning_tokens": reasoning_tokens,
             "total_tokens": int(usage.get("total_tokens", pt + ct)),
+            "request_bytes": int(request_bytes or 0),
+            "response_bytes": int(response_bytes or 0),
         },
         estimated_cost_usd=estimated_cost_usd,
         raw_response_redacted=redact_secrets(raw),
@@ -139,6 +153,9 @@ async def chat_completions_request(
     estimated_cost_fn: Callable[[int, int], float | None] | None = None,
     inference_extras: InferenceExtras | None = None,
     timeout_s: float = 120.0,
+    max_completion_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    thinking_enabled: bool | None = None,
 ) -> ModelTurnResult:
     url = f"{base_url.rstrip('/')}/chat/completions"
     tools = build_tools_payload(tool_schemas)
@@ -151,6 +168,13 @@ async def chat_completions_request(
     }
     if seed is not None:
         body["seed"] = seed
+    if max_completion_tokens is not None:
+        body["max_completion_tokens"] = max_completion_tokens
+    if reasoning_effort is not None:
+        body["reasoning_effort"] = reasoning_effort
+    if thinking_enabled is not None:
+        body["think"] = thinking_enabled
+    request_bytes = len(json.dumps(body, separators=(",", ":"), default=str).encode())
 
     headers: dict[str, str] = {}
     if api_key:
@@ -193,6 +217,8 @@ async def chat_completions_request(
                 seed=seed,
                 estimated_cost_usd=cost,
                 inference_extras=inference_extras,
+                request_bytes=request_bytes,
+                response_bytes=len(resp.content),
             )
         except ProviderError as exc:
             last_err = exc

@@ -9,7 +9,7 @@ from typing import Any
 from saferemediate.episodes.schema import EpisodeSchema, ToolAttempt
 from saferemediate.feedback.base import DenialEvent, StrategyId
 from saferemediate.feedback.registry import get_strategy
-from saferemediate.harness.asg_adapter import AsgDecision, decide_tool_call
+from saferemediate.harness.asg_adapter import decide_tool_call
 from saferemediate.harness.task_hash import task_hash
 from saferemediate.leakage.agent_context import assert_agent_view_clean
 from saferemediate.trace.metadata import policy_hash
@@ -71,11 +71,17 @@ def execute_seed_denial(
     strategy_id: StrategyId,
     *,
     session_id: str,
+    b6_mechanism_version: str | None = None,
+    b6_ticket_format: str = "jwt",
 ) -> SeedResult:
     """Submit the fixture's first tool proposal to ASG and apply B0–B6 denial feedback."""
     attempt = initial_agent_attempt(episode)
     th = task_hash(episode.task, session_id, episode.tenant_id)
-    strategy = get_strategy(strategy_id)
+    strategy = get_strategy(
+        strategy_id,
+        b6_mechanism_version=b6_mechanism_version,
+        b6_ticket_format=b6_ticket_format,
+    )
 
     t0 = time.perf_counter()
     decision = decide_tool_call(

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from saferemediate.analysis.pilot_report import build_pilot_report
-from saferemediate.episodes.schema import EpisodeSchema, load_dataset_manifest, load_episodes
+from saferemediate.episodes.schema import EpisodeSchema, load_episodes
 from saferemediate.episodes.selection import select_episodes
 from saferemediate.experiment.canary_gate import (
     evaluate_canary_gate,
@@ -31,13 +31,12 @@ from saferemediate.experiment.trace_inspect import sample_traces_for_review
 from saferemediate.experiment.trace_review import write_trace_review_manifest
 from saferemediate.feedback.base import StrategyId
 from saferemediate.harness.live_runner import run_live_episode
-from saferemediate.harness.seed_preflight import SeedPreflightError, assert_seed_preflight_passes
+from saferemediate.harness.seed_preflight import assert_seed_preflight_passes
 from saferemediate.labelling import (
     live_pilot_manifest,
     natural_entry_canary_manifest,
     offline_mock_pilot_manifest,
     print_provider_banner,
-    real_model_canary_manifest,
     real_model_pilot_manifest,
     seeded_denial_canary_manifest,
     seeded_denial_pilot_manifest,
@@ -46,6 +45,7 @@ from saferemediate.models.factory import ProviderName, build_agent_model
 from saferemediate.models.local import DEFAULT_LOCAL_BASE_URL
 from saferemediate.models.mock import MOCK_MODEL_ID
 from saferemediate.models.openai import estimate_cost_usd
+from saferemediate.tickets.redeem_call import B6_MECHANISM_V02, B6_MECHANISM_V03
 
 DEFAULT_EPISODES = Path(__file__).resolve().parents[1] / "episodes" / "episodes.yaml"
 DEFAULT_TRIALS = 5
@@ -206,7 +206,18 @@ async def run_pilot_async(
     entry_mode: EntryMode = NATURAL_ENTRY_MODE,
     splits: list[str] | None = None,
     release_held_out: bool = False,
+    b6_mechanism_version: str = B6_MECHANISM_V02,
+    max_completion_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    thinking_enabled: bool | None = None,
+    b6_ticket_format: str = "jwt",
 ) -> dict[str, Any]:
+    if b6_mechanism_version == B6_MECHANISM_V03 and (
+        release_held_out or (splits and "held_out_test" in splits)
+    ):
+        raise ValueError(
+            "B6 v0.3 is development/validation-only until independent held-out review"
+        )
     ep_path = episodes_path or DEFAULT_EPISODES
     all_episodes = load_episodes(ep_path)
     if splits:
@@ -279,6 +290,11 @@ async def run_pilot_async(
         context_length=context_length,
         run_label=run_label,
         entry_mode=entry_mode,
+        b6_mechanism_version=b6_mechanism_version,
+        max_completion_tokens=max_completion_tokens,
+        reasoning_effort=reasoning_effort,
+        thinking_enabled=thinking_enabled,
+        b6_ticket_format=b6_ticket_format,
     )
 
     experiment_id = spec["experiment_id"]
@@ -400,6 +416,18 @@ async def run_pilot_async(
                     f"checkpoint dataset_version {prior_version!r} != current "
                     f"{current_version!r}; use --no-resume for a fresh run"
                 )
+            prior_b6 = prior_spec.get("b6_mechanism_version", B6_MECHANISM_V02)
+            if prior_b6 != b6_mechanism_version:
+                raise ValueError(
+                    f"checkpoint B6 mechanism {prior_b6!r} != current "
+                    f"{b6_mechanism_version!r}; use --no-resume for a fresh run"
+                )
+            prior_ticket_format = prior_spec.get("b6_ticket_format", "jwt")
+            if prior_ticket_format != b6_ticket_format:
+                raise ValueError(
+                    f"checkpoint B6 ticket format {prior_ticket_format!r} != current "
+                    f"{b6_ticket_format!r}; use --no-resume for a fresh run"
+                )
 
     if entry_mode == "seeded-denial" and not dry_run:
         assert_seed_preflight_passes(episodes, entry_mode=entry_mode, episodes_path=ep_path)
@@ -423,6 +451,9 @@ async def run_pilot_async(
         inference_runtime_version=inference_runtime_version,
         quantization=quantization,
         context_length=context_length,
+        max_completion_tokens=max_completion_tokens,
+        reasoning_effort=reasoning_effort,
+        thinking_enabled=thinking_enabled,
     )
 
     async def one(run_key: str) -> None:
@@ -438,6 +469,8 @@ async def run_pilot_async(
                 model,
                 trial=trial,
                 entry_mode=entry_mode,  # type: ignore[arg-type]
+                b6_mechanism_version=b6_mechanism_version,
+                b6_ticket_format=b6_ticket_format,
             )
             record = enrich_artifact(spec, trace.to_dict())
             append_checkpoint(checkpoint, record)
@@ -536,6 +569,15 @@ def main() -> None:
     parser.add_argument("--inference-runtime-version", default=None)
     parser.add_argument("--quantization", default=None, help="e.g. Q4_K_M")
     parser.add_argument("--context-length", type=int, default=None)
+    parser.add_argument("--max-completion-tokens", type=int, default=None)
+    parser.add_argument(
+        "--reasoning-effort", choices=["low", "medium", "high"], default=None
+    )
+    parser.add_argument(
+        "--disable-thinking",
+        action="store_true",
+        help="Send think=false to compatible local runtimes.",
+    )
     parser.add_argument("--trials", type=int, default=DEFAULT_TRIALS)
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--rate-limit-delay", type=float, default=0.25)
@@ -576,6 +618,18 @@ def main() -> None:
         help="Permit selecting held_out_test episodes for a confirmatory run.",
     )
     parser.add_argument("--no-resume", action="store_true")
+    parser.add_argument(
+        "--b6-mechanism-version",
+        choices=[B6_MECHANISM_V02, B6_MECHANISM_V03],
+        default=B6_MECHANISM_V02,
+        help="Versioned B6 contract; v0.2 remains the frozen default.",
+    )
+    parser.add_argument(
+        "--b6-ticket-format",
+        choices=["jwt", "opaque"],
+        default="jwt",
+        help="Paired efficiency variant for B6; opaque uses a short in-memory handle.",
+    )
     args = parser.parse_args()
 
     if args.validate_canary:
@@ -613,6 +667,11 @@ def main() -> None:
         entry_mode=args.entry_mode,  # type: ignore[arg-type]
         splits=args.splits,
         release_held_out=args.release_held_out,
+        b6_mechanism_version=args.b6_mechanism_version,
+        max_completion_tokens=args.max_completion_tokens,
+        reasoning_effort=args.reasoning_effort,
+        thinking_enabled=False if args.disable_thinking else None,
+        b6_ticket_format=args.b6_ticket_format,
     )
     print(json.dumps(result, indent=2))
 

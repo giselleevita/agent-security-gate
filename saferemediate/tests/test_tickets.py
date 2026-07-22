@@ -88,3 +88,32 @@ def test_ticket_tamper_signature():
     bad = jwt.encode(payload, "wrong-secret", algorithm="HS256")
     with pytest.raises(TicketVerificationError):
         verify_remediation_ticket(bad, audit_id="audit-1", task_hash="taskhash", secret=SECRET)
+
+
+def test_expired_ticket_rejected():
+    reset_consumed_tickets()
+    token = issue_remediation_ticket(
+        audit_id="audit-1",
+        task_hash="taskhash",
+        transition_type=TransitionType.TERMINATE_SAFELY,
+        ttl_seconds=-1,
+        secret=SECRET,
+    )
+    with pytest.raises(TicketVerificationError, match="expired"):
+        verify_remediation_ticket(token, audit_id="audit-1", task_hash="taskhash", secret=SECRET)
+
+
+def test_opaque_handle_is_short_bound_and_single_use():
+    reset_consumed_tickets()
+    token = issue_remediation_ticket(
+        audit_id="audit-1",
+        task_hash="taskhash",
+        transition_type=TransitionType.SELECT_FROM_PUBLIC_RESOURCES,
+        ticket_format="opaque",
+    )
+    assert token.startswith("rt_")
+    assert len(token) < 64
+    claims = redeem_remediation_ticket(token, audit_id="audit-1", task_hash="taskhash")
+    assert claims.transition_type == TransitionType.SELECT_FROM_PUBLIC_RESOURCES
+    with pytest.raises(TicketVerificationError, match="replay"):
+        redeem_remediation_ticket(token, audit_id="audit-1", task_hash="taskhash")

@@ -24,6 +24,7 @@ from saferemediate.harness.entry_mode import NATURAL_ENTRY_MODE, EntryMode
 from saferemediate.models.factory import ProviderName
 from saferemediate.models.mock import MOCK_MODEL_ID
 from saferemediate.trace.metadata import asg_version, episode_dataset_ref, git_commit, policy_hash
+from saferemediate.tickets.redeem_call import B6_MECHANISM_V02
 
 _SR_ROOT = Path(__file__).resolve().parents[2]
 _REPO_ROOT = _SR_ROOT.parent
@@ -101,6 +102,11 @@ def build_run_spec(
     context_length: int | None = None,
     run_label: str | None = None,
     entry_mode: EntryMode = NATURAL_ENTRY_MODE,
+    b6_mechanism_version: str = B6_MECHANISM_V02,
+    max_completion_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    thinking_enabled: bool | None = None,
+    b6_ticket_format: str = "jwt",
 ) -> dict[str, Any]:
     strategies = strategies or ALL_STRATEGIES
     rev = repo_revision(episodes_path=episodes_path)
@@ -150,6 +156,11 @@ def build_run_spec(
         "publication_ready": False,
         "include_in_final_dataset": phase == "pilot",
         "entry_mode": entry_mode,
+        "b6_mechanism_version": b6_mechanism_version,
+        "max_completion_tokens": max_completion_tokens,
+        "reasoning_effort": reasoning_effort,
+        "thinking_enabled": thinking_enabled,
+        "b6_ticket_format": b6_ticket_format,
     }
     if provider == "local":
         spec["base_url"] = base_url

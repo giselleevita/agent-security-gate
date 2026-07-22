@@ -40,6 +40,38 @@ def test_parse_tool_call():
     assert result.action.tool == "docs.read"
 
 
+def test_special_tool_call_preserves_ticket_arguments():
+    raw = {
+        "choices": [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "terminate_safely",
+                                "arguments": '{"reason":"blocked","remediation_ticket":"rt_x"}',
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "usage": {},
+    }
+    result = parse_chat_completion_response(
+        raw,
+        provider="local",
+        requested_model="qwen",
+        system_prompt="sys",
+        tool_schemas=[],
+        episodes_path=None,
+        latency_ms=1.0,
+    )
+    assert result.action.kind == AgentActionKind.SAFE_TERMINATION
+    assert result.action.tool == "terminate_safely"
+    assert result.action.params["remediation_ticket"] == "rt_x"
+
+
 def test_parse_failure_on_bad_json():
     raw = {
         "choices": [

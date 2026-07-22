@@ -16,7 +16,12 @@ def test_inference_extras_in_metadata():
     raw = {
         "model": "qwen2.5:7b-instruct",
         "choices": [{"message": {"content": "terminate safely"}}],
-        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2,
+            "completion_tokens_details": {"reasoning_tokens": 1},
+        },
     }
     result = parse_chat_completion_response(
         raw,
@@ -27,11 +32,16 @@ def test_inference_extras_in_metadata():
         episodes_path=None,
         latency_ms=1.0,
         inference_extras=extras,
+        request_bytes=123,
+        response_bytes=45,
     )
     assert result.metadata.inference_runtime == "ollama"
     assert result.metadata.hardware_description == "test-machine"
     assert result.metadata.base_url_redacted == "http://localhost:11434"
     assert result.metadata.quantization == "Q4_K_M"
+    assert result.metadata.reasoning_tokens == 1
+    assert result.metadata.request_bytes == 123
+    assert result.metadata.response_bytes == 45
 
 
 def test_redact_bearer_in_response():
