@@ -92,6 +92,11 @@ def decide_tool_call(
     else:
         outcome = "deny"
     _metrics.record_decision(outcome=outcome, reason=response.reason)
+    if response.remediation is not None:
+        _metrics.record_remediation_issued(
+            category=response.remediation.category_code.value,
+            retry_mode=response.remediation.retry_mode.value,
+        )
     _metrics.log_decision(
         audit_id=response.audit_id,
         tenant_id=body.tenant_id,

@@ -8,7 +8,8 @@ defines the contract that makes enforcement **mandatory** rather than advisory, 
 ## The three-step contract
 
 1. **Decide before the side effect.** Call `POST /v1/gateway/decide` with the tool and the
-   exact `context` you intend to execute. You receive `{ allowed, reason, audit_id, approval_url }`.
+   exact `context` you intend to execute. You receive
+   `{ allowed, reason, audit_id, approval_url, remediation }`.
 2. **Carry the `audit_id`.** Pass it to the tool/adapter call via the `X-ASG-Audit-Id`
    header.
 3. **Adapters refuse without a prior allow.** Tool endpoints validate the `audit_id`
@@ -57,8 +58,17 @@ with AsgClient("http://asg:8000", token="...", tenant_id="acme",
     write(query="update ...")  # raises AsgDenied unless allowed
 ```
 
-`AsgDenied` carries `.reason` and `.approval_url` (set when the decision was
-`approval_required`), so callers can route high-risk actions into the approval flow.
+`AsgDenied` carries `.reason`, `.approval_url` (set when the decision was
+`approval_required`), and `.remediation`. The remediation object provides a stable
+`version`, `category_code`, a safe user-facing `message`, `retry_mode`, and typed
+`next_actions`. Retry mode is one of `never`, `after_input_change`, or
+`resume_token_required`; it never authorizes repeating the same denied request.
+
+Use `client.recovery(error)` for the optional recovery controller. It verifies that the
+chosen action and tool were advertised, rejects an identical denied operation, and sends
+the replacement through a fresh gateway decision. `error.remediation` is typed but remains
+readable as a mapping; `error.remediation_raw` provides a plain dictionary for existing
+serialization code.
 
 A runnable end-to-end example lives in [`examples/gated_agent.py`](../examples/gated_agent.py).
 
