@@ -11,6 +11,7 @@ from saferemediate.feedback.base import DenialEvent, StrategyId
 from saferemediate.feedback.registry import get_strategy
 from saferemediate.harness.asg_adapter import decide_tool_call
 from saferemediate.harness.entry_mode import NATURAL_ENTRY_MODE, EntryMode
+from saferemediate.harness.execution import EffectExecutor
 from saferemediate.harness.seed import execute_seed_denial, initial_agent_attempt
 from saferemediate.harness.task_hash import task_hash
 from saferemediate.leakage.agent_context import (
@@ -110,6 +111,7 @@ async def run_live_episode(
     entry_mode: EntryMode = NATURAL_ENTRY_MODE,
     b6_mechanism_version: str = B6_MECHANISM_V02,
     b6_ticket_format: str = "jwt",
+    effect_executor: EffectExecutor | None = None,
 ) -> LiveEpisodeTrace:
     sid = session_id or f"live-{episode.episode_id}-{strategy_id}-t{trial}"
     run_key = f"{episode.episode_id}:{strategy_id}:{trial}"
@@ -150,6 +152,7 @@ async def run_live_episode(
             session_id=sid,
             b6_mechanism_version=b6_mechanism_version,
             b6_ticket_format=b6_ticket_format,
+            effect_executor=effect_executor,
         )
 
     return await _run_natural_episode(
@@ -163,6 +166,7 @@ async def run_live_episode(
         session_id=sid,
         b6_mechanism_version=b6_mechanism_version,
         b6_ticket_format=b6_ticket_format,
+        effect_executor=effect_executor,
     )
 
 
@@ -178,6 +182,7 @@ async def _run_natural_episode(
     session_id: str,
     b6_mechanism_version: str,
     b6_ticket_format: str,
+    effect_executor: EffectExecutor | None,
 ) -> LiveEpisodeTrace:
     system_prompt = build_agent_system_prompt(episode, strategy_id=strategy_id)
     conversation: list[dict[str, str]] = [{"role": "user", "content": episode.task}]
@@ -302,14 +307,22 @@ async def _run_natural_episode(
         )
 
         if allowed:
-            trace.execution_receipts.append(
-                committed_receipt(
+            receipt = (
+                effect_executor.execute(
                     audit_id=audit_id,
                     tool=action.tool,
                     params=ticket_result.params,
                     tenant_id=episode.tenant_id,
-                ).model_dump(mode="json")
+                )
+                if effect_executor is not None
+                else committed_receipt(
+                    audit_id=audit_id,
+                    tool=action.tool,
+                    params=ticket_result.params,
+                    tenant_id=episode.tenant_id,
+                )
             )
+            trace.execution_receipts.append(receipt.model_dump(mode="json"))
             fb = strategy.format_allow(event)
         else:
             denials += 1
@@ -374,6 +387,7 @@ async def _run_seeded_denial_episode(
     session_id: str,
     b6_mechanism_version: str,
     b6_ticket_format: str,
+    effect_executor: EffectExecutor | None,
 ) -> LiveEpisodeTrace:
     trace.attribution = {
         "initial_action_source": "episode_fixture",
@@ -616,14 +630,22 @@ async def _run_seeded_denial_episode(
         )
 
         if allowed:
-            trace.execution_receipts.append(
-                committed_receipt(
+            receipt = (
+                effect_executor.execute(
                     audit_id=audit_id,
                     tool=action.tool,
                     params=ticket_result.params,
                     tenant_id=episode.tenant_id,
-                ).model_dump(mode="json")
+                )
+                if effect_executor is not None
+                else committed_receipt(
+                    audit_id=audit_id,
+                    tool=action.tool,
+                    params=ticket_result.params,
+                    tenant_id=episode.tenant_id,
+                )
             )
+            trace.execution_receipts.append(receipt.model_dump(mode="json"))
             fb = strategy.format_allow(event)
             # Task satisfaction: if allow-list present, allowed tool must match.
             if episode.outcomes.safe_completion and episode.allowed_recovery_paths:
