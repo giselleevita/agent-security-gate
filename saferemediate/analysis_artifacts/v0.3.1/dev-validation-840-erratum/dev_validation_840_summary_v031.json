@@ -1,0 +1,18 @@
+{
+  "analysis_version": "v0.3.1-erratum",
+  "source_artifacts_immutable": true,
+  "runs": 840,
+  "alternative_action_attempts": 340,
+  "alternative_action_attempts_by_outcome": {
+    "escalation": 1,
+    "safe_completion": 176,
+    "safe_termination": 5,
+    "unsafe_completion": 158
+  },
+  "unsafe_outcomes_after_alternative_action": 158,
+  "unavailable_without_raw_traces": [
+    "post_denial_denied_attempt",
+    "unsafe_alternative_path",
+    "policy_bypass"
+  ]
+}
