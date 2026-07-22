@@ -34,6 +34,10 @@ from saferemediate.tickets.redeem_call import (
     PendingTicket,
     handle_tool_call_ticket,
 )
+from saferemediate.trace.evidence import (
+    TRACE_SCHEMA_VERSION,
+    committed_receipt,
+)
 
 
 @dataclass
@@ -52,6 +56,9 @@ class LiveEpisodeTrace:
     model_turns: list[dict[str, Any]] = field(default_factory=list)
     score: dict[str, Any] = field(default_factory=dict)
     ground_truth: dict[str, Any] = field(default_factory=dict)
+    trace_schema_version: str = TRACE_SCHEMA_VERSION
+    execution_receipts: list[dict[str, Any]] = field(default_factory=list)
+    leakage_observations: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -67,6 +74,9 @@ class LiveEpisodeTrace:
             "model_turns": self.model_turns,
             "score": self.score,
             "ground_truth": self.ground_truth,
+            "trace_schema_version": self.trace_schema_version,
+            "execution_receipts": self.execution_receipts,
+            "leakage_observations": self.leakage_observations,
         }
         if self.seed_trace is not None:
             payload["seed_trace"] = self.seed_trace
@@ -200,13 +210,12 @@ async def _run_natural_episode(
             )
             raise
 
-        trace.model_turns.append(
-            {
-                "step": step,
-                "action": turn.action.model_dump(),
-                "metadata": turn.metadata.model_dump(),
-            }
-        )
+        turn_record = {
+            "step": step,
+            "action": turn.action.model_dump(),
+            "metadata": turn.metadata.model_dump(),
+        }
+        trace.model_turns.append(turn_record)
         action = turn.action
 
         if action.kind == AgentActionKind.PARSE_FAILURE:
@@ -275,6 +284,12 @@ async def _run_natural_episode(
         allowed, reason, audit_id, approval_url = _pep_decide(
             episode, action.tool, ticket_result.params, session_id
         )
+        turn_record["gateway_decision"] = {
+            "allowed": allowed,
+            "reason": reason,
+            "audit_id": audit_id,
+        }
+        turn_record["side_effect_executed"] = bool(allowed)
         last_action = "tool_call" if allowed else "denied"
 
         event = DenialEvent(
@@ -287,6 +302,14 @@ async def _run_natural_episode(
         )
 
         if allowed:
+            trace.execution_receipts.append(
+                committed_receipt(
+                    audit_id=audit_id,
+                    tool=action.tool,
+                    params=ticket_result.params,
+                    tenant_id=episode.tenant_id,
+                ).model_dump(mode="json")
+            )
             fb = strategy.format_allow(event)
         else:
             denials += 1
@@ -575,7 +598,11 @@ async def _run_seeded_denial_episode(
         allowed, reason, audit_id, approval_url = _pep_decide(
             episode, action.tool, ticket_result.params, session_id
         )
-        turn_record["gateway_decision"] = {"allowed": allowed, "reason": reason}
+        turn_record["gateway_decision"] = {
+            "allowed": allowed,
+            "reason": reason,
+            "audit_id": audit_id,
+        }
         turn_record["side_effect_executed"] = bool(allowed)
         last_action = "tool_call" if allowed else "denied"
 
@@ -589,6 +616,14 @@ async def _run_seeded_denial_episode(
         )
 
         if allowed:
+            trace.execution_receipts.append(
+                committed_receipt(
+                    audit_id=audit_id,
+                    tool=action.tool,
+                    params=ticket_result.params,
+                    tenant_id=episode.tenant_id,
+                ).model_dump(mode="json")
+            )
             fb = strategy.format_allow(event)
             # Task satisfaction: if allow-list present, allowed tool must match.
             if episode.outcomes.safe_completion and episode.allowed_recovery_paths:
