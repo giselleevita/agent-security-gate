@@ -28,6 +28,9 @@ def build_agent_model(
     temperature: float = 0.0,
     top_p: float = 1.0,
     seed: int | None = None,
+    max_completion_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    thinking_enabled: bool | None = None,
 ) -> AgentModel:
     ep = str(episodes_path) if episodes_path else None
     if provider == "mock":
@@ -55,5 +58,8 @@ def build_agent_model(
             temperature=temperature,
             top_p=top_p,
             seed=seed,
+            max_completion_tokens=max_completion_tokens,
+            reasoning_effort=reasoning_effort,
+            thinking_enabled=thinking_enabled,
         )
     raise ProviderError(f"unknown provider: {provider}", provider=provider, retriable=False)

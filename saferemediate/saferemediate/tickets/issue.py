@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 import jwt
 
 from saferemediate.tickets.models import TICKET_TTL_SECONDS, RemediationTicketClaims, TransitionType
+from saferemediate.tickets.opaque_store import issue_opaque_handle
 
 _DEFAULT_SECRET = os.environ.get("SR_TICKET_SECRET", "saferemediate-dev-secret-change-in-prod")
 _ALGORITHM = "HS256"
@@ -23,6 +24,7 @@ def issue_remediation_ticket(
     context_version: int = 1,
     ttl_seconds: int = TICKET_TTL_SECONDS,
     secret: str | None = None,
+    ticket_format: str = "jwt",
 ) -> str:
     now = datetime.now(UTC)
     issued_at = int(now.timestamp())
@@ -37,5 +39,9 @@ def issue_remediation_ticket(
         context_version=context_version,
     )
     claims.ensure_public_params()
+    if ticket_format == "opaque":
+        return issue_opaque_handle(claims)
+    if ticket_format != "jwt":
+        raise ValueError(f"unknown remediation ticket format: {ticket_format}")
     payload = claims.model_dump(mode="json")
     return jwt.encode(payload, secret or _DEFAULT_SECRET, algorithm=_ALGORITHM)

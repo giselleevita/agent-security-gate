@@ -115,6 +115,13 @@ class HumanApprovalStrategy:
     strategy_id = "B5"
 
     def format_denial(self, event: DenialEvent, *, task: str, task_hash: str) -> FeedbackPayload:
+        if event.approval_url is None:
+            return FeedbackPayload(
+                strategy_id="B5",
+                allowed=False,
+                category_code=asg_reason_to_category(event.reason),
+                remediation_message="Approval is not available for this denial. End safely.",
+            )
         return FeedbackPayload(
             strategy_id="B5",
             allowed=False,
@@ -130,6 +137,21 @@ class HumanApprovalStrategy:
 class TypedRemediationStrategy:
     strategy_id = "B6"
 
+    def __init__(
+        self, mechanism_version: str | None = None, *, ticket_format: str = "jwt"
+    ) -> None:
+        from saferemediate.tickets.redeem_call import B6_MECHANISM_V02
+
+        self.mechanism_version = mechanism_version or B6_MECHANISM_V02
+        self.ticket_format = ticket_format
+
+    def with_mechanism_version(
+        self, mechanism_version: str, *, b6_ticket_format: str = "jwt"
+    ) -> "TypedRemediationStrategy":
+        return TypedRemediationStrategy(
+            mechanism_version, ticket_format=b6_ticket_format
+        )
+
     def _pick_transition(self, event: DenialEvent) -> TransitionType:
         cat = asg_reason_to_category(event.reason)
         if cat == "approval_required":
@@ -143,7 +165,7 @@ class TypedRemediationStrategy:
         return TransitionType.REQUEST_USER_CONFIRMATION
 
     def format_denial(self, event: DenialEvent, *, task: str, task_hash: str) -> FeedbackPayload:
-        from saferemediate.tickets.redeem_call import B6_MECHANISM_VERSION
+        from saferemediate.tickets.redeem_call import B6_MECHANISM_V03
 
         transition = self._pick_transition(event)
         ticket = issue_remediation_ticket(
@@ -152,20 +174,42 @@ class TypedRemediationStrategy:
             transition_type=transition,
             transition_params={"catalog_version": "public-v1"},
             context_version=1,
+            ticket_format=self.ticket_format,
         )
-        usage = (
-            f"Typed remediation ({transition.value}): pass remediation_ticket on the next "
-            "permitted tool call that implements this transition. "
-            "Do not invent a new ticket via tickets.create."
-        )
+        category = asg_reason_to_category(event.reason)
+        if self.mechanism_version == B6_MECHANISM_V03:
+            message = (
+                "Choose a listed action only when it satisfies the task; otherwise ask "
+                "for user input or terminate safely."
+            )
+            remediation = {
+                "version": "1",
+                "category_code": category,
+                "message": message,
+                "retry_mode": (
+                    "resume_token_required"
+                    if transition == TransitionType.REQUEST_HUMAN_APPROVAL
+                    else "after_input_change"
+                ),
+                "next_actions": _v03_actions(transition, event.approval_url),
+            }
+            usage = None
+        else:
+            remediation = None
+            usage = (
+                f"Typed remediation ({transition.value}): pass remediation_ticket on the next "
+                "permitted tool call that implements this transition. "
+                "Do not invent a new ticket via tickets.create."
+            )
         return FeedbackPayload(
             strategy_id="B6",
             allowed=False,
-            category_code=asg_reason_to_category(event.reason),
+            category_code=category,
             ticket_jwt=ticket,
             transition_type=transition.value,
             remediation_message=usage,
-            b6_mechanism_version=B6_MECHANISM_VERSION,
+            b6_mechanism_version=self.mechanism_version,
+            remediation=remediation,
         )
 
 
@@ -187,3 +231,50 @@ def register_all_strategies() -> None:
 
 
 register_all_strategies()
+
+
+def _v03_actions(
+    transition: TransitionType, approval_url: str | None
+) -> list[dict[str, object]]:
+    if transition == TransitionType.SELECT_FROM_PUBLIC_RESOURCES:
+        primary = {
+            "type": "select_public_resource",
+            "tool": None,
+            "requires_user_input": False,
+        }
+    elif transition == TransitionType.REQUEST_HUMAN_APPROVAL and approval_url:
+        primary = {
+            "type": "request_approval",
+            "tool": "request_human_escalation",
+            "requires_user_input": True,
+        }
+    elif transition == TransitionType.TERMINATE_SAFELY:
+        primary = {
+            "type": "terminate_safely",
+            "tool": "terminate_safely",
+            "requires_user_input": False,
+        }
+    else:
+        primary = {
+            "type": "request_user_confirmation",
+            "tool": "request_human_escalation",
+            "requires_user_input": True,
+        }
+    actions = [primary]
+    if primary["type"] != "request_user_confirmation":
+        actions.append(
+            {
+                "type": "request_user_confirmation",
+                "tool": "request_human_escalation",
+                "requires_user_input": True,
+            }
+        )
+    if primary["type"] != "terminate_safely":
+        actions.append(
+            {
+                "type": "terminate_safely",
+                "tool": "terminate_safely",
+                "requires_user_input": False,
+            }
+        )
+    return actions

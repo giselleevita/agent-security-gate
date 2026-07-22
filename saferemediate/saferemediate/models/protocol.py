@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -70,7 +69,10 @@ class RunMetadata(BaseModel):
     latency_ms: float | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    reasoning_tokens: int | None = None
     total_tokens: int | None = None
+    request_bytes: int | None = None
+    response_bytes: int | None = None
     estimated_cost_usd: float | None = None
     provider_error: str | None = None
     raw_response_redacted: dict[str, Any] = Field(default_factory=dict)

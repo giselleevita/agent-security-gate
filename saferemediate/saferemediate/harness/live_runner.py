@@ -21,15 +21,16 @@ from saferemediate.leakage.agent_context import (
     build_seeded_system_prompt,
 )
 from saferemediate.models.protocol import AgentActionKind, AgentModel, ProviderError
-from saferemediate.models.tool_schemas import schemas_for_episode
+from saferemediate.models.tool_schemas import schemas_for_episode, schemas_for_recovery
 from saferemediate.scoring.outcomes import (
     ScoredOutcome,
     assert_scoring_invariants,
     classify_outcome,
 )
-from saferemediate.scoring.seeded_metrics import compute_seeded_metrics
+from saferemediate.scoring.seeded_metrics import calls_equivalent, compute_seeded_metrics
 from saferemediate.tickets.redeem_call import (
-    B6_MECHANISM_VERSION,
+    B6_MECHANISM_V02,
+    B6_MECHANISM_V03,
     PendingTicket,
     handle_tool_call_ticket,
 )
@@ -97,12 +98,22 @@ async def run_live_episode(
     trial: int = 0,
     session_id: str | None = None,
     entry_mode: EntryMode = NATURAL_ENTRY_MODE,
+    b6_mechanism_version: str = B6_MECHANISM_V02,
+    b6_ticket_format: str = "jwt",
 ) -> LiveEpisodeTrace:
     sid = session_id or f"live-{episode.episode_id}-{strategy_id}-t{trial}"
     run_key = f"{episode.episode_id}:{strategy_id}:{trial}"
     th = task_hash(episode.task, sid, episode.tenant_id)
-    strategy = get_strategy(strategy_id)
-    tool_schemas = schemas_for_episode(episode, strategy_id=strategy_id)
+    strategy = get_strategy(
+        strategy_id,
+        b6_mechanism_version=b6_mechanism_version,
+        b6_ticket_format=b6_ticket_format,
+    )
+    tool_schemas = schemas_for_episode(
+        episode,
+        strategy_id=strategy_id,
+        b6_mechanism_version=b6_mechanism_version,
+    )
 
     trace = LiveEpisodeTrace(
         run_key=run_key,
@@ -127,6 +138,8 @@ async def run_live_episode(
             task_hash_value=th,
             trace=trace,
             session_id=sid,
+            b6_mechanism_version=b6_mechanism_version,
+            b6_ticket_format=b6_ticket_format,
         )
 
     return await _run_natural_episode(
@@ -138,6 +151,8 @@ async def run_live_episode(
         task_hash_value=th,
         trace=trace,
         session_id=sid,
+        b6_mechanism_version=b6_mechanism_version,
+        b6_ticket_format=b6_ticket_format,
     )
 
 
@@ -151,6 +166,8 @@ async def _run_natural_episode(
     task_hash_value: str,
     trace: LiveEpisodeTrace,
     session_id: str,
+    b6_mechanism_version: str,
+    b6_ticket_format: str,
 ) -> LiveEpisodeTrace:
     system_prompt = build_agent_system_prompt(episode, strategy_id=strategy_id)
     conversation: list[dict[str, str]] = [{"role": "user", "content": episode.task}]
@@ -197,6 +214,23 @@ async def _run_natural_episode(
             last_action = "parse_failure"
             break
 
+        ticket_result = None
+        if action.tool:
+            ticket_result = handle_tool_call_ticket(
+                tool=action.tool,
+                params=dict(action.params or {}),
+                pending=pending,
+                strategy_id=strategy_id,
+            )
+            if ticket_result.ticket_abuse:
+                ticket_abuse = True
+                if b6_mechanism_version == B6_MECHANISM_V03:
+                    last_action = "ticket_abuse"
+                    break
+            if ticket_result.valid_ticket_guided_transition:
+                valid_ticket = True
+                pending = None
+
         if action.kind == AgentActionKind.SAFE_TERMINATION:
             last_action = "safe_termination"
             break
@@ -214,17 +248,13 @@ async def _run_natural_episode(
         if action.tool == "tickets.create" and strategy_id == "B6":
             generic_tickets_create = True
 
-        ticket_result = handle_tool_call_ticket(
-            tool=action.tool,
-            params=dict(action.params or {}),
-            pending=pending,
-            strategy_id=strategy_id,
-        )
-        if ticket_result.ticket_abuse:
-            ticket_abuse = True
-        if ticket_result.valid_ticket_guided_transition:
-            valid_ticket = True
-            pending = None
+        if ticket_result is None:
+            ticket_result = handle_tool_call_ticket(
+                tool=action.tool,
+                params=dict(action.params or {}),
+                pending=pending,
+                strategy_id=strategy_id,
+            )
 
         if action.tool in ("terminate_safely", "request_human_escalation"):
             if action.tool == "request_human_escalation":
@@ -277,6 +307,12 @@ async def _run_natural_episode(
             pending = _pending_from_view(
                 view, audit_id=audit_id, task_hash_value=task_hash_value
             )
+            tool_schemas = schemas_for_recovery(
+                episode,
+                strategy_id=strategy_id,
+                feedback_view=view,
+                b6_mechanism_version=b6_mechanism_version,
+            )
 
         if allowed:
             break
@@ -299,7 +335,7 @@ async def _run_natural_episode(
     trace.score = scored.to_dict()
     trace.score["outcome"] = scored.outcome.value
     if strategy_id == "B6":
-        trace.score["b6_mechanism_version"] = B6_MECHANISM_VERSION
+        trace.score["b6_mechanism_version"] = b6_mechanism_version
     return trace
 
 
@@ -313,6 +349,8 @@ async def _run_seeded_denial_episode(
     task_hash_value: str,
     trace: LiveEpisodeTrace,
     session_id: str,
+    b6_mechanism_version: str,
+    b6_ticket_format: str,
 ) -> LiveEpisodeTrace:
     trace.attribution = {
         "initial_action_source": "episode_fixture",
@@ -321,7 +359,13 @@ async def _run_seeded_denial_episode(
     }
 
     attempt = initial_agent_attempt(episode)
-    seed = execute_seed_denial(episode, strategy_id, session_id=session_id)
+    seed = execute_seed_denial(
+        episode,
+        strategy_id,
+        session_id=session_id,
+        b6_mechanism_version=b6_mechanism_version,
+        b6_ticket_format=b6_ticket_format,
+    )
     trace.seed_trace = {
         **seed.to_dict(),
         "asg_request": {
@@ -375,6 +419,12 @@ async def _run_seeded_denial_episode(
             seed.feedback_view,
             audit_id=seed.audit_id,
             task_hash_value=task_hash_value,
+        )
+        tool_schemas = schemas_for_recovery(
+            episode,
+            strategy_id=strategy_id,
+            feedback_view=seed.feedback_view,
+            b6_mechanism_version=b6_mechanism_version,
         )
 
     policy_violations = 0
@@ -434,6 +484,24 @@ async def _run_seeded_denial_episode(
             )
             break
 
+        ticket_result = None
+        if action.tool:
+            ticket_result = handle_tool_call_ticket(
+                tool=action.tool,
+                params=dict(action.params or {}),
+                pending=pending,
+                strategy_id=strategy_id,
+            )
+            if ticket_result.ticket_abuse:
+                ticket_abuse = True
+                turn_record["ticket_abuse"] = True
+                if b6_mechanism_version == B6_MECHANISM_V03:
+                    last_action = "ticket_abuse"
+                    break
+            if ticket_result.valid_ticket_guided_transition:
+                valid_ticket = True
+                pending = None
+
         if action.kind == AgentActionKind.SAFE_TERMINATION:
             last_action = "safe_termination"
             break
@@ -451,18 +519,13 @@ async def _run_seeded_denial_episode(
         if action.tool == "tickets.create" and strategy_id == "B6":
             generic_tickets_create = True
 
-        ticket_result = handle_tool_call_ticket(
-            tool=action.tool,
-            params=dict(action.params or {}),
-            pending=pending,
-            strategy_id=strategy_id,
-        )
-        if ticket_result.ticket_abuse:
-            ticket_abuse = True
-            turn_record["ticket_abuse"] = True
-        if ticket_result.valid_ticket_guided_transition:
-            valid_ticket = True
-            pending = None
+        if ticket_result is None:
+            ticket_result = handle_tool_call_ticket(
+                tool=action.tool,
+                params=dict(action.params or {}),
+                pending=pending,
+                strategy_id=strategy_id,
+            )
 
         if action.tool in ("terminate_safely", "request_human_escalation"):
             if action.tool == "request_human_escalation":
@@ -482,6 +545,15 @@ async def _run_seeded_denial_episode(
 
         # Probe-budget: count denied probing-family actions toward budget.
         call_key = (action.tool, json.dumps(ticket_result.params, sort_keys=True, default=str))
+        if calls_equivalent(seed_tool, seed_params, action.tool, ticket_result.params):
+            turn_record["gateway_decision"] = {
+                "allowed": False,
+                "reason": "repeated_denied_action",
+            }
+            turn_record["task_aligned"] = False
+            turn_record["side_effect_executed"] = False
+            last_action = "exhausted"
+            break
         if call_key in seen_denied:
             last_action = "exhausted"
             conversation.append(
@@ -568,6 +640,12 @@ async def _run_seeded_denial_episode(
             pending = _pending_from_view(
                 view, audit_id=audit_id, task_hash_value=task_hash_value
             )
+            tool_schemas = schemas_for_recovery(
+                episode,
+                strategy_id=strategy_id,
+                feedback_view=view,
+                b6_mechanism_version=b6_mechanism_version,
+            )
 
         if allowed:
             break
@@ -600,7 +678,7 @@ async def _run_seeded_denial_episode(
     trace.score["outcome"] = scored.outcome.value
     trace.score["seed_valid"] = True
     if strategy_id == "B6":
-        trace.score["b6_mechanism_version"] = B6_MECHANISM_VERSION
+        trace.score["b6_mechanism_version"] = b6_mechanism_version
     trace.seeded_metrics = compute_seeded_metrics(
         seed=seed, model_turns=trace.model_turns, score=trace.score
     )

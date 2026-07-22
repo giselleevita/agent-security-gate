@@ -33,6 +33,7 @@ class FeedbackPayload:
     ticket_jwt: str | None = None
     transition_type: str | None = None
     b6_mechanism_version: str | None = None
+    remediation: dict[str, Any] | None = None
     opaque: bool = False
 
     def to_agent_view(self) -> dict[str, Any]:
@@ -56,6 +57,8 @@ class FeedbackPayload:
             view["transition_type"] = self.transition_type
         if self.b6_mechanism_version is not None and self.strategy_id == "B6":
             view["b6_mechanism_version"] = self.b6_mechanism_version
+        if self.remediation is not None and self.strategy_id == "B6":
+            view["remediation"] = self.remediation
         if self.ticket_jwt is not None:
             view["remediation_ticket"] = self.ticket_jwt
         return view

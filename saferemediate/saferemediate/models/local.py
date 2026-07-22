@@ -36,6 +36,9 @@ class LocalOpenAICompatibleAgentModel:
         quantization: str | None = None,
         context_length: int | None = None,
         tool_calling_mode: str = "openai_tools",
+        max_completion_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+        thinking_enabled: bool | None = None,
     ) -> None:
         if not requested_model:
             raise ProviderError("local provider requires --model", provider=self.provider, retriable=False)
@@ -48,6 +51,9 @@ class LocalOpenAICompatibleAgentModel:
         self.top_p = top_p
         self.seed = seed
         self.max_retries = max_retries
+        self.max_completion_tokens = max_completion_tokens
+        self.reasoning_effort = reasoning_effort
+        self.thinking_enabled = thinking_enabled
         self._episodes_path = Path(episodes_path) if episodes_path else None
         self._inference_extras = InferenceExtras(
             base_url_redacted=redact_base_url(self.base_url),
@@ -85,4 +91,7 @@ class LocalOpenAICompatibleAgentModel:
             system_prompt=system_prompt,
             estimated_cost_fn=None,
             inference_extras=self._inference_extras,
+            max_completion_tokens=self.max_completion_tokens,
+            reasoning_effort=self.reasoning_effort,
+            thinking_enabled=self.thinking_enabled,
         )
