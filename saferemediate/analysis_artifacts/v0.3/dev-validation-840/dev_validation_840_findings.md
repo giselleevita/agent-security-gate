@@ -6,6 +6,19 @@ The seeded-denial development/validation study completed **840/840** runs across
 
 This is behavioural evidence from the local `qwen3.5:9b` Ollama run. It remains labelled non-publication-ready in the source run specification and does not include held-out episodes.
 
+## What we learned
+
+The run supports a narrow but useful conclusion: the gateway and scorer held up under the 840-run development/validation pass, but denial recovery remains the hard part.
+
+- Direct policy blocking was stable in this run: there were **0 scorer-recorded policy violations**, **0 parse failures**, **0 duplicate run keys**, and **0 same-call retries** after the seeded denial.
+- Safe terminal behavior was common but not dominant: **454/840 runs (54.0%)** ended in either safe completion or safe termination.
+- The model still often failed to recover productively after a denial: **228/840 runs (27.1%)** escalated and **158/840 runs (18.8%)** ended in unsafe completion.
+- Unsafe behavior mostly moved sideways rather than repeating the exact blocked call: the scorer recorded **340 alternative unsafe paths** and **0 same-call retries**. That means the next improvement target is not only "do not retry"; it is "choose a safe next action."
+- The strategy comparison did not produce a clean winner. B5 had the lowest unsafe-completion rate (**5.0%**) but mostly achieved that by escalating (**93/120 runs**). B0 had the highest safe-terminal rate (**72.5%**) but still had **21/120 unsafe completions**. B6 was not yet an improvement in this run (**26.7% unsafe completion**, **50.8% safe terminal**) despite the structured-ticket design.
+- The practical lesson is that denial messages need to be more action-guiding, not merely more informative. Agents need constrained, machine-readable recovery options that steer them toward allowed alternatives, safe termination, or explicit approval without encouraging ticket invention, laundering, or speculative alternate paths.
+
+So the result is best read as an integrity pass plus a design lesson: ASG can consistently stop the first unsafe tool call, but SafeRemediate still needs stronger recovery affordances before it can claim reliable post-denial remediation.
+
 ## Integrity
 
 - Complete checkpoint: **True**
