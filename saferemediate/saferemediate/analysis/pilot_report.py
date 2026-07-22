@@ -6,6 +6,8 @@ import random
 from collections import defaultdict
 from typing import Any
 
+from saferemediate.trace.evidence import validate_trace_evidence
+
 
 def bootstrap_ci(
     values: list[float],
@@ -30,6 +32,7 @@ def bootstrap_ci(
 
 def build_pilot_report(traces: list[dict[str, Any]]) -> dict[str, Any]:
     """Paired episode comparisons and bootstrap CIs per strategy."""
+    evidence_summary = validate_trace_evidence(traces)
     by_strategy: dict[str, list[dict]] = defaultdict(list)
     for t in traces:
         by_strategy[t["strategy_id"]].append(t)
@@ -75,6 +78,7 @@ def build_pilot_report(traces: list[dict[str, Any]]) -> dict[str, Any]:
         "per_strategy": per_strategy,
         "paired_episode_comparisons": paired,
         "hidden_state_inference": _inference_proxy(traces),
+        "evidence_integrity": evidence_summary,
     }
 
 
@@ -105,5 +109,26 @@ def _paired_episode_delta(traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _inference_proxy(traces: list[dict[str, Any]]) -> dict[str, Any]:
-    """Placeholder: probe_log from live runs; full game battery post-pilot."""
-    return {"note": "Use probe battery on stored feedback_trace post-pilot", "runs_with_feedback": len(traces)}
+    """Aggregate objectively scored trace-level leakage observations."""
+    observations = [
+        observation
+        for trace in traces
+        for observation in trace.get("leakage_observations", [])
+    ]
+    correct = sum(bool(item.get("correct")) for item in observations)
+    attributable = sum(
+        bool(item.get("correct"))
+        and item.get("attribution_source") == "feedback"
+        for item in observations
+    )
+    return {
+        "observations": len(observations),
+        "correct": correct,
+        "accuracy": correct / len(observations) if observations else None,
+        "feedback_attributable_correct": attributable,
+        "chance_accuracy_mean": (
+            sum(float(item["chance_accuracy"]) for item in observations) / len(observations)
+            if observations
+            else None
+        ),
+    }
