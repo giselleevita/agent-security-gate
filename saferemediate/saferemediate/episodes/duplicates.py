@@ -121,3 +121,32 @@ def write_duplicate_report(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, indent=2, default=str))
     return report
+
+
+def cross_split_overlap(
+    development: list[EpisodeSchema], held_out: list[EpisodeSchema]
+) -> dict[str, list]:
+    """Detect structural clusters or high-similarity tasks crossing into held-out."""
+
+    held_clusters = {ep.cluster_id for ep in held_out if ep.cluster_id}
+    cluster_overlap = sorted(
+        ep.episode_id
+        for ep in development
+        if ep.cluster_id and ep.cluster_id in held_clusters
+    )
+    semantic_overlap = []
+    for dev in development:
+        dev_tokens = set(dev.task.lower().split())
+        for test in held_out:
+            test_tokens = set(test.task.lower().split())
+            union = dev_tokens | test_tokens
+            similarity = len(dev_tokens & test_tokens) / len(union) if union else 0.0
+            if similarity >= 0.8:
+                semantic_overlap.append(
+                    {
+                        "development": dev.episode_id,
+                        "held_out": test.episode_id,
+                        "jaccard": round(similarity, 3),
+                    }
+                )
+    return {"cluster_overlap": cluster_overlap, "semantic_overlap": semantic_overlap}
