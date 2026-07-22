@@ -35,7 +35,7 @@ from app.dlp import load_canaries as _load_canaries
 from app.exceptions import load_active_policy_exceptions as _load_active_policy_exceptions
 from app import metrics as _metrics
 from app.policy import opa_post as _opa_post
-from app.schemas import DecideResponse, RateLimitExceededResponse
+from app.schemas import DecideResponse, RateLimitExceededResponse, remediation_for_reason
 
 # Re-export decision entrypoints for routers/tests that patch `app.main`.
 __all__ = [
@@ -148,7 +148,19 @@ class _ToolOutputScanMiddleware(BaseHTTPMiddleware):
 
             if reason_or_none is not None:
                 audit_id = f"evt_{uuid.uuid4().hex}"
-                payload = {"allowed": False, "reason": reason_or_none, "audit_id": audit_id, "latency_ms": 0.0}
+                remediation = remediation_for_reason(reason_or_none)
+                if remediation is not None:
+                    _metrics.record_remediation_issued(
+                        category=remediation.category_code.value,
+                        retry_mode=remediation.retry_mode.value,
+                    )
+                payload = {
+                    "allowed": False,
+                    "reason": reason_or_none,
+                    "audit_id": audit_id,
+                    "latency_ms": 0.0,
+                    "remediation": remediation.model_dump() if remediation else None,
+                }
                 _append_audit_event(audit_id, {"agent_response_redacted": True, "response": payload})
                 return JSONResponse(status_code=200, content=payload)
 

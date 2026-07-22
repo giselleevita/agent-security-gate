@@ -34,6 +34,11 @@ _RATE_LIMIT_HITS = Counter(
     "Total requests rejected by a rate-limit bucket.",
     ["bucket"],
 )
+_REMEDIATION_ISSUED = Counter(
+    "asg_remediation_issued_total",
+    "Denied decisions that included remediation advice.",
+    ["category", "retry_mode"],
+)
 _APPROVALS_PENDING = Gauge(
     "asg_approvals_pending",
     "Approvals currently in the pending state (best-effort, set at scrape time).",
@@ -58,6 +63,10 @@ def record_opa_error() -> None:
 
 def record_rate_limit_hit(bucket: str) -> None:
     _RATE_LIMIT_HITS.labels(bucket=bucket).inc()
+
+
+def record_remediation_issued(*, category: str, retry_mode: str) -> None:
+    _REMEDIATION_ISSUED.labels(category=category, retry_mode=retry_mode).inc()
 
 
 def set_approvals_pending(count: int) -> None:

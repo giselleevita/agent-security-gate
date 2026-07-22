@@ -141,6 +141,10 @@ def test_metrics_increment_on_allow_and_deny(monkeypatch) -> None:
     assert allow_after == allow_before + 1
     assert deny_after >= 1
     assert "asg_decide_latency_seconds_count" in body
+    assert (
+        'asg_remediation_issued_total{category="denied_sensitivity_class",'
+        'retry_mode="after_input_change"}'
+    ) in body
 
 
 def test_metrics_counts_rate_limit_hits(monkeypatch) -> None:

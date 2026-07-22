@@ -112,6 +112,7 @@ def agent_facade(body: AgentRequest, bearer_token: str = Depends(require_bearer_
         audit_id=d.audit_id,
         latency_ms=d.latency_ms,
         approval_url=d.approval_url,
+        remediation=d.remediation,
         action=decide.action,
         tool=decide.tool,
     )
