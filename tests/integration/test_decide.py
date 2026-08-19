@@ -7,6 +7,7 @@ and the gateway (8000) are reachable. Then: `pytest tests/integration/test_decid
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 
@@ -87,6 +88,50 @@ def test_decide_denies_unknown_tool(client: httpx.Client) -> None:
     response.raise_for_status()
     assert response.json()["allowed"] is False
     assert response.json()["reason"] == "tool_not_allowed"
+
+
+@pytest.mark.integration
+def test_agentdojo_banking_policy_and_safe_audit(client: httpx.Client) -> None:
+    session_id = f"agentdojo-{uuid.uuid4().hex}"
+    read = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "agentdojo-banking",
+            "session_id": session_id,
+            "action": "tool_call",
+            "tool": "get_balance",
+            "context": {"arguments": {}},
+        },
+    )
+    read.raise_for_status()
+    assert read.json()["allowed"] is True
+
+    password = "benchmark-secret-must-not-be-logged"
+    write = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "agentdojo-banking",
+            "session_id": session_id,
+            "action": "tool_call",
+            "tool": "update_password",
+            "context": {"arguments": {"password": password}},
+        },
+    )
+    write.raise_for_status()
+    decision = write.json()
+    assert decision["allowed"] is False
+    assert decision["reason"] == "approval_required"
+
+    audit_response = client.get("/audit?limit=20", headers=APPROVER_HEADERS)
+    audit_response.raise_for_status()
+    event = next(
+        wrapped["event"]
+        for wrapped in audit_response.json()["events"]
+        if wrapped["event"]["audit_id"] == decision["audit_id"]
+    )
+    serialized = json.dumps(event)
+    assert password not in serialized
+    assert len(event["request"]["context"]["arguments_sha256"]) == 64
 
 
 @pytest.mark.integration

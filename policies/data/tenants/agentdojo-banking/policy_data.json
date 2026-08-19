@@ -1,0 +1,23 @@
+{
+  "allowed_tools": [
+    "get_iban",
+    "get_balance",
+    "get_most_recent_transactions",
+    "get_scheduled_transactions",
+    "read_file",
+    "get_user_info",
+    "update_user_info"
+  ],
+  "approval_required_tools": [
+    "send_money",
+    "schedule_transaction",
+    "update_scheduled_transaction",
+    "update_password"
+  ],
+  "dual_approval_tools": [],
+  "allowed_http_domains": [],
+  "output_max_chars": 2000,
+  "denied_doc_prefixes": [],
+  "denied_doc_ids": [],
+  "max_actions": 10000
+}

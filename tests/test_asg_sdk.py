@@ -5,7 +5,7 @@ import json
 import httpx
 import pytest
 
-from asg_sdk import AsgClient, AsgDenied, GatedTool
+from asg_sdk import AsgClient, AsgDenied, AsgError, GatedTool
 
 
 def _make_client(handler) -> AsgClient:
@@ -82,3 +82,17 @@ def test_gated_tool_runs_fn_only_after_allow():
     out = tool(query="update x")
     assert out == "ok"
     assert calls == [("evt_4", "update x")]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"allowed": "false", "reason": "deny", "audit_id": "evt_5"},
+        {"allowed": False, "reason": "", "audit_id": "evt_5"},
+        {"allowed": False, "reason": "deny", "audit_id": None},
+    ],
+)
+def test_malformed_decision_response_fails_closed(payload: dict[str, object]) -> None:
+    client = _make_client(lambda _request: httpx.Response(200, json=payload))
+    with pytest.raises(AsgError, match="malformed decision response"):
+        client.guard("db.write", {"query": "update x"})

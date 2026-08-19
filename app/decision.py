@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 import uuid
@@ -30,6 +31,25 @@ from app.policy import tenant_known as _tenant_known
 from app.schemas import DecideRequest, DecideResponse
 
 _OPERATION_VOLATILE_KEYS = {"tool_output", "output_length"}
+
+
+def audit_safe_request(body: DecideRequest) -> dict[str, Any]:
+    """Return bounded request metadata without persisting arguments or tool output."""
+    request = body.model_dump()
+    context = dict(request.get("context", {}))
+    arguments = context.pop("arguments", None)
+    if arguments is not None:
+        encoded = json.dumps(arguments, sort_keys=True, separators=(",", ":"), default=str).encode()
+        context["arguments_sha256"] = hashlib.sha256(encoded).hexdigest()
+        if isinstance(arguments, dict):
+            context["argument_keys"] = sorted(str(key)[:64] for key in arguments)[:64]
+    tool_output = context.pop("tool_output", None)
+    if tool_output is not None:
+        encoded_output = str(tool_output).encode()
+        context["tool_output_sha256"] = hashlib.sha256(encoded_output).hexdigest()
+        context["tool_output_length"] = len(str(tool_output))
+    request["context"] = context
+    return request
 
 
 def operation_key(action: str, tool: str, context: dict[str, Any]) -> str:
@@ -119,7 +139,7 @@ def decide_tool_call_impl(
             latency_ms=0.0,
             approval_url=None,
         )
-        _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
+        _append_audit_event(audit_id, {"request": audit_safe_request(body), "response": response.model_dump()})
         return response
 
     policy_config = _load_policy_config(body.tenant_id)
@@ -128,12 +148,8 @@ def decide_tool_call_impl(
 
     tool_output = body.context.get("tool_output")
     if isinstance(tool_output, str) and tool_output:
-        reason_or_none, redacted, extras = _scan_tool_output(tool_output=tool_output)
+        reason_or_none, _redacted, extras = _scan_tool_output(tool_output=tool_output)
         if reason_or_none is not None:
-            safe_body = body.model_dump()
-            safe_ctx = dict(safe_body.get("context", {}))
-            safe_ctx["tool_output"] = redacted
-            safe_body["context"] = safe_ctx
             audit_id = f"evt_{uuid.uuid4().hex}"
             response = DecideResponse(
                 allowed=False,
@@ -142,7 +158,10 @@ def decide_tool_call_impl(
                 latency_ms=0.0,
                 approval_url=None,
             )
-            _append_audit_event(audit_id, {"request": safe_body, "response": response.model_dump(), "scan": extras})
+            _append_audit_event(
+                audit_id,
+                {"request": audit_safe_request(body), "response": response.model_dump(), "scan": extras},
+            )
             return response
 
     sensitivity = str(body.context.get("sensitivity_label", "")).lower().strip()
@@ -155,7 +174,7 @@ def decide_tool_call_impl(
             latency_ms=0.0,
             approval_url=None,
         )
-        _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
+        _append_audit_event(audit_id, {"request": audit_safe_request(body), "response": response.model_dump()})
         return response
 
     if body.tool == "http.get":
@@ -174,7 +193,7 @@ def decide_tool_call_impl(
                 latency_ms=0.0,
                 approval_url=None,
             )
-            _append_audit_event(audit_id, {"request": body.model_dump(), "response": response.model_dump()})
+            _append_audit_event(audit_id, {"request": audit_safe_request(body), "response": response.model_dump()})
             return response
 
     try:
@@ -294,7 +313,7 @@ def decide_tool_call_impl(
         latency_ms=round(latency_ms, 3),
         approval_url="/v1/approvals/request" if (reason == "approval_required" and not allowed) else None,
     )
-    audit_event: dict[str, Any] = {"request": body.model_dump(), "response": response.model_dump()}
+    audit_event: dict[str, Any] = {"request": audit_safe_request(body), "response": response.model_dump()}
     if matched_exception_id:
         audit_event["policy_exception_id"] = matched_exception_id
     _append_audit_event(audit_id, audit_event)
