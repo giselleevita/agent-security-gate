@@ -23,7 +23,7 @@ docker compose up -d --build
 python -m pip install -r requirements-agentdojo.lock
 ```
 
-A supported provider credential is required by AgentDojo. The frozen protocol currently names `claude-3-haiku-20240307` at temperature `0.0`.
+An Anthropic credential is required by AgentDojo. The frozen protocol names the active `claude-haiku-4-5-20251001` model at temperature `0.0`. Claude Haiku 3 was rejected before any benchmark execution because Anthropic retired it on April 20, 2026.
 
 ## Runs
 
