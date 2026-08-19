@@ -140,6 +140,7 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path) -> Path:
     from agentdojo.agent_pipeline.llms.openai_llm import OpenAILLM
     from agentdojo.attacks.attack_registry import load_attack
     from agentdojo.benchmark import benchmark_suite_with_injections
+    from agentdojo.logging import OutputLogger
     from agentdojo.task_suite.load_suites import get_suite
     from openai import OpenAI
 
@@ -195,16 +196,18 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path) -> Path:
     attack = load_attack(protocol["attack"], suite, pipeline)
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
-        results = benchmark_suite_with_injections(
-            pipeline,
-            suite,
-            attack,
-            logdir=output_dir / "raw",
-            force_rerun=True,
-            user_tasks=phase_config["user_tasks"],
-            injection_tasks=phase_config["injection_tasks"],
-            benchmark_version=protocol["benchmark_version"],
-        )
+        raw_dir = output_dir / "raw"
+        with OutputLogger(str(raw_dir)):
+            results = benchmark_suite_with_injections(
+                pipeline,
+                suite,
+                attack,
+                logdir=raw_dir,
+                force_rerun=True,
+                user_tasks=phase_config["user_tasks"],
+                injection_tasks=phase_config["injection_tasks"],
+                benchmark_version=protocol["benchmark_version"],
+            )
     finally:
         if client is not None:
             client.close()
