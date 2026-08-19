@@ -7,8 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from saferemediate.episodes.schema import EpisodeSchema, load_dataset_manifest, load_episodes
-from saferemediate.episodes.selection import seeded_denial_episodes
+from saferemediate.episodes.schema import EpisodeSchema, load_dataset_manifest
 from saferemediate.feedback.base import StrategyId
 from saferemediate.harness.entry_mode import EntryMode
 from saferemediate.harness.seed import SeedValidationError, execute_seed_denial, initial_agent_attempt

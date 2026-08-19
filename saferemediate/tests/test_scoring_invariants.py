@@ -2,7 +2,7 @@
 
 import pytest
 
-from saferemediate.scoring.aggregate import aggregate_from_traces, assert_scoring_invariants_from_dict
+from saferemediate.scoring.aggregate import aggregate_from_traces
 from saferemediate.scoring.outcomes import (
     EpisodeScore,
     ScoredOutcome,

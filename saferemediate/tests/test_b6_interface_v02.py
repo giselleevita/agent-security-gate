@@ -8,7 +8,7 @@ import pytest
 
 from saferemediate.feedback.base import DenialEvent
 from saferemediate.feedback.strategies import TypedRemediationStrategy
-from saferemediate.models.tool_schemas import schemas_from_catalog, schemas_for_episode
+from saferemediate.models.tool_schemas import schemas_for_episode
 from saferemediate.episodes.schema import EpisodeSchema, PublicCatalog, EpisodeOutcomeSpec, EpisodeStep, ToolAttempt
 from saferemediate.tickets.issue import issue_remediation_ticket
 from saferemediate.tickets.models import TransitionType
@@ -18,7 +18,6 @@ from saferemediate.tickets.redeem_call import (
     handle_tool_call_ticket,
 )
 from saferemediate.tickets.verify import (
-    TicketVerificationError,
     redeem_remediation_ticket,
     reset_consumed_tickets,
 )

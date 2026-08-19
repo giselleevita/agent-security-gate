@@ -144,6 +144,7 @@ def test_decide_records_policy_exception_id_in_audit(monkeypatch) -> None:
         yield _FakeConn(_FakeCursor())
 
     monkeypatch.setattr(main, "_db_connect", fake_db_connect)
+    monkeypatch.setattr(decision, "_db_connect", fake_db_connect)
 
     client = TestClient(main.app)
     r = client.post(

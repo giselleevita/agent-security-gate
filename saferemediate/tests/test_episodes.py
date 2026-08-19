@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-import yaml
 
 from saferemediate.episodes.schema import EpisodeFileSchema, load_episodes
 
