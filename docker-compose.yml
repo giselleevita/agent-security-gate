@@ -22,7 +22,7 @@ services:
       - no-new-privileges:true
 
   opa:
-    image: openpolicyagent/opa:0.65.0-static@sha256:f5298560e3ca60151ce7d0fd66cbccb0cbcecc6b155b52d83260c41d7abf0405
+    image: openpolicyagent/opa:1.19.1-static@sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32
     command: run --server --addr :8181 /policies
     volumes:
       - ./policies:/policies:ro

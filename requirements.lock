@@ -21,7 +21,7 @@ cffi==2.1.0
     # via cryptography
 click==8.4.1
     # via uvicorn
-cryptography==49.0.0
+cryptography==50.0.0
     # via pyjwt
 fastapi==0.136.3
     # via agent-security-gate (pyproject.toml)
