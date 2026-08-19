@@ -10,7 +10,11 @@ from app.schemas import DecideRequest
 from asg_sdk import Decision
 import pytest
 
-from scripts.run_agentdojo_benchmark import _records, _require_local_url
+from scripts.run_agentdojo_benchmark import (
+    _PinnedLocalCompletions,
+    _records,
+    _require_local_url,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +36,22 @@ def test_frozen_protocol_uses_exact_local_model_artifact() -> None:
     assert protocol["model"] == "qwen3.5:9b"
     assert protocol["ollama_base_url"] == "http://127.0.0.1:11434"
     assert len(protocol["ollama_model_digest"]) == 64
+    assert protocol["reasoning_effort"] == "none"
+    assert protocol["seed"] == 42
+
+
+def test_local_completion_applies_pins_to_every_model_call() -> None:
+    delegate = MagicMock()
+    completions = _PinnedLocalCompletions(delegate, "none", 42)
+
+    completions.create(model="qwen3.5:9b", messages=[])
+
+    delegate.create.assert_called_once_with(
+        model="qwen3.5:9b",
+        messages=[],
+        reasoning_effort="none",
+        seed=42,
+    )
 
 
 @pytest.mark.parametrize("url", ["https://api.openai.com", "http://ollama.example.test:11434"])

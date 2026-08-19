@@ -82,6 +82,8 @@ def test_pinned_agentdojo_protocol_matches_installed_suite() -> None:
     assert validation["model"] == "qwen3.5:9b"
     assert validation["ollama_version"] == "0.31.1"
     assert len(validation["ollama_model_digest"]) == 64
+    assert validation["reasoning_effort"] == "none"
+    assert validation["seed"] == 42
     assert validation["user_tasks"] == 16
     assert validation["injection_tasks"] == 9
     assert validation["tools"] == 11
