@@ -223,6 +223,9 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 
 ## Documentation
 
+- [AgentDojo authorization adapter](docs/integrations/agentdojo.md)
+- [OpenAI Agents SDK authorization adapter](docs/integrations/openai-agents.md)
+
 | Doc | Purpose |
 |---|---|
 | [Architecture decisions (ADRs)](docs/adr/README.md) | Why the non-obvious calls were made, and what was rejected |
