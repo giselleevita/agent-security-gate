@@ -68,7 +68,6 @@ class LeakageGameSpec:
 
 def build_sensitivity_suite() -> list[LeakageGameSpec]:
     """Canonical suite: negative controls, positive controls, and scorable games."""
-    four = ["A", "B", "C", "D"]
     return [
         LeakageGameSpec(
             game_type="resource_existence_forced_choice",

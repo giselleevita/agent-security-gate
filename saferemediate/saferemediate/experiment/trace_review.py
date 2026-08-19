@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from saferemediate.episodes.schema import EpisodeSchema, load_episodes
+from saferemediate.episodes.schema import load_episodes
 from saferemediate.leakage.fields import contains_protected_keys
 
 PROTECTED_STRINGS = (

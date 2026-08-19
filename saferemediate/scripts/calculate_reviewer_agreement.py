@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent))
 
-from saferemediate.analysis.reviewer_agreement import main
+# Import after adding the repository roots so this file also works as a direct script.
+from saferemediate.analysis.reviewer_agreement import main  # noqa: E402
 
 if __name__ == "__main__":
     raise SystemExit(

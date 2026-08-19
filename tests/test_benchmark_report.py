@@ -51,7 +51,6 @@ def test_comparison_report_contains_baselines_and_attack_classes() -> None:
 
 
 def test_attack_class_coverage_lists_yaml_classes() -> None:
-    from benchmark.report import render_attack_class_coverage
 
     report = render_attack_class_coverage("benchmark/scenarios/scenarios.yaml")
     assert "| `benign-flow` |" in report

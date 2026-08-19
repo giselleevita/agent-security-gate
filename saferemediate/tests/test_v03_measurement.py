@@ -14,7 +14,6 @@ from saferemediate.episodes.schema import load_episodes
 from saferemediate.episodes.splits import (
     HeldOutProtectionError,
     assert_held_out_protected,
-    build_v03_splits_from_authored,
     write_splits,
 )
 from saferemediate.leakage.games_v03 import (

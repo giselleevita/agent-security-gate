@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -11,37 +12,34 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16.14-bookworm@sha256:eac82980276bf5dd7ac9bb330e99950da0ef178002ff08279a4a708a5e373b7a
-        env:
-          POSTGRES_USER: asg
-          POSTGRES_PASSWORD: asg
-          POSTGRES_DB: asg
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U asg"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v7.0.0
         with:
           python-version: "3.11"
-      - uses: open-policy-agent/setup-opa@v2
+      - uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
-          version: 0.65.0
+          version: 1.19.1
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip 'setuptools>=83.0.0'
           pip install --constraint requirements-dev.lock -e '.[dev,security]'
-      - name: Initialize database schema
-        run: PGPASSWORD=asg psql -h localhost -U asg -d asg -f db/init.sql
-      - name: Audit dependencies
-        run: pip-audit --skip-editable --progress-spinner off
+      - name: Lint
+        run: ruff check .
+      - name: Audit dependency locks
+        run: |
+          pip-audit --requirement requirements.lock --progress-spinner off
+          pip-audit --requirement requirements-dev.lock --progress-spinner off
+      - name: Scan Python security issues
+        run: bandit -r app adapters audit benchmark gateway approvals scripts -ll
+      - name: Validate OPA policy
+        run: |
+          opa check --strict --v1-compatible policies
+          opa test policies
       - name: Run tests
+        env:
+          DATABASE_URL: postgresql://asg:asg@127.0.0.1:1/asg
+          REDIS_URL: redis://127.0.0.1:1/0
         run: pytest -m "not integration"
       - name: Generate SARIF
         run: |

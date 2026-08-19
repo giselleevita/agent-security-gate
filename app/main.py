@@ -15,7 +15,7 @@ from starlette.responses import Response
 
 from adapters.http import GatedHttpClient, evaluate_http_target  # noqa: F401
 from app.audit_log import append_audit_event as _append_audit_event
-from app.clients import db_connect as _db_connect
+from app.clients import db_connect as _db_connect  # noqa: F401 - compatibility re-export
 from app.clients import http_client as _http
 from app.clients import redis_client as _redis
 from app.clients import reset_clients as _reset_clients
@@ -43,6 +43,7 @@ __all__ = [
     "DecideResponse",
     "app",
     "_append_audit_event",
+    "_db_connect",
     "_http",
     "_redis",
     "_opa_post",

@@ -1,7 +1,7 @@
 SCENARIOS=benchmark/scenarios/scenarios.yaml
 EVIDENCE_DIR=results/evidence
 
-.PHONY: eval compare gate evidence verify-evidence migrate test integration lint security
+.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security
 
 eval:
 	python3 -m benchmark.runner --scenarios $(SCENARIOS) --summary results/summary.json
@@ -17,6 +17,9 @@ evidence: eval
 
 verify-evidence:
 	python3 -m benchmark.evidence verify --bundle $(EVIDENCE_DIR)
+
+verify:
+	./scripts/verify.sh
 
 migrate:
 	python3 -m scripts.migrate_db

@@ -95,6 +95,7 @@ def test_metrics_increment_on_allow_and_deny(monkeypatch) -> None:
     monkeypatch.setattr(main.redis.Redis, "from_url", staticmethod(lambda *_a, **_k: fake_r))
     monkeypatch.setattr(main, "_append_audit_event", lambda *_a, **_k: None)
     monkeypatch.setattr(main, "_db_connect", _fake_db_connect)
+    monkeypatch.setattr(decision, "_db_connect", _fake_db_connect)
 
     def fake_opa_post(_client, _path, _opa_input):
         return {"allow": True, "approval_required": False, "deny_reason": ""}
@@ -151,6 +152,7 @@ def test_metrics_counts_rate_limit_hits(monkeypatch) -> None:
     monkeypatch.setattr(main.redis.Redis, "from_url", staticmethod(lambda *_a, **_k: fake_r))
     monkeypatch.setattr(main, "_append_audit_event", lambda *_a, **_k: None)
     monkeypatch.setattr(main, "_db_connect", _fake_db_connect)
+    monkeypatch.setattr(decision, "_db_connect", _fake_db_connect)
 
     def fake_opa_post(_client, _path, _opa_input):
         return {"allow": True, "approval_required": False, "deny_reason": ""}

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from saferemediate.analysis.pilot_report import build_pilot_report
-from saferemediate.episodes.schema import EpisodeSchema, load_dataset_manifest, load_episodes
+from saferemediate.episodes.schema import EpisodeSchema, load_episodes
 from saferemediate.episodes.selection import select_episodes
 from saferemediate.experiment.canary_gate import (
     evaluate_canary_gate,
@@ -31,13 +31,12 @@ from saferemediate.experiment.trace_inspect import sample_traces_for_review
 from saferemediate.experiment.trace_review import write_trace_review_manifest
 from saferemediate.feedback.base import StrategyId
 from saferemediate.harness.live_runner import run_live_episode
-from saferemediate.harness.seed_preflight import SeedPreflightError, assert_seed_preflight_passes
+from saferemediate.harness.seed_preflight import assert_seed_preflight_passes
 from saferemediate.labelling import (
     live_pilot_manifest,
     natural_entry_canary_manifest,
     offline_mock_pilot_manifest,
     print_provider_banner,
-    real_model_canary_manifest,
     real_model_pilot_manifest,
     seeded_denial_canary_manifest,
     seeded_denial_pilot_manifest,

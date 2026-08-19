@@ -9,7 +9,7 @@ from typing import Any
 from saferemediate.episodes.schema import EpisodeSchema, ToolAttempt
 from saferemediate.feedback.base import DenialEvent, StrategyId
 from saferemediate.feedback.registry import get_strategy
-from saferemediate.harness.asg_adapter import AsgDecision, decide_tool_call
+from saferemediate.harness.asg_adapter import decide_tool_call
 from saferemediate.harness.task_hash import task_hash
 from saferemediate.leakage.agent_context import assert_agent_view_clean
 from saferemediate.trace.metadata import policy_hash
