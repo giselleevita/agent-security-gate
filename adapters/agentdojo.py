@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import copy
 from functools import wraps
 from collections.abc import Sequence
 from typing import Any, Callable
@@ -59,10 +60,13 @@ def protect_functions_runtime(
     still reaches its own protected callable before execution.
     """
     executor = AuthorizingToolsExecutor(authorizer)
-    for name, function in runtime.functions.items():
-        original = function.run
+    for name, shared_function in runtime.functions.items():
+        original = shared_function.run
         if getattr(original, "__asg_authorized__", False):
             continue
+        function = copy(shared_function)
+        runtime.functions[name] = function
+        original = function.run
         dependency_names = set(getattr(function, "dependencies", {}))
 
         @wraps(original)
