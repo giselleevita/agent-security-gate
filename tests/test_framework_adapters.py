@@ -52,6 +52,33 @@ def test_real_agentdojo_runtime_blocks_before_function() -> None:
     assert error is not None and "AgentDojoAuthorizationError" in error
 
 
+def test_agentdojo_protection_does_not_mutate_shared_suite_function() -> None:
+    executed: list[int] = []
+
+    def transfer(amount: int) -> str:
+        """Transfer money.
+
+        :param amount: Amount to transfer.
+        """
+        executed.append(amount)
+        return "ok"
+
+    function = agentdojo_runtime.make_function(transfer)
+    protected_runtime = agentdojo_runtime.FunctionsRuntime([function])
+    protect_functions_runtime(
+        protected_runtime,
+        _Authorizer(AuthorizationOutcome.DENY),
+        lambda _name, _arguments: CONTEXT,
+    )
+
+    clean_runtime = agentdojo_runtime.FunctionsRuntime([function])
+    result, error = clean_runtime.run_function(None, "transfer", {"amount": 10})
+
+    assert result == "ok"
+    assert error is None
+    assert executed == [10]
+
+
 def test_real_openai_function_tool_uses_blocking_guardrail() -> None:
     guardrail = make_tool_input_guardrail(
         _Authorizer(AuthorizationOutcome.DENY),
