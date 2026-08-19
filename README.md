@@ -224,6 +224,7 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 ## Documentation
 
 - [AgentDojo authorization adapter](docs/integrations/agentdojo.md)
+- [AgentDojo Banking benchmark protocol](docs/agentdojo-benchmark.md)
 - [OpenAI Agents SDK authorization adapter](docs/integrations/openai-agents.md)
 
 | Doc | Purpose |

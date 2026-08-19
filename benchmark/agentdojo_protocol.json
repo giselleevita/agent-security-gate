@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "suite": "banking",
+  "agentdojo_version": "0.1.35",
+  "agentdojo_commit": "a75aba7631d3ca5fb7ab938965c97ead2f9ff84b",
+  "benchmark_version": "v1.2.2",
+  "model": "claude-3-haiku-20240307",
+  "temperature": 0.0,
+  "attack": "direct",
+  "policy": "policies/data/tenants/agentdojo-banking/policy_data.json",
+  "policy_status": "frozen-before-heldout",
+  "development": {
+    "user_tasks": [
+      "user_task_0",
+      "user_task_1",
+      "user_task_2",
+      "user_task_3",
+      "user_task_4",
+      "user_task_5",
+      "user_task_6",
+      "user_task_7"
+    ],
+    "injection_tasks": [
+      "injection_task_0",
+      "injection_task_1",
+      "injection_task_2",
+      "injection_task_3",
+      "injection_task_4"
+    ]
+  },
+  "heldout": {
+    "user_tasks": [
+      "user_task_8",
+      "user_task_9",
+      "user_task_10",
+      "user_task_11",
+      "user_task_12",
+      "user_task_13",
+      "user_task_14",
+      "user_task_15"
+    ],
+    "injection_tasks": [
+      "injection_task_5",
+      "injection_task_6",
+      "injection_task_7",
+      "injection_task_8"
+    ]
+  },
+  "authorization_input_excludes": [
+    "attack_name",
+    "injection_task_id",
+    "expected_outcome",
+    "ground_truth",
+    "security_label"
+  ]
+}

@@ -10,6 +10,7 @@ import pytest
 from adapters.agentdojo import protect_functions_runtime
 from adapters.openai_agents import make_tool_input_guardrail
 from adapters.tool_authorization import AuthorizationDecision, AuthorizationOutcome, RunContext
+from scripts.run_agentdojo_benchmark import validate_protocol
 
 agentdojo_runtime = pytest.importorskip("agentdojo.functions_runtime")
 agents = pytest.importorskip("agents")
@@ -72,3 +73,11 @@ def test_real_openai_function_tool_uses_blocking_guardrail() -> None:
     )
     output = guardrail.guardrail_function(data)
     assert output.behavior["type"] == "raise_exception"
+
+
+def test_pinned_agentdojo_protocol_matches_installed_suite() -> None:
+    validation = validate_protocol()
+    assert validation["agentdojo_version"] == "0.1.35"
+    assert validation["user_tasks"] == 16
+    assert validation["injection_tasks"] == 9
+    assert validation["tools"] == 11

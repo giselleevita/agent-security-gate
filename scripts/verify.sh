@@ -17,6 +17,7 @@ cd "${REPO_ROOT}"
 "${PYTHON_BIN}" -m ruff check .
 "${PYTHON_BIN}" -m pip_audit --requirement requirements.lock --progress-spinner off
 "${PYTHON_BIN}" -m pip_audit --requirement requirements-dev.lock --progress-spinner off
+"${PYTHON_BIN}" -m pip_audit --requirement requirements-agentdojo.lock --progress-spinner off
 "${PYTHON_BIN}" -m bandit -r app adapters audit benchmark gateway approvals scripts -ll
 
 # Use the digest-pinned runtime so local verification does not depend on a host OPA binary.
