@@ -8,7 +8,9 @@ from adapters.tool_authorization import OpaToolCallAuthorizer, ProposedToolCall,
 from app.decision import audit_safe_request
 from app.schemas import DecideRequest
 from asg_sdk import Decision
-from scripts.run_agentdojo_benchmark import _records
+import pytest
+
+from scripts.run_agentdojo_benchmark import _records, _require_local_url
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +24,20 @@ def test_frozen_protocol_has_disjoint_development_and_heldout_sets() -> None:
     assert set(development["injection_tasks"]).isdisjoint(heldout["injection_tasks"])
     assert len(development["user_tasks"] + heldout["user_tasks"]) == 16
     assert len(development["injection_tasks"] + heldout["injection_tasks"]) == 9
+
+
+def test_frozen_protocol_uses_exact_local_model_artifact() -> None:
+    protocol = json.loads((ROOT / "benchmark/agentdojo_protocol.json").read_text())
+    assert protocol["model_provider"] == "ollama"
+    assert protocol["model"] == "qwen3.5:9b"
+    assert protocol["ollama_base_url"] == "http://127.0.0.1:11434"
+    assert len(protocol["ollama_model_digest"]) == 64
+
+
+@pytest.mark.parametrize("url", ["https://api.openai.com", "http://ollama.example.test:11434"])
+def test_remote_model_endpoints_are_rejected(url: str) -> None:
+    with pytest.raises(ValueError, match="loopback"):
+        _require_local_url(url)
 
 
 def test_authorization_request_contains_no_benchmark_ground_truth() -> None:

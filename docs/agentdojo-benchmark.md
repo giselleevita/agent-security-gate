@@ -16,14 +16,18 @@ The development and held-out task IDs were committed before any held-out executi
 
 ## Environment
 
-Start the digest-pinned ASG stack and install the pinned AgentDojo release in an isolated Python environment:
+The benchmark makes no paid API calls. It uses the locally installed, Apache-2.0-licensed `qwen3.5:9b` model through Ollama's loopback-only OpenAI-compatible endpoint. The protocol pins Ollama `0.31.1` and the full model artifact digest, and the runner refuses remote model endpoints or mismatched local artifacts.
+
+Start Ollama, install the pinned model, then start the digest-pinned ASG stack and install the pinned AgentDojo release in an isolated Python environment:
 
 ```bash
+ollama serve
+ollama pull qwen3.5:9b
 docker compose up -d --build
 python -m pip install -r requirements-agentdojo.lock
 ```
 
-An Anthropic credential is required by AgentDojo. The frozen protocol names the active `claude-haiku-4-5-20251001` model at temperature `0.0`. Claude Haiku 3 was rejected before any benchmark execution because Anthropic retired it on April 20, 2026.
+No model-provider credential is needed. Local inference avoids usage fees but requires enough memory and will generally run more slowly than a hosted model. The preregistered machine is Apple arm64 with 16 GB RAM.
 
 ## Runs
 
@@ -31,6 +35,12 @@ Run development first:
 
 ```bash
 make agentdojo-development
+```
+
+Run the same development partition without an authorizer and with AgentDojo's native tool filter for comparison:
+
+```bash
+make agentdojo-development-baselines
 ```
 
 After the policy and protocol are committed, run held-out exactly once from that clean commit:
@@ -43,4 +53,4 @@ Each run preserves AgentDojo's raw per-task traces under `raw/` and writes `repo
 
 ## Interpretation
 
-This is candidate-authored evaluation until a separate person reproduces it from a clean checkout. Do not describe it as independent validation. A no-authorizer baseline and AgentDojo's `tool_filter` baseline should be run with the same model where the model/provider supports them.
+This is candidate-authored evaluation until a separate person reproduces it from a clean checkout. Do not describe it as independent validation. The ASG, no-authorizer, and AgentDojo `tool_filter` development runs use the same local model artifact and task partition. A smaller local model may have lower task utility than a frontier hosted model; report that result directly rather than extrapolating beyond this configuration.
