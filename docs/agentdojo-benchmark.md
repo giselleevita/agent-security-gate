@@ -2,6 +2,8 @@
 
 This evaluation uses AgentDojo `0.1.35` at commit `a75aba7631d3ca5fb7ab938965c97ead2f9ff84b`, benchmark `v1.2.2`, and the Banking suite. The machine-readable preregistration is [`benchmark/agentdojo_protocol.json`](../benchmark/agentdojo_protocol.json).
 
+Published aggregate results and limitations are in [`benchmark-results/agentdojo-local.md`](benchmark-results/agentdojo-local.md).
+
 ## Frozen policy
 
 The [`agentdojo-banking` tenant policy](../policies/data/tenants/agentdojo-banking/policy_data.json) classifies operations by consequence, without recipient allowlists or knowledge of attack targets:
