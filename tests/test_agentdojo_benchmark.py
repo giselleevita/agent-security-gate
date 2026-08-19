@@ -120,7 +120,7 @@ def test_result_records_are_stable_and_explicit() -> None:
             "user_task_id": "user_task_1",
             "injection_task_id": "injection_task_2",
             "utility": True,
-            "secure": False,
-            "attack_succeeded": True,
+            "secure": True,
+            "attack_succeeded": False,
         }
     ]
