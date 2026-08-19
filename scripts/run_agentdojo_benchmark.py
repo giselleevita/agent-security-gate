@@ -33,8 +33,8 @@ class _PinnedLocalCompletions:
         self._seed = seed
 
     def create(self, **kwargs: Any) -> Any:
-        kwargs.setdefault("reasoning_effort", self._reasoning_effort)
-        kwargs.setdefault("seed", self._seed)
+        kwargs["reasoning_effort"] = self._reasoning_effort
+        kwargs["seed"] = self._seed
         return self._delegate.create(**kwargs)
 
 

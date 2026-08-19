@@ -44,7 +44,12 @@ def test_local_completion_applies_pins_to_every_model_call() -> None:
     delegate = MagicMock()
     completions = _PinnedLocalCompletions(delegate, "none", 42)
 
-    completions.create(model="qwen3.5:9b", messages=[])
+    completions.create(
+        model="qwen3.5:9b",
+        messages=[],
+        reasoning_effort=object(),
+        seed=999,
+    )
 
     delegate.create.assert_called_once_with(
         model="qwen3.5:9b",
