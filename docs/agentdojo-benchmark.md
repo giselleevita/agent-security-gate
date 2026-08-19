@@ -16,7 +16,7 @@ The development and held-out task IDs were committed before any held-out executi
 
 ## Environment
 
-The benchmark makes no paid API calls. It uses the locally installed, Apache-2.0-licensed `qwen3.5:9b` model through Ollama's loopback-only OpenAI-compatible endpoint. The protocol pins Ollama `0.31.1` and the full model artifact digest, and the runner refuses remote model endpoints or mismatched local artifacts.
+The benchmark makes no paid API calls. It uses the locally installed, Apache-2.0-licensed `qwen3.5:9b` model through Ollama's loopback-only OpenAI-compatible endpoint. The protocol pins Ollama `0.31.1`, the full model artifact digest, temperature `0`, seed `42`, and reasoning effort `none`. The runner applies those settings to every model call—including the tool-filter baseline—and refuses remote model endpoints or mismatched local artifacts.
 
 Start Ollama, install the pinned model, then start the digest-pinned ASG stack and install the pinned AgentDojo release in an isolated Python environment:
 
