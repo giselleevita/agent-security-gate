@@ -78,6 +78,8 @@ def test_real_openai_function_tool_uses_blocking_guardrail() -> None:
 def test_pinned_agentdojo_protocol_matches_installed_suite() -> None:
     validation = validate_protocol()
     assert validation["agentdojo_version"] == "0.1.35"
+    assert validation["model_provider"] == "anthropic"
+    assert validation["model"] == "claude-haiku-4-5-20251001"
     assert validation["user_tasks"] == 16
     assert validation["injection_tasks"] == 9
     assert validation["tools"] == 11
