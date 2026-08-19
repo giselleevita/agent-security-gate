@@ -16,3 +16,5 @@ def transfer(amount: int) -> str:
 The adapter parses the SDK's raw JSON arguments, asks ASG before execution, and raises the tool-input tripwire unless the decision is exactly `allow`. Malformed JSON and authorization failures fail closed.
 
 Scope is deliberately limited to custom `FunctionTool` objects created with `function_tool`. OpenAI Agents SDK tool guardrails do not cover hosted tools (`WebSearchTool`, `FileSearchTool`, `HostedMCPTool`, `CodeInterpreterTool`, `ImageGenerationTool`), built-in execution tools (`ComputerTool`, `ShellTool`, `ApplyPatchTool`, `LocalShellTool`), handoffs, or `Agent.as_tool()`. Those require a separate enforcement point and must not be described as protected by this adapter.
+
+CI validates this adapter against the pinned compatibility target, `openai-agents==0.21.1`.

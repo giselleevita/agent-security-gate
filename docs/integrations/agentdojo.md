@@ -23,4 +23,4 @@ protect_functions_runtime(
 
 Only `allow` executes. `deny`, `require_approval`, malformed responses, exceptions, timeouts, and an unavailable gateway all stop before the protected callable. `require_approval` is not treated as approval. The adapter sends proposed tool arguments and bounded run metadata; it must not be given injection labels, benchmark ground truth, secrets, or tool output.
 
-The adapter intentionally uses structural typing, so AgentDojo remains an optional evaluation dependency.
+The adapter intentionally uses structural typing, so AgentDojo remains an optional evaluation dependency. CI validates the boundary against the pinned compatibility target, AgentDojo `0.1.35`.

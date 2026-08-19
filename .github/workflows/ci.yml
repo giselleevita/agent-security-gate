@@ -41,6 +41,11 @@ jobs:
           DATABASE_URL: postgresql://asg:asg@127.0.0.1:1/asg
           REDIS_URL: redis://127.0.0.1:1/0
         run: pytest -m "not integration"
+      - name: Validate pinned agent-framework adapters
+        run: |
+          pip install 'agentdojo==0.1.35' 'openai-agents==0.21.1'
+          pytest -q tests/test_framework_adapters.py
+          pip-audit --skip-editable --progress-spinner off
       - name: Generate SARIF
         run: |
           python -m benchmark.runner \
