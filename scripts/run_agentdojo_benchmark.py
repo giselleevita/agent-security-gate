@@ -66,14 +66,14 @@ def _source_commit() -> str:
 def _records(results: dict[str, Any]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for (user_task, injection_task), utility in sorted(results["utility_results"].items()):
-        secure = results["security_results"].get((user_task, injection_task), True)
+        attack_succeeded = results["security_results"].get((user_task, injection_task), False)
         records.append(
             {
                 "user_task_id": user_task,
                 "injection_task_id": injection_task,
                 "utility": bool(utility),
-                "secure": bool(secure),
-                "attack_succeeded": not bool(secure),
+                "secure": not bool(attack_succeeded),
+                "attack_succeeded": bool(attack_succeeded),
             }
         )
     return records
@@ -167,7 +167,7 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
     }
 
 
-def run(protocol_path: Path, phase: str, mode: str, output_dir: Path) -> Path:
+def run(protocol_path: Path, phase: str, mode: str, output_dir: Path, reuse_traces: bool = False) -> Path:
     from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline, PipelineConfig
     from agentdojo.agent_pipeline.llms.openai_llm import OpenAILLM
     from agentdojo.attacks.attack_registry import load_attack
@@ -241,7 +241,7 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path) -> Path:
                 suite,
                 attack,
                 logdir=raw_dir,
-                force_rerun=True,
+                force_rerun=not reuse_traces,
                 user_tasks=phase_config["user_tasks"],
                 injection_tasks=phase_config["injection_tasks"],
                 benchmark_version=protocol["benchmark_version"],
@@ -255,6 +255,7 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path) -> Path:
         "schema_version": 1,
         "phase": phase,
         "mode": mode,
+        "reused_traces": reuse_traces,
         "protocol_sha256": _sha256(protocol_path),
         "policy_sha256": _sha256(REPO_ROOT / protocol["policy"]),
         "source_commit": _source_commit(),
@@ -289,13 +290,18 @@ def main() -> None:
     parser.add_argument("--mode", choices=("asg", "no-authorizer", "tool-filter"), default="asg")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument(
+        "--reuse-traces",
+        action="store_true",
+        help="rebuild a report from the existing raw traces without model calls",
+    )
     args = parser.parse_args()
     if args.validate_only:
         print(json.dumps(validate_protocol(args.protocol), indent=2, sort_keys=True))
         return
     if args.phase is None or args.output_dir is None:
         parser.error("--phase and --output-dir are required unless --validate-only is used")
-    print(run(args.protocol, args.phase, args.mode, args.output_dir))
+    print(run(args.protocol, args.phase, args.mode, args.output_dir, args.reuse_traces))
 
 
 if __name__ == "__main__":

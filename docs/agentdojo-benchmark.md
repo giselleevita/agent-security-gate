@@ -51,6 +51,8 @@ make agentdojo-heldout
 
 Each run preserves AgentDojo's raw per-task traces under `raw/` and writes `report.json` containing hashes, pinned versions, aggregate utility/security, and one explicit record per task pair. Raw traces may contain benchmark data and tool outputs; review them before publishing. ASG audit events store hashes and bounded argument metadata rather than raw arguments or tool output.
 
+If report aggregation changes without changing any model trace, pass `--reuse-traces` to rebuild the report from the existing raw directory without making model calls. The report records whether traces were reused.
+
 ## Interpretation
 
 This is candidate-authored evaluation until a separate person reproduces it from a clean checkout. Do not describe it as independent validation. The ASG, no-authorizer, and AgentDojo `tool_filter` development runs use the same local model artifact and task partition. A smaller local model may have lower task utility than a frontier hosted model; report that result directly rather than extrapolating beyond this configuration.
