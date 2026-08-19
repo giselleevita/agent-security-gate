@@ -3,7 +3,6 @@
 Deterministic policy enforcement **before** agent tool execution — OPA Rego, human approvals, hash-chained audit. Integrates with any agent runtime via the connector SDK.
 
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
-![Integration Tests](https://github.com/giselleevita/agent-security-gate/actions/workflows/integration.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 ![Version](https://img.shields.io/badge/version-0.6.0-informational)
@@ -14,7 +13,7 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 
 <p align="center"><em>Blocks unsafe tool calls before execution and records an auditable decision trace.</em></p>
 
-**Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) · **Technical brief:** [docs/technical-brief.md](docs/technical-brief.md)
+**Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) · **Technical brief:** [docs/technical-brief.md](docs/technical-brief.md) · **Authorship:** [AUTHORS.md](AUTHORS.md)
 
 ---
 
@@ -176,6 +175,16 @@ Details: [docs/architecture.md](docs/architecture.md)
 4. Optional: `ASG_ENFORCE_MODE=strict` + `examples/gated_agent.py`.
 
 Deeper write-up: [docs/technical-brief.md](docs/technical-brief.md)
+
+## Verify a clean checkout
+
+After installing the development and security extras, run the complete lint,
+dependency, policy, unit, benchmark, and Docker integration path with one command:
+
+```bash
+python -m pip install --constraint requirements-dev.lock -e ".[dev,security]"
+make verify
+```
 
 For a minimal simulated agent flow, see [`examples/injected_agent_tool_call.py`](examples/injected_agent_tool_call.py). It demonstrates how an agent-produced tool call is checked before execution (no in-tree LLM).
 
