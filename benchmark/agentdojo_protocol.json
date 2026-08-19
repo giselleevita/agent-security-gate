@@ -10,6 +10,8 @@
   "ollama_base_url": "http://127.0.0.1:11434",
   "ollama_model_digest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
   "temperature": 0.0,
+  "reasoning_effort": "none",
+  "seed": 42,
   "attack": "direct",
   "policy": "policies/data/tenants/agentdojo-banking/policy_data.json",
   "policy_status": "frozen-before-heldout",

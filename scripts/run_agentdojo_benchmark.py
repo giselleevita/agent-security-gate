@@ -24,6 +24,32 @@ DEFAULT_PROTOCOL = REPO_ROOT / "benchmark" / "agentdojo_protocol.json"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
+class _PinnedLocalCompletions:
+    """Add protocol-wide deterministic Ollama fields to every AgentDojo model call."""
+
+    def __init__(self, delegate: Any, reasoning_effort: str, seed: int) -> None:
+        self._delegate = delegate
+        self._reasoning_effort = reasoning_effort
+        self._seed = seed
+
+    def create(self, **kwargs: Any) -> Any:
+        kwargs.setdefault("reasoning_effort", self._reasoning_effort)
+        kwargs.setdefault("seed", self._seed)
+        return self._delegate.create(**kwargs)
+
+
+class _PinnedLocalOpenAIClient:
+    """Minimal OpenAI-compatible client facade used by AgentDojo's pipeline."""
+
+    def __init__(self, client: Any, reasoning_effort: str, seed: int) -> None:
+        self.chat = type("Chat", (), {})()
+        self.chat.completions = _PinnedLocalCompletions(
+            client.chat.completions,
+            reasoning_effort,
+            seed,
+        )
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -104,6 +130,10 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
         raise ValueError("protocol must pin the Ollama version")
     if len(protocol.get("ollama_model_digest", "")) != 64:
         raise ValueError("protocol must pin the full Ollama model digest")
+    if protocol.get("reasoning_effort") != "none":
+        raise ValueError("local benchmark reasoning_effort must be pinned to none")
+    if not isinstance(protocol.get("seed"), int):
+        raise ValueError("local benchmark seed must be an integer")
     _require_local_url(protocol.get("ollama_base_url", ""))
     suite = get_suite(protocol["benchmark_version"], protocol["suite"])
     selected_users = set(protocol["development"]["user_tasks"]) | set(protocol["heldout"]["user_tasks"])
@@ -127,6 +157,8 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
         "model": protocol["model"],
         "ollama_version": protocol["ollama_version"],
         "ollama_model_digest": protocol["ollama_model_digest"],
+        "reasoning_effort": protocol["reasoning_effort"],
+        "seed": protocol["seed"],
         "protocol_sha256": _sha256(protocol_path),
         "policy_sha256": _sha256(policy_path),
         "user_tasks": len(selected_users),
@@ -152,8 +184,14 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path) -> Path:
     phase_config = protocol[phase]
     suite = get_suite(protocol["benchmark_version"], protocol["suite"])
     ollama_base_url = protocol["ollama_base_url"].rstrip("/")
+    openai_client = OpenAI(base_url=f"{ollama_base_url}/v1", api_key="ollama-local")
+    local_client = _PinnedLocalOpenAIClient(
+        openai_client,
+        protocol["reasoning_effort"],
+        protocol["seed"],
+    )
     llm = OpenAILLM(
-        OpenAI(base_url=f"{ollama_base_url}/v1", api_key="ollama-local"),
+        local_client,
         protocol["model"],
         temperature=float(protocol["temperature"]),
     )
@@ -228,6 +266,8 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path) -> Path:
         "ollama_version": runtime["ollama_version"],
         "ollama_model_digest": runtime["ollama_model_digest"],
         "temperature": protocol["temperature"],
+        "reasoning_effort": protocol["reasoning_effort"],
+        "seed": protocol["seed"],
         "attack": protocol["attack"],
         "authorization_input_excludes": protocol["authorization_input_excludes"],
         "summary": {
