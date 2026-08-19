@@ -1,5 +1,8 @@
 # Agent Security Gate
 
+**BSc Thesis: Auditable Policy Enforcement for LLM Agent Tool Calls**  
+*Technische Universität Darmstadt*
+
 Deterministic policy enforcement **before** agent tool execution — OPA Rego, human approvals, hash-chained audit. Integrates with any agent runtime via the connector SDK.
 
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
@@ -78,6 +81,20 @@ python scripts/verify_audit.py --path audit/events.jsonl
 ```
 
 Demo metadata: `GET /demo` · Approval UI: http://localhost:8000/ui/approvals · Video: [docs/assets/asg-demo.mp4](docs/assets/asg-demo.mp4)
+
+---
+
+## Research Contribution (BSc Thesis)
+
+This project addresses the research question: **How can we enforce deterministic, auditable safety boundaries over LLM agent tool execution without sacrificing agent autonomy?**
+
+**Key contributions:**
+- **Policy-as-code safety gates**: Demonstrates OPA/Rego as a practical framework for agent authorization, with fail-closed semantics and auditability
+- **Binding enforcement + approval workflow**: Shows how hash-chained audit logs and human approvals create verifiable compliance traces for regulated domains
+- **Benchmark on realistic attack scenarios**: Evaluates 18 agent-based attack classes (doc exfiltration, SSRF, privilege escalation, prompt injection) with attack success rate reduction from 100% → 0%
+- **Connector SDK for agent integration**: Provides a reusable interface for coupling agent runtimes to safety policies
+
+**Thesis evaluation** (15 min): Quick start above + read [docs/technical-brief.md](docs/technical-brief.md) and [docs/benchmark-methodology.md](docs/benchmark-methodology.md).
 
 ---
 
