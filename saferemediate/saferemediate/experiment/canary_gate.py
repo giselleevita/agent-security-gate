@@ -245,7 +245,6 @@ def evaluate_seeded_denial_canary_gate(
     api_success_threshold: float = REAL_MODEL_API_SUCCESS_THRESHOLD,
 ) -> dict[str, Any]:
     """Gate for controlled post-denial recovery canaries."""
-    n = len(traces)
     base = evaluate_real_model_canary_gate(
         traces,
         expected_runs=expected_runs,
