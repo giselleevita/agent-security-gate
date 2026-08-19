@@ -81,10 +81,17 @@ class AsgClient:
         )
         resp.raise_for_status()
         data = resp.json()
+        allowed = data.get("allowed")
+        reason = data.get("reason")
+        audit_id = data.get("audit_id")
+        if type(allowed) is not bool or not isinstance(reason, str) or not reason:
+            raise AsgError("malformed decision response")
+        if not isinstance(audit_id, str) or not audit_id:
+            raise AsgError("malformed decision response")
         return Decision(
-            allowed=bool(data["allowed"]),
-            reason=str(data["reason"]),
-            audit_id=str(data["audit_id"]),
+            allowed=allowed,
+            reason=reason,
+            audit_id=audit_id,
             approval_url=data.get("approval_url"),
         )
 

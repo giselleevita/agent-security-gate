@@ -1,7 +1,7 @@
 SCENARIOS=benchmark/scenarios/scenarios.yaml
 EVIDENCE_DIR=results/evidence
 
-.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security
+.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security agentdojo-development agentdojo-heldout
 
 eval:
 	python3 -m benchmark.runner --scenarios $(SCENARIOS) --summary results/summary.json
@@ -36,3 +36,9 @@ lint:
 security:
 	bandit -r app adapters audit benchmark gateway approvals scripts -ll
 	pip-audit --skip-editable --progress-spinner off
+
+agentdojo-development:
+	python3 -m scripts.run_agentdojo_benchmark --phase development --output-dir results/agentdojo/development
+
+agentdojo-heldout:
+	python3 -m scripts.run_agentdojo_benchmark --phase heldout --output-dir results/agentdojo/heldout

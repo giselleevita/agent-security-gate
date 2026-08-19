@@ -1,0 +1,3 @@
+# AgentDojo benchmark environment. The matching upstream commit is frozen in
+# benchmark/agentdojo_protocol.json.
+agentdojo==0.1.35
