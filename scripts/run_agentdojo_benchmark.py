@@ -53,7 +53,6 @@ def _records(results: dict[str, Any]) -> list[dict[str, Any]]:
 
 def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
     """Validate pins, task partitions, and policy coverage without calling a model."""
-    from agentdojo.models import ModelsEnum
     from agentdojo.task_suite.load_suites import get_suite
 
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
@@ -62,7 +61,10 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
         raise RuntimeError(
             f"AgentDojo version mismatch: expected {protocol['agentdojo_version']}, got {installed}"
         )
-    ModelsEnum(protocol["model"])
+    if protocol["model_provider"] != "anthropic":
+        raise ValueError("the frozen runner currently supports only the Anthropic provider")
+    if not isinstance(protocol["model"], str) or not protocol["model"]:
+        raise ValueError("protocol model must be a non-empty model identifier")
     suite = get_suite(protocol["benchmark_version"], protocol["suite"])
     selected_users = set(protocol["development"]["user_tasks"]) | set(protocol["heldout"]["user_tasks"])
     selected_injections = set(protocol["development"]["injection_tasks"]) | set(
@@ -81,6 +83,8 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
     return {
         "agentdojo_version": installed,
         "benchmark_version": protocol["benchmark_version"],
+        "model_provider": protocol["model_provider"],
+        "model": protocol["model"],
         "protocol_sha256": _sha256(protocol_path),
         "policy_sha256": _sha256(policy_path),
         "user_tasks": len(selected_users),
@@ -91,10 +95,11 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
 
 def run(protocol_path: Path, phase: str, output_dir: Path) -> Path:
     from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline, PipelineConfig
+    from agentdojo.agent_pipeline.llms.anthropic_llm import AnthropicLLM
     from agentdojo.attacks.attack_registry import load_attack
     from agentdojo.benchmark import benchmark_suite_with_injections
-    from agentdojo.models import ModelsEnum
     from agentdojo.task_suite.load_suites import get_suite
+    from anthropic import Anthropic
 
     validation = validate_protocol(protocol_path)
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
@@ -104,10 +109,14 @@ def run(protocol_path: Path, phase: str, output_dir: Path) -> Path:
     httpx.get(f"{base_url}/health/ready", timeout=5.0).raise_for_status()
     phase_config = protocol[phase]
     suite = get_suite(protocol["benchmark_version"], protocol["suite"])
-    model = ModelsEnum(protocol["model"])
+    llm = AnthropicLLM(
+        Anthropic(),
+        protocol["model"],
+        temperature=float(protocol["temperature"]),
+    )
     base_pipeline = AgentPipeline.from_config(
         PipelineConfig(
-            llm=model,
+            llm=llm,
             model_id=None,
             defense=None,
             system_message_name=None,
@@ -162,6 +171,7 @@ def run(protocol_path: Path, phase: str, output_dir: Path) -> Path:
         "agentdojo_version": installed,
         "benchmark_version": protocol["benchmark_version"],
         "model": protocol["model"],
+        "model_provider": protocol["model_provider"],
         "temperature": protocol["temperature"],
         "attack": protocol["attack"],
         "authorization_input_excludes": protocol["authorization_input_excludes"],
