@@ -96,11 +96,18 @@ after seeing a result without saying so.
    the task is done.
 2. **Tool output format.** AgentDojo can serialise tool results as YAML or JSON. YAML is the
    default; JSON may parse more reliably for this model.
-3. **Empty-response continuation.** When the assistant returns neither text nor a tool call, the
-   run currently ends. Continue instead of accepting silence as an answer.
-4. **Post-denial guidance.** When policy refuses a call, tell the agent what happened in a form it
-   can act on, so it does not abandon the task. This targets the "partially blocked, then gave up"
-   category and is measured on a gated run.
+3. **Empty-response continuation** (`v3-retry-empty-response`). When the assistant returns neither
+   text nor a tool call, the tool-execution loop sees no call and the task ends on silence. This
+   re-asks instead, dropping the blank turn so the transcript stays a usable conversation, with a
+   bounded number of retries so a model that keeps returning nothing ends the task rather than
+   looping. The wrapper is applied by identity to the configured model element, which AgentDojo
+   places both at the top level and inside the tool-execution loop.
+4. **Post-denial guidance** (`v4-denial-guidance`). When policy refuses a call, the agent currently
+   sees `decision:reason` and often abandons the whole task. This appends what the refusal means
+   and what to do next — finish the parts that are allowed, do not retry the refused call, tell the
+   user what is waiting on approval. The machine-readable head of the error is unchanged and comes
+   first, so traces recorded before guidance existed still parse identically. Measured on the gated
+   arm.
 5. **Model comparison.** A second freely available local model on the identical protocol, for
    quality-per-token and latency evidence rather than a winner.
 
@@ -110,6 +117,12 @@ The system message is also the surface the injection attacks target. Changing it
 security results, and this experiment runs on the unprotected arm and does not re-derive them. Any
 variant adopted here must be re-measured on the gated arm before it is used to support a security
 claim.
+
+## Smoke runs
+
+`--limit N` runs only the first N user and injection tasks, to check that a variant is wired
+correctly before committing an hour of inference to it. Such a run records `complete_phase: false`
+and the comparison tool refuses it outright, so a smoke test cannot be mistaken for a result.
 
 ## Confirmation
 

@@ -17,6 +17,7 @@ from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AUTHORIZATION_ERROR_PREFIX = "AgentDojoAuthorizationError: "
+GUIDANCE_SEPARATOR = " — "
 SCHEMA_VERSION = 1
 
 
@@ -50,6 +51,9 @@ def classify_error(error: str | None) -> dict[str, str]:
         return {"outcome": "tool_error", "decision": "allow", "reason": "tool_error"}
     payload = error[len(AUTHORIZATION_ERROR_PREFIX) :]
     decision, _, reason = payload.partition(":")
+    # Guidance for the agent may follow the machine-readable head. Strip it so reason
+    # groupings stay identical to traces recorded before guidance existed.
+    reason = reason.split(GUIDANCE_SEPARATOR, 1)[0]
     return {
         "outcome": "blocked",
         "decision": decision.strip() or "deny",

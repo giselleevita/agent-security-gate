@@ -168,3 +168,46 @@ def test_failed_model_calls_are_metered_so_a_degraded_run_is_visible(monkeypatch
     assert context["model_call_errors"] == 1
     assert context.get("model_calls") is None
     assert context["model_latency_ms"] > 0
+
+
+def test_retry_wrapping_reaches_the_model_wherever_agentdojo_places_it() -> None:
+    """AgentDojo puts the same model object at the top level and inside the tools loop."""
+    from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline, PipelineConfig
+    from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
+
+    from adapters.agent_quality import RetryEmptyResponse, wrap_pipeline_elements
+
+    class _Llm(BasePipelineElement):
+        name = "fake-model"
+
+        def query(self, query, runtime, env=None, messages=(), extra_args=None):
+            return query, runtime, env, messages, dict(extra_args or {})
+
+    llm = _Llm()
+    pipeline = AgentPipeline.from_config(
+        PipelineConfig(
+            llm=llm,
+            model_id=None,
+            defense=None,
+            system_message_name=None,
+            system_message=None,
+        )
+    )
+
+    wrapped = wrap_pipeline_elements(
+        list(pipeline.elements), lambda element: element is llm, RetryEmptyResponse
+    )
+
+    def _count(elements) -> int:
+        total = 0
+        for element in elements:
+            inner = getattr(element, "elements", None)
+            if isinstance(inner, list):
+                total += _count(inner)
+            elif isinstance(element, RetryEmptyResponse):
+                total += 1
+        return total
+
+    # One at the top level, one inside the tool-execution loop.
+    assert _count(wrapped) == 2
+    assert not any(element is llm for element in wrapped)
