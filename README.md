@@ -32,6 +32,20 @@ Policy regression comparing an intentional unprotected baseline to the gated run
 
 Methodology and limits: [docs/benchmark-methodology.md](docs/benchmark-methodology.md). Attack classes: [docs/benchmark-results/latest.md#attack-classes-covered](docs/benchmark-results/latest.md). The `gate` baseline uses the same code path as `POST /v1/gateway/decide` ([parity test](tests/test_benchmark_runtime_parity.py)).
 
+### External benchmark (AgentDojo Banking, local model)
+
+Authored fixtures cannot show what the gate does to a real agent, so the same enforcement point was measured on [AgentDojo](https://github.com/ethz-spylab/agentdojo)'s Banking suite with a local model:
+
+| | No authorizer | ASG + OPA |
+|---|---:|---:|
+| Attacker goals achieved (9 standalone injection-goal runs) | 6 | **0** |
+| Policy-violating tool calls executed | 11 | **0** |
+| Benign cases completed (72 paired cases) | 36 | 33 |
+
+Every attacker goal the unprotected baseline reached was stopped at the tool boundary. The cost was three held-out cases that legitimately needed an approval-gated tool. Scored-case security was 100% in **both** arms — this model rarely followed the injection — so the arms differ only in the goal runs, and that limit is stated in the results rather than averaged away.
+
+Per-call decisions, policy coverage, authorization latency, OPA-down behaviour, and full limits: [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md). Protocol: [docs/agentdojo-benchmark.md](docs/agentdojo-benchmark.md).
+
 ---
 
 ## Quick start (local, free)
