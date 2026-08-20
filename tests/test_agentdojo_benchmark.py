@@ -132,3 +132,38 @@ def test_model_call_metering_never_raises() -> None:
     # No active AgentDojo logger, and a response without usage: both must be silent.
     _meter_model_call(MagicMock(usage=None), 1.0)
     _meter_model_call(object(), 1.0)
+
+
+def test_preregistered_variants_only_change_how_the_agent_is_driven() -> None:
+    from scripts.run_agentdojo_benchmark import VARIANT_KEYS, load_variant
+
+    variants = json.loads((ROOT / "benchmark/agentdojo_variants.json").read_text())
+    names = [name for name in variants if not name.startswith("_")]
+    assert "baseline" in names
+    assert load_variant("baseline") == {}
+    for name in names:
+        variant = load_variant(name)
+        assert set(variant) <= VARIANT_KEYS
+        assert variants[name].get("description"), f"{name} must say what it tests and why"
+
+
+def test_unknown_or_overreaching_variants_are_refused(tmp_path: Path) -> None:
+    from scripts.run_agentdojo_benchmark import load_variant
+
+    path = tmp_path / "variants.json"
+    path.write_text(
+        json.dumps(
+            {
+                "baseline": {},
+                "sneaky": {"description": "x", "seed": 7},
+                "bad-format": {"description": "x", "tool_output_format": "toml"},
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="unknown variant"):
+        load_variant("nope", path)
+    with pytest.raises(ValueError, match="unsupported keys"):
+        load_variant("sneaky", path)
+    with pytest.raises(ValueError, match="invalid tool_output_format"):
+        load_variant("bad-format", path)
