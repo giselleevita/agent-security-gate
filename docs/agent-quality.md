@@ -134,11 +134,18 @@ development gain is reported as not confirmed.
 
 ```bash
 docker compose up -d --build
-python -m scripts.run_agentdojo_benchmark --phase development --mode no-authorizer \
-  --output-dir results/agentdojo/quality/baseline
-python -m scripts.run_agentdojo_benchmark --phase development --mode no-authorizer \
-  --variant v1-system-prompt --output-dir results/agentdojo/quality/v1-system-prompt
-python -m scripts.compare_agent_quality \
-  --baseline results/agentdojo/quality/baseline \
-  --run results/agentdojo/quality/v1-system-prompt
+
+# Check the wiring cheaply first
+make agentdojo-quality-smoke VARIANT=v1-system-prompt
+
+make agentdojo-quality-baseline
+make agentdojo-quality-variant VARIANT=v1-system-prompt
+make agentdojo-quality-compare VARIANT=v1-system-prompt
 ```
+
+`v4-denial-guidance` is measured on the gated arm, so it needs `QUALITY_MODE=asg` and its own
+baseline in that mode. Comparing a gated run against an ungated one measures the gate, not the
+intervention.
+
+Each full run is roughly an hour on the preregistered machine, so the smoke target exists to catch
+a wiring mistake in two minutes rather than after the run.
