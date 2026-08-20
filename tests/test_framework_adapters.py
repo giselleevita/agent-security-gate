@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -114,3 +115,56 @@ def test_pinned_agentdojo_protocol_matches_installed_suite() -> None:
     assert validation["user_tasks"] == 16
     assert validation["injection_tasks"] == 9
     assert validation["tools"] == 11
+
+
+def test_model_call_metering_accumulates_into_the_active_task_context(monkeypatch) -> None:
+    """Runs against the pinned AgentDojo release, where the logger contract is real."""
+    from scripts import run_agentdojo_benchmark as runner
+
+    context: dict[str, object] = {"user_task_id": "user_task_0"}
+
+    class _Logger:
+        def __init__(self, ctx: dict[str, object]) -> None:
+            self.context = ctx
+
+    import agentdojo.logging as agentdojo_logging
+
+    monkeypatch.setattr(agentdojo_logging.Logger, "get", staticmethod(lambda: _Logger(context)))
+
+    usage = MagicMock(prompt_tokens=120, completion_tokens=30)
+    response = MagicMock(usage=usage)
+
+    runner._meter_model_call(response, 12.5)
+    runner._meter_model_call(response, 7.5)
+
+    assert context["model_calls"] == 2
+    assert context["prompt_tokens"] == 240
+    assert context["completion_tokens"] == 60
+    assert context["model_latency_ms"] == 20.0
+
+
+
+def test_failed_model_calls_are_metered_so_a_degraded_run_is_visible(monkeypatch) -> None:
+    from scripts import run_agentdojo_benchmark as runner
+
+    context: dict[str, object] = {}
+
+    class _Logger:
+        def __init__(self, ctx: dict[str, object]) -> None:
+            self.context = ctx
+
+    import agentdojo.logging as agentdojo_logging
+
+    monkeypatch.setattr(agentdojo_logging.Logger, "get", staticmethod(lambda: _Logger(context)))
+
+    class _Failing:
+        def create(self, **_kwargs: Any) -> Any:
+            raise RuntimeError("connection reset")
+
+    completions = runner._PinnedLocalCompletions(_Failing(), "none", 42)
+    with pytest.raises(RuntimeError):
+        completions.create(model="qwen3.5:9b", messages=[])
+
+    assert context["model_call_errors"] == 1
+    assert context.get("model_calls") is None
+    assert context["model_latency_ms"] > 0
