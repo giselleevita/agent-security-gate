@@ -75,20 +75,73 @@ def _tool_calls(trace: dict[str, Any]) -> list[dict[str, Any]]:
     return calls
 
 
+def _message_text(message: dict[str, Any]) -> str:
+    content = message.get("content")
+    if isinstance(content, list):
+        return "".join(
+            part.get("content") or "" for part in content if isinstance(part, dict)
+        )
+    return content or ""
+
+
+def classify_outcome(trace: dict[str, Any], calls: list[dict[str, Any]]) -> str:
+    """Name why a case ended the way it did, so failures are actionable rather than a rate.
+
+    These are agent-quality categories, not security categories: a task can fail because
+    the agent never acted, acted and got the wrong answer, or was correctly refused.
+    """
+    if trace.get("utility"):
+        return "success"
+    blocked = [call for call in calls if call["outcome"] == "blocked"]
+    if not calls:
+        assistants = [m for m in trace.get("messages", []) if m.get("role") == "assistant"]
+        last = assistants[-1] if assistants else None
+        if last is not None and not _message_text(last).strip():
+            return "no_tool_call_empty_answer"
+        return "no_tool_call_answered_anyway"
+    if blocked and len(blocked) == len(calls):
+        return "every_call_blocked"
+    if blocked:
+        return "partially_blocked_then_failed"
+    return "acted_wrong_result"
+
+
+def _cost(trace: dict[str, Any]) -> dict[str, Any]:
+    """Per-task cost, as metered by the runner. Absent for traces recorded before metering."""
+    return {
+        key: trace[key]
+        for key in (
+            "model_calls",
+            "model_call_errors",
+            "prompt_tokens",
+            "completion_tokens",
+            "model_latency_ms",
+        )
+        if key in trace
+    }
+
+
 def _case(trace: dict[str, Any]) -> dict[str, Any]:
     calls = _tool_calls(trace)
     blocked = [call for call in calls if call["outcome"] == "blocked"]
+    assistant_turns = sum(
+        1 for message in trace.get("messages", []) if message.get("role") == "assistant"
+    )
     return {
         "user_task_id": trace.get("user_task_id"),
         "injection_task_id": trace.get("injection_task_id"),
         "utility": bool(trace.get("utility")),
         "attack_succeeded": bool(trace.get("security")),
         "secure": not bool(trace.get("security")),
+        "outcome": classify_outcome(trace, calls),
+        "assistant_turns": assistant_turns,
         "proposed_tool_calls": len(calls),
         "executed_tool_calls": sum(call["outcome"] == "executed" for call in calls),
         "blocked_tool_calls": len(blocked),
         "blocked_tools": sorted({call["tool"] for call in blocked}),
         "block_reasons": sorted({f"{c['decision']}:{c['reason']}" for c in blocked}),
+        "duration_s": trace.get("duration"),
+        "cost": _cost(trace),
         "calls": calls,
     }
 
@@ -202,6 +255,35 @@ def _pair(run_cases: list[dict[str, Any]], baseline_cases: list[dict[str, Any]])
     }
 
 
+def _quality(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Task-completion view: why cases end as they do, and what they cost."""
+    outcomes: Counter[str] = Counter(case["outcome"] for case in cases)
+    turns = [case["assistant_turns"] for case in cases]
+    totals: Counter[str] = Counter()
+    metered = 0
+    for case in cases:
+        if not case["cost"]:
+            continue
+        metered += 1
+        for key, value in case["cost"].items():
+            totals[key] += value
+    cost: dict[str, Any] = {"metered_cases": metered}
+    if metered:
+        cost.update(
+            {
+                "total": {key: round(value, 3) for key, value in sorted(totals.items())},
+                "mean_per_case": {
+                    key: round(value / metered, 3) for key, value in sorted(totals.items())
+                },
+            }
+        )
+    return {
+        "outcomes": dict(sorted(outcomes.items())),
+        "mean_assistant_turns": round(sum(turns) / len(turns), 3) if turns else 0.0,
+        "cost": cost,
+    }
+
+
 def analyze(run_dir: Path, policy_path: Path | None = None) -> dict[str, Any]:
     report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
     scored: list[dict[str, Any]] = []
@@ -220,6 +302,7 @@ def analyze(run_dir: Path, policy_path: Path | None = None) -> dict[str, Any]:
 
     aggregate = _aggregate(scored)
     goal_aggregate = _aggregate(injection_goal_runs)
+    quality = _quality(scored)
     result: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "phase": report["phase"],
@@ -237,6 +320,7 @@ def analyze(run_dir: Path, policy_path: Path | None = None) -> dict[str, Any]:
             "cases_without_tool_calls": sum(case["proposed_tool_calls"] == 0 for case in scored),
             **aggregate,
         },
+        "agent_quality": quality,
         "injection_goal_runs": {
             "runs": len(injection_goal_runs),
             "goals_achieved": sum(case["utility"] for case in injection_goal_runs),

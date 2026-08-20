@@ -24,6 +24,39 @@ DEFAULT_PROTOCOL = REPO_ROOT / "benchmark" / "agentdojo_protocol.json"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
+def _meter_model_call(response: Any, elapsed_ms: float, *, failed: bool = False) -> None:
+    """Attribute token and latency cost to the task AgentDojo is currently logging.
+
+    AgentDojo's TraceLogger holds the task identity and spreads its context into the
+    trace file it writes, so metering here needs no separate correlation step.
+
+    Failed attempts are metered too. The provider client retries with backoff, so a run
+    against a degraded machine would otherwise show a small model latency next to a huge
+    task duration, and the gap would be invisible. Nothing is raised on failure:
+    instrumentation must never change a benchmark outcome.
+    """
+    try:
+        from agentdojo.logging import Logger
+
+        context = getattr(Logger.get(), "context", None)
+        if not isinstance(context, dict):
+            return
+        context["model_latency_ms"] = round(context.get("model_latency_ms", 0.0) + elapsed_ms, 3)
+        if failed:
+            context["model_call_errors"] = context.get("model_call_errors", 0) + 1
+            return
+        context["model_calls"] = context.get("model_calls", 0) + 1
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return
+        context["prompt_tokens"] = context.get("prompt_tokens", 0) + (usage.prompt_tokens or 0)
+        context["completion_tokens"] = context.get("completion_tokens", 0) + (
+            usage.completion_tokens or 0
+        )
+    except Exception:  # noqa: BLE001 - instrumentation must not break a run
+        return
+
+
 class _PinnedLocalCompletions:
     """Add protocol-wide deterministic Ollama fields to every AgentDojo model call."""
 
@@ -35,7 +68,14 @@ class _PinnedLocalCompletions:
     def create(self, **kwargs: Any) -> Any:
         kwargs["reasoning_effort"] = self._reasoning_effort
         kwargs["seed"] = self._seed
-        return self._delegate.create(**kwargs)
+        started = time.perf_counter()
+        try:
+            response = self._delegate.create(**kwargs)
+        except Exception:
+            _meter_model_call(None, (time.perf_counter() - started) * 1000.0, failed=True)
+            raise
+        _meter_model_call(response, (time.perf_counter() - started) * 1000.0)
+        return response
 
 
 class _PinnedLocalOpenAIClient:
@@ -112,6 +152,34 @@ def check_ollama_runtime(protocol: dict[str, Any]) -> dict[str, str]:
     return {"ollama_version": installed_version, "ollama_model_digest": digest}
 
 
+def probe_model_latency(protocol: dict[str, Any], *, samples: int = 3) -> float:
+    """Median latency of a trivial completion, in milliseconds.
+
+    Local inference shares the machine with everything else on it. A run started while the
+    host is swapping or busy produces token and latency numbers that are not comparable to
+    a run started when it is idle, and the task outcomes can shift too once the client
+    starts retrying. Measuring first makes that visible before hours of runtime, instead of
+    after.
+    """
+    from openai import OpenAI
+
+    base_url = protocol["ollama_base_url"].rstrip("/")
+    _require_local_url(base_url)
+    client = OpenAI(base_url=f"{base_url}/v1", api_key="ollama-local", timeout=120.0)
+    latencies: list[float] = []
+    for _ in range(samples):
+        started = time.perf_counter()
+        client.chat.completions.create(
+            model=protocol["model"],
+            temperature=float(protocol["temperature"]),
+            seed=protocol["seed"],
+            reasoning_effort=protocol["reasoning_effort"],
+            messages=[{"role": "user", "content": "Reply with the single word ok."}],
+        )
+        latencies.append((time.perf_counter() - started) * 1000.0)
+    return sorted(latencies)[len(latencies) // 2]
+
+
 def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
     """Validate pins, task partitions, and policy coverage without calling a model."""
     from agentdojo.task_suite.load_suites import get_suite
@@ -180,6 +248,16 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path, reuse_trac
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     installed = validation["agentdojo_version"]
     runtime = check_ollama_runtime(protocol)
+
+    probe_ms = probe_model_latency(protocol)
+    budget_ms = float(os.getenv("ASG_MODEL_PROBE_BUDGET_MS", "8000"))
+    if probe_ms > budget_ms:
+        raise RuntimeError(
+            f"host is too loaded for a comparable run: a trivial completion took "
+            f"{probe_ms:.0f} ms against a {budget_ms:.0f} ms budget. Free the machine, or "
+            "raise ASG_MODEL_PROBE_BUDGET_MS deliberately and record that the run is not "
+            "cost-comparable."
+        )
 
     phase_config = protocol[phase]
     suite = get_suite(protocol["benchmark_version"], protocol["suite"])
@@ -269,6 +347,7 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path, reuse_trac
         "temperature": protocol["temperature"],
         "reasoning_effort": protocol["reasoning_effort"],
         "seed": protocol["seed"],
+        "host_probe_latency_ms": round(probe_ms, 3),
         "attack": protocol["attack"],
         "authorization_input_excludes": protocol["authorization_input_excludes"],
         "summary": {
