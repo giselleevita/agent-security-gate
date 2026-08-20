@@ -38,7 +38,19 @@ def _cost_totals(cases: list[dict[str, Any]]) -> dict[str, float]:
     return result
 
 
+def _reject_smoke_runs(*run_dirs: Path) -> None:
+    """A --limit run exercises the wiring on a few tasks. It is never a result."""
+    for run_dir in run_dirs:
+        report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
+        if report.get("complete_phase") is False:
+            raise RuntimeError(
+                f"{run_dir} is a smoke run over {report.get('task_limit')} tasks and cannot be "
+                "compared; re-run the full phase"
+            )
+
+
 def compare(baseline_dir: Path, run_dir: Path) -> dict[str, Any]:
+    _reject_smoke_runs(baseline_dir, run_dir)
     baseline = analyze(baseline_dir)
     run = analyze(run_dir)
     base_index, run_index = _index(baseline), _index(run)

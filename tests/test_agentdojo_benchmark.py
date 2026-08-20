@@ -167,3 +167,22 @@ def test_unknown_or_overreaching_variants_are_refused(tmp_path: Path) -> None:
         load_variant("sneaky", path)
     with pytest.raises(ValueError, match="invalid tool_output_format"):
         load_variant("bad-format", path)
+
+
+def test_intervention_flags_must_be_booleans(tmp_path: Path) -> None:
+    from scripts.run_agentdojo_benchmark import load_variant
+
+    path = tmp_path / "variants.json"
+    path.write_text(
+        json.dumps(
+            {
+                "baseline": {},
+                "loose": {"description": "x", "retry_empty_response": "yes"},
+                "strict": {"description": "x", "denial_guidance": True},
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="retry_empty_response to a boolean"):
+        load_variant("loose", path)
+    assert load_variant("strict", path) == {"denial_guidance": True}
