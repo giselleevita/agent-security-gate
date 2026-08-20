@@ -10,5 +10,13 @@
   "v2-json-tool-output": {
     "description": "Serialise tool results as JSON instead of the YAML default, in case parsing reliability is the limit rather than reasoning.",
     "tool_output_format": "json"
+  },
+  "v3-retry-empty-response": {
+    "description": "Re-ask when the model returns neither an answer nor a tool call, instead of letting the tool loop end on silence. Targets the cases that answer without acting.",
+    "retry_empty_response": true
+  },
+  "v4-denial-guidance": {
+    "description": "Tell the agent what a policy refusal means and what to do next, keeping the machine-readable head of the error unchanged. Targets the cases that are partially blocked and then give up. Measured on the gated arm.",
+    "denial_guidance": true
   }
 }

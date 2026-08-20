@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from adapters.agent_quality import RetryEmptyResponse, wrap_pipeline_elements
 from adapters.agentdojo import AuthorizingRuntimeElement
 from adapters.tool_authorization import OpaToolCallAuthorizer, RunContext
 from asg_sdk import AsgClient
@@ -24,7 +25,12 @@ DEFAULT_PROTOCOL = REPO_ROOT / "benchmark" / "agentdojo_protocol.json"
 DEFAULT_VARIANTS = REPO_ROOT / "benchmark" / "agentdojo_variants.json"
 # A variant may only change how the agent is driven. Anything else is a different
 # experiment and must not be smuggled in under the same protocol hash.
-VARIANT_KEYS = {"system_message", "tool_output_format"}
+VARIANT_KEYS = {
+    "system_message",
+    "tool_output_format",
+    "retry_empty_response",
+    "denial_guidance",
+}
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
@@ -170,6 +176,9 @@ def load_variant(name: str, variants_path: Path = DEFAULT_VARIANTS) -> dict[str,
         raise ValueError(f"variant {name!r} sets unsupported keys: {sorted(unexpected)}")
     if variant.get("tool_output_format") not in (None, "yaml", "json"):
         raise ValueError(f"variant {name!r} has an invalid tool_output_format")
+    for flag in ("retry_empty_response", "denial_guidance"):
+        if not isinstance(variant.get(flag, False), bool):
+            raise ValueError(f"variant {name!r} must set {flag} to a boolean")
     return variant
 
 
@@ -264,6 +273,7 @@ def run(
     reuse_traces: bool = False,
     variant_name: str = "baseline",
     variants_path: Path = DEFAULT_VARIANTS,
+    limit: int | None = None,
 ) -> Path:
     from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline, PipelineConfig
     from agentdojo.agent_pipeline.llms.openai_llm import OpenAILLM
@@ -289,6 +299,13 @@ def run(
         )
 
     phase_config = protocol[phase]
+    if limit is not None:
+        if limit < 1:
+            raise ValueError("--limit must be at least 1")
+        phase_config = {
+            "user_tasks": phase_config["user_tasks"][:limit],
+            "injection_tasks": phase_config["injection_tasks"][:limit],
+        }
     suite = get_suite(protocol["benchmark_version"], protocol["suite"])
     ollama_base_url = protocol["ollama_base_url"].rstrip("/")
     openai_client = OpenAI(base_url=f"{ollama_base_url}/v1", api_key="ollama-local")
@@ -314,6 +331,15 @@ def run(
             tool_output_format=variant.get("tool_output_format"),
         )
     )
+    if variant.get("retry_empty_response"):
+        # Match the configured model element by identity rather than by type: AgentDojo
+        # places the same object at the top level and inside the tool-execution loop.
+        base_pipeline.elements = wrap_pipeline_elements(
+            list(base_pipeline.elements),
+            lambda element: element is llm,
+            RetryEmptyResponse,
+        )
+
     client = None
     pipeline = base_pipeline
     if mode == "asg":
@@ -330,7 +356,8 @@ def run(
         authorizer = OpaToolCallAuthorizer(client)
         authorization_element = AuthorizingRuntimeElement(
             authorizer,
-            lambda _query, _name, _arguments: RunContext(
+            denial_guidance=bool(variant.get("denial_guidance")),
+            context_factory=lambda _query, _name, _arguments: RunContext(
                 principal_id="agentdojo-agent",
                 roles=("benchmark-agent",),
                 tenant_id="agentdojo-banking",
@@ -381,6 +408,9 @@ def run(
         "seed": protocol["seed"],
         "host_probe_latency_ms": round(probe_ms, 3),
         "variant": variant_name,
+        # A limited run is a smoke test of the wiring, never a result to compare.
+        "task_limit": limit,
+        "complete_phase": limit is None,
         "variant_sha256": hashlib.sha256(
             json.dumps(variant, sort_keys=True).encode("utf-8")
         ).hexdigest(),
@@ -412,6 +442,11 @@ def main() -> None:
         help="preregistered intervention from benchmark/agentdojo_variants.json",
     )
     parser.add_argument(
+        "--limit",
+        type=int,
+        help="run only the first N user and injection tasks, to smoke-test a variant cheaply",
+    )
+    parser.add_argument(
         "--reuse-traces",
         action="store_true",
         help="rebuild a report from the existing raw traces without model calls",
@@ -430,6 +465,7 @@ def main() -> None:
             args.output_dir,
             args.reuse_traces,
             args.variant,
+            limit=args.limit,
         )
     )
 

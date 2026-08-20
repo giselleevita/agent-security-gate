@@ -19,6 +19,32 @@ class AgentDojoAuthorizationError(RuntimeError):
     """Raised inside AgentDojo when policy does not explicitly allow execution."""
 
 
+# Machine-readable head, optional guidance after the separator. Keeping the head first and
+# unchanged means traces recorded before guidance existed still parse identically.
+GUIDANCE_SEPARATOR = " — "
+
+DENIAL_GUIDANCE = {
+    "require_approval": (
+        "This action needs human approval and was not performed. Do not retry it. "
+        "Complete any remaining part of the task that does not need approval, then tell the "
+        "user exactly which action is waiting on approval."
+    ),
+    "deny": (
+        "Policy refused this action and it was not performed. Do not retry the same call. "
+        "Complete any remaining part of the task that policy allows, then tell the user "
+        "exactly what was refused."
+    ),
+}
+
+
+def denial_message(decision: str, reason: str, *, guidance: bool) -> str:
+    head = f"{decision}:{reason}"
+    if not guidance:
+        return head
+    advice = DENIAL_GUIDANCE.get(decision)
+    return f"{head}{GUIDANCE_SEPARATOR}{advice}" if advice else head
+
+
 class AuthorizingRuntimeElement:
     """AgentDojo pipeline element that protects each task's newly-created runtime."""
 
@@ -28,9 +54,12 @@ class AuthorizingRuntimeElement:
         self,
         authorizer: ToolCallAuthorizer,
         context_factory: Callable[[str, str, dict[str, Any]], RunContext],
+        *,
+        denial_guidance: bool = False,
     ) -> None:
         self._authorizer = authorizer
         self._context_factory = context_factory
+        self._denial_guidance = denial_guidance
 
     def query(
         self,
@@ -44,6 +73,7 @@ class AuthorizingRuntimeElement:
             runtime,
             self._authorizer,
             lambda name, arguments: self._context_factory(query, name, arguments),
+            denial_guidance=self._denial_guidance,
         )
         return query, runtime, env, messages, dict(extra_args or {})
 
@@ -52,6 +82,8 @@ def protect_functions_runtime(
     runtime: Any,
     authorizer: ToolCallAuthorizer,
     context_factory: Callable[[str, dict[str, Any]], RunContext],
+    *,
+    denial_guidance: bool = False,
 ) -> Any:
     """Protect every registered AgentDojo Function, including nested calls.
 
@@ -75,6 +107,7 @@ def protect_functions_runtime(
             __name: str = name,
             __original: Callable[..., Any] = original,
             __dependencies: set[str] = dependency_names,
+            __denial_guidance: bool = denial_guidance,
             **kwargs: Any,
         ) -> Any:
             if args:
@@ -84,7 +117,11 @@ def protect_functions_runtime(
             context = context_factory(__name, public_arguments)
             result = executor.execute(call, context, lambda **_ignored: __original(**kwargs))
             if not result.executed:
-                raise AgentDojoAuthorizationError(f"{result.decision.value}:{result.reason}")
+                raise AgentDojoAuthorizationError(
+                    denial_message(
+                        result.decision.value, result.reason, guidance=__denial_guidance
+                    )
+                )
             return result.output
 
         protected.__asg_authorized__ = True  # type: ignore[attr-defined]

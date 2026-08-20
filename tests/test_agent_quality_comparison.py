@@ -107,3 +107,14 @@ def test_runs_without_shared_cases_are_refused(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="share no scored cases"):
         compare(baseline, run)
+
+
+def test_a_smoke_run_is_refused_as_a_comparison(tmp_path: Path) -> None:
+    baseline = _run(tmp_path, "baseline", [("user_task_0", True, [], None)])
+    run = _run(tmp_path, "variant", [("user_task_0", True, [], None)])
+    report = json.loads((run / "report.json").read_text())
+    report.update({"complete_phase": False, "task_limit": 2})
+    (run / "report.json").write_text(json.dumps(report))
+
+    with pytest.raises(RuntimeError, match="smoke run"):
+        compare(baseline, run)
