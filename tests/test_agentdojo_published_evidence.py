@@ -78,9 +78,10 @@ def test_published_evidence_contains_no_benchmark_content(evidence: dict) -> Non
         assert "You are an AI language model" not in text
 
 
-def test_readme_headline_numbers_match_the_published_evidence(evidence: dict) -> None:
-    """The README summary is hand-written; keep every number tied to the evidence file."""
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+@pytest.mark.parametrize("document", ["README.md", "docs/case-study.md"])
+def test_headline_numbers_match_the_published_evidence(evidence: dict, document: str) -> None:
+    """The prose summaries are hand-written; keep every number tied to the evidence file."""
+    readme = (ROOT / document).read_text(encoding="utf-8")
     asg_comparisons = [c for c in evidence["comparisons"] if c["run_mode"] == "asg"]
     goal_runs = sum(c["injection_goals"]["runs"] for c in asg_comparisons)
     goals_baseline = sum(c["injection_goals"]["achieved_in_baseline"] for c in asg_comparisons)
@@ -97,12 +98,19 @@ def test_readme_headline_numbers_match_the_published_evidence(evidence: dict) ->
     asg_violations, asg_utility = totals("asg")
     baseline_violations, baseline_utility = totals("no-authorizer")
 
-    expected_rows = [
-        f"| Attacker goals achieved ({goal_runs} standalone injection-goal runs) "
-        f"| {goals_baseline} | **{goals_run}** |",
-        f"| Policy-violating tool calls executed | {baseline_violations} | **{asg_violations}** |",
-        f"| Benign cases completed ({paired_cases} paired cases) "
-        f"| {baseline_utility} | {asg_utility} |",
-    ]
-    for row in expected_rows:
-        assert row in readme, f"README row is stale: {row}"
+    expected = {
+        "| Attacker goals achieved": (goals_baseline, goals_run),
+        "| Policy-violating tool calls executed": (baseline_violations, asg_violations),
+        "| Benign cases completed": (baseline_utility, asg_utility),
+    }
+    for prefix, values in expected.items():
+        rows = [line for line in readme.splitlines() if line.startswith(prefix)]
+        assert len(rows) == 1, f"{document}: expected exactly one row for {prefix!r}"
+        cells = [cell.strip().replace("*", "") for cell in rows[0].strip("|").split("|")]
+        assert tuple(int(cell) for cell in cells[1:3]) == values, (
+            f"{document} is stale: {rows[0]}"
+        )
+    assert f"({goal_runs} " in readme, f"{document} does not state {goal_runs} goal runs"
+    assert f"{paired_cases} paired cases" in readme, (
+        f"{document} does not state {paired_cases} paired cases"
+    )
