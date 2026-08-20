@@ -71,6 +71,22 @@ def load_policy_config(tenant_id: str | None = None) -> dict[str, Any]:
     return _normalize_policy(json.loads(policy_data_path().read_text(encoding="utf-8")))
 
 
+def policy_context(body: DecideRequest) -> dict[str, Any]:
+    """The context view that policy rules evaluate.
+
+    Connector adapters nest tool arguments under ``context.arguments`` so the audit layer
+    can hash them as one value. Rules that key on argument values must still see them,
+    otherwise an adapter-driven call silently bypasses a check the same call would fail
+    through the gateway. Explicit top-level context keys win on collision, and the nested
+    object stays available for policies that want the arguments whole.
+    """
+    context = dict(body.context)
+    arguments = context.get("arguments")
+    if not isinstance(arguments, dict):
+        return context
+    return {**{str(key): value for key, value in arguments.items()}, **context}
+
+
 def build_opa_input(
     body: DecideRequest,
     policy_config: dict[str, Any],
@@ -78,7 +94,7 @@ def build_opa_input(
     action_count: int,
     active_exceptions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    ctx = dict(body.context)
+    ctx = policy_context(body)
     # Derive output_length from the output ASG can actually see rather than trusting a
     # caller-supplied value, so the OPA output cap cannot be bypassed by understating it.
     tool_output = ctx.get("tool_output")

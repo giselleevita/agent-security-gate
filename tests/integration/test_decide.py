@@ -249,3 +249,56 @@ def test_metrics_endpoint_exposes_decide_counters(client: httpx.Client) -> None:
     assert "asg_decide_total" in body
     assert "asg_decide_latency_seconds" in body
     assert "asg_approvals_pending" in body
+
+
+@pytest.mark.integration
+def test_adapter_nested_arguments_cannot_bypass_argument_rules(client: httpx.Client) -> None:
+    """A connector adapter nests arguments; the same call must not become allowed."""
+    flat = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "acme",
+            "session_id": f"nested-{uuid.uuid4().hex[:8]}",
+            "action": "tool_call",
+            "tool": "docs.read",
+            "context": {"path": "/internal/secrets.yaml"},
+        },
+    )
+    flat.raise_for_status()
+    assert flat.json()["allowed"] is False
+
+    nested = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "acme",
+            "session_id": f"nested-{uuid.uuid4().hex[:8]}",
+            "action": "tool_call",
+            "tool": "docs.read",
+            "context": {
+                "principal": {"id": "agent-1", "roles": ["agent"]},
+                "arguments": {"path": "/internal/secrets.yaml"},
+            },
+        },
+    )
+    nested.raise_for_status()
+    assert nested.json()["allowed"] is False
+    assert nested.json()["reason"] == flat.json()["reason"]
+
+
+@pytest.mark.integration
+def test_adapter_nested_arguments_still_allow_permitted_calls(client: httpx.Client) -> None:
+    response = client.post(
+        "/v1/gateway/decide",
+        json={
+            "tenant_id": "acme",
+            "session_id": f"nested-{uuid.uuid4().hex[:8]}",
+            "action": "tool_call",
+            "tool": "docs.read",
+            "context": {
+                "principal": {"id": "agent-1", "roles": ["agent"]},
+                "arguments": {"path": "/public/readme.md"},
+            },
+        },
+    )
+    response.raise_for_status()
+    assert response.json()["allowed"] is True

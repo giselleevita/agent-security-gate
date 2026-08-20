@@ -83,6 +83,13 @@ Every one of these was caught before a result was published, and each produced a
   in all 40 scored cases with this model. Its utility number described an agent that did
   nothing, not a defense that worked, and it is now labelled as unusable rather than
   reported as a comparison.
+- **An adapter bypassed argument-level policy.** Writing the demo below surfaced it.
+  Adapters nest tool arguments under `context.arguments` so the audit layer can hash them
+  as one value — but policy rules read argument values from the top of the context, so an
+  adapter-driven read of a denied path was *allowed* where the same call through the
+  gateway was denied, and the SSRF check saw no URL at all. Fixed by merging nested
+  arguments into the context policy evaluates. Replaying all 107 tool calls observed in the
+  published runs produced identical decisions before and after, so the results stand.
 - **A measurement was quietly throttled.** The latency replay tripped the gateway's own
   decide rate limit; the authorizer failed closed, correctly, but the first measurement only
   checked decisions on the first round and would have published throttled numbers. Decisions
@@ -112,6 +119,11 @@ elsewhere. Zero observed attack successes is a property of the runs, not a secur
 
 ```bash
 docker compose up -d --build
+python examples/protected_function_tool.py   # one allow, one execution, four refusals
+docker compose stop opa
+python examples/protected_function_tool.py --opa-down
+docker compose start opa
+
 make agentdojo-development
 make agentdojo-development-baselines
 make agentdojo-evidence

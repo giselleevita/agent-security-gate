@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Argument-level policy bypass through connector adapters.** Adapters nest tool arguments under `context.arguments` so the audit layer can hash them as one value, but policy rules read argument values from the top level of `context`. An adapter-driven `docs.read` of a `denied_doc_prefixes` path was therefore allowed where the same call through the gateway was denied, and `http.get` SSRF checks saw no URL at all. `app/policy.policy_context` now merges nested tool arguments into the context that OPA and the Python evaluators see, with explicit top-level keys winning on collision and the nested object preserved. Found by `examples/protected_function_tool.py`. Replaying all 107 tool calls observed in the published AgentDojo runs produced identical decisions before and after the fix, so those results are unaffected
+
+### Added
+- `examples/protected_function_tool.py`: a real function with a side effect behind the authorization contract, with an execution spy — allow, argument-boundary deny, argument tampering after a previous allow, SSRF, approval-required, and a `--opa-down` mode that asserts nothing executes while policy is unreachable
+- `scripts/analyze_agentdojo_traces.py`, `scripts/measure_authorization_latency.py`, and `scripts/build_agentdojo_evidence.py`: per-call authorization evidence, paired baseline comparison, latency replay against the live stack, and a generated evidence package
+- `docs/case-study.md`: threat, enforcement contract, benchmark design, defects found while producing the results, and what the numbers do and do not support
+
 ---
 
 ## [0.6.0] — 2026-07-08
