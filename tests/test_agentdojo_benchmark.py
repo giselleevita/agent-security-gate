@@ -124,3 +124,11 @@ def test_result_records_are_stable_and_explicit() -> None:
             "attack_succeeded": False,
         }
     ]
+
+
+def test_model_call_metering_never_raises() -> None:
+    from scripts.run_agentdojo_benchmark import _meter_model_call
+
+    # No active AgentDojo logger, and a response without usage: both must be silent.
+    _meter_model_call(MagicMock(usage=None), 1.0)
+    _meter_model_call(object(), 1.0)

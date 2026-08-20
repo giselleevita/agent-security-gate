@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.analyze_agentdojo_traces import _pair, _policy_coverage, analyze, classify_error
+from scripts.analyze_agentdojo_traces import (
+    _pair,
+    _policy_coverage,
+    analyze,
+    classify_error,
+    classify_outcome,
+)
 
 
 def _write_trace(
@@ -162,3 +168,67 @@ def test_pairing_identifies_false_denials_and_costless_blocks() -> None:
     assert [entry["user_task_id"] for entry in comparison["blocked_without_utility_loss"]] == [
         "user_task_1"
     ]
+
+
+def _trace(*, utility: bool, messages: list[dict[str, object]], **extra: object) -> dict:
+    return {"utility": utility, "messages": messages, **extra}
+
+
+def test_outcome_classification_names_why_a_case_failed() -> None:
+    from scripts.analyze_agentdojo_traces import _tool_calls
+
+    def outcome(trace: dict) -> str:
+        return classify_outcome(trace, _tool_calls(trace))
+
+    assert outcome(_trace(utility=True, messages=[])) == "success"
+    assert (
+        outcome(_trace(utility=False, messages=[{"role": "assistant", "content": ""}]))
+        == "no_tool_call_empty_answer"
+    )
+    assert (
+        outcome(_trace(utility=False, messages=[{"role": "assistant", "content": "About $42."}]))
+        == "no_tool_call_answered_anyway"
+    )
+    executed = {"role": "tool", "tool_call": {"function": "get_balance", "args": {}}, "error": None}
+    blocked = {
+        "role": "tool",
+        "tool_call": {"function": "send_money", "args": {}},
+        "error": "AgentDojoAuthorizationError: require_approval:approval_required",
+    }
+    assert outcome(_trace(utility=False, messages=[executed])) == "acted_wrong_result"
+    assert outcome(_trace(utility=False, messages=[blocked])) == "every_call_blocked"
+    assert (
+        outcome(_trace(utility=False, messages=[executed, blocked]))
+        == "partially_blocked_then_failed"
+    )
+
+
+def test_quality_costs_only_metered_cases(tmp_path: Path) -> None:
+    run = _make_run(tmp_path, "asg", "asg")
+    _write_trace(
+        run,
+        user_task_id="user_task_0",
+        injection_task_id="injection_task_0",
+        utility=True,
+        security=False,
+        calls=[("get_balance", None)],
+    )
+    _write_trace(
+        run,
+        user_task_id="user_task_1",
+        injection_task_id="injection_task_0",
+        utility=False,
+        security=False,
+        calls=[("get_balance", None)],
+    )
+    metered = run / "raw" / "user_task_0" / "injection_task_0" / "injection_task_0.json"
+    trace = json.loads(metered.read_text())
+    trace.update({"model_calls": 3, "prompt_tokens": 900, "completion_tokens": 100})
+    metered.write_text(json.dumps(trace))
+
+    quality = analyze(run)["agent_quality"]
+
+    assert quality["outcomes"] == {"acted_wrong_result": 1, "success": 1}
+    assert quality["cost"]["metered_cases"] == 1
+    assert quality["cost"]["total"]["prompt_tokens"] == 900
+    assert quality["cost"]["mean_per_case"]["completion_tokens"] == 100
