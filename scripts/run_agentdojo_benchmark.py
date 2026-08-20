@@ -21,6 +21,10 @@ from asg_sdk import AsgClient
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROTOCOL = REPO_ROOT / "benchmark" / "agentdojo_protocol.json"
+DEFAULT_VARIANTS = REPO_ROOT / "benchmark" / "agentdojo_variants.json"
+# A variant may only change how the agent is driven. Anything else is a different
+# experiment and must not be smuggled in under the same protocol hash.
+VARIANT_KEYS = {"system_message", "tool_output_format"}
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
@@ -152,6 +156,23 @@ def check_ollama_runtime(protocol: dict[str, Any]) -> dict[str, str]:
     return {"ollama_version": installed_version, "ollama_model_digest": digest}
 
 
+def load_variant(name: str, variants_path: Path = DEFAULT_VARIANTS) -> dict[str, Any]:
+    """Resolve a preregistered intervention, rejecting anything outside the allowed keys."""
+    variants = json.loads(variants_path.read_text(encoding="utf-8"))
+    if name not in variants or name.startswith("_"):
+        available = sorted(key for key in variants if not key.startswith("_"))
+        raise ValueError(f"unknown variant {name!r}; preregistered variants are {available}")
+    variant = {
+        key: value for key, value in variants[name].items() if key != "description"
+    }
+    unexpected = set(variant) - VARIANT_KEYS
+    if unexpected:
+        raise ValueError(f"variant {name!r} sets unsupported keys: {sorted(unexpected)}")
+    if variant.get("tool_output_format") not in (None, "yaml", "json"):
+        raise ValueError(f"variant {name!r} has an invalid tool_output_format")
+    return variant
+
+
 def probe_model_latency(protocol: dict[str, Any], *, samples: int = 3) -> float:
     """Median latency of a trivial completion, in milliseconds.
 
@@ -235,7 +256,15 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
     }
 
 
-def run(protocol_path: Path, phase: str, mode: str, output_dir: Path, reuse_traces: bool = False) -> Path:
+def run(
+    protocol_path: Path,
+    phase: str,
+    mode: str,
+    output_dir: Path,
+    reuse_traces: bool = False,
+    variant_name: str = "baseline",
+    variants_path: Path = DEFAULT_VARIANTS,
+) -> Path:
     from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline, PipelineConfig
     from agentdojo.agent_pipeline.llms.openai_llm import OpenAILLM
     from agentdojo.attacks.attack_registry import load_attack
@@ -274,13 +303,15 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path, reuse_trac
         temperature=float(protocol["temperature"]),
     )
     llm.name = protocol["model"]
+    variant = load_variant(variant_name, variants_path)
     base_pipeline = AgentPipeline.from_config(
         PipelineConfig(
             llm=llm,
             model_id=None,
             defense="tool_filter" if mode == "tool-filter" else None,
             system_message_name=None,
-            system_message=None,
+            system_message=variant.get("system_message"),
+            tool_output_format=variant.get("tool_output_format"),
         )
     )
     client = None
@@ -308,7 +339,8 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path, reuse_trac
             ),
         )
         pipeline = AgentPipeline([authorization_element, *base_pipeline.elements])
-    pipeline.name = f"{protocol['model']}-{mode}-{phase}"
+    suffix = "" if variant_name == "baseline" else f"-{variant_name}"
+    pipeline.name = f"{protocol['model']}-{mode}-{phase}{suffix}"
     attack = load_attack(protocol["attack"], suite, pipeline)
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -348,6 +380,11 @@ def run(protocol_path: Path, phase: str, mode: str, output_dir: Path, reuse_trac
         "reasoning_effort": protocol["reasoning_effort"],
         "seed": protocol["seed"],
         "host_probe_latency_ms": round(probe_ms, 3),
+        "variant": variant_name,
+        "variant_sha256": hashlib.sha256(
+            json.dumps(variant, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
+        "variants_sha256": _sha256(variants_path),
         "attack": protocol["attack"],
         "authorization_input_excludes": protocol["authorization_input_excludes"],
         "summary": {
@@ -370,6 +407,11 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument(
+        "--variant",
+        default="baseline",
+        help="preregistered intervention from benchmark/agentdojo_variants.json",
+    )
+    parser.add_argument(
         "--reuse-traces",
         action="store_true",
         help="rebuild a report from the existing raw traces without model calls",
@@ -380,7 +422,16 @@ def main() -> None:
         return
     if args.phase is None or args.output_dir is None:
         parser.error("--phase and --output-dir are required unless --validate-only is used")
-    print(run(args.protocol, args.phase, args.mode, args.output_dir, args.reuse_traces))
+    print(
+        run(
+            args.protocol,
+            args.phase,
+            args.mode,
+            args.output_dir,
+            args.reuse_traces,
+            args.variant,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -82,6 +82,12 @@ Raising the budget is allowed; doing it silently is not.
 
 ## Preregistered interventions
 
+Each intervention is a named variant in
+[`benchmark/agentdojo_variants.json`](../benchmark/agentdojo_variants.json), applied with
+`--variant`. A variant may only set `system_message` or `tool_output_format`; the runner refuses
+anything else, so a change to the seed, model, or policy cannot be smuggled in under the same
+protocol. Every report records the variant name and a hash of both the variant and the file.
+
 In order. Later entries may be dropped if earlier ones make them irrelevant; nothing is added
 after seeing a result without saying so.
 
@@ -98,6 +104,13 @@ after seeing a result without saying so.
 5. **Model comparison.** A second freely available local model on the identical protocol, for
    quality-per-token and latency evidence rather than a winner.
 
+## A note on the system prompt
+
+The system message is also the surface the injection attacks target. Changing it can move the
+security results, and this experiment runs on the unprotected arm and does not re-derive them. Any
+variant adopted here must be re-measured on the gated arm before it is used to support a security
+claim.
+
 ## Confirmation
 
 The configuration that survives development is run **once** on an AgentDojo suite not used during
@@ -110,7 +123,9 @@ development gain is reported as not confirmed.
 docker compose up -d --build
 python -m scripts.run_agentdojo_benchmark --phase development --mode no-authorizer \
   --output-dir results/agentdojo/quality/baseline
+python -m scripts.run_agentdojo_benchmark --phase development --mode no-authorizer \
+  --variant v1-system-prompt --output-dir results/agentdojo/quality/v1-system-prompt
 python -m scripts.compare_agent_quality \
   --baseline results/agentdojo/quality/baseline \
-  --run results/agentdojo/quality/<variant>
+  --run results/agentdojo/quality/v1-system-prompt
 ```
