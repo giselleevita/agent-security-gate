@@ -1,7 +1,8 @@
 SCENARIOS=benchmark/scenarios/scenarios.yaml
+LATENCY_RATE_LIMIT=100000
 EVIDENCE_DIR=results/evidence
 
-.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security agentdojo-development agentdojo-development-baselines agentdojo-heldout
+.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security agentdojo-development agentdojo-development-baselines agentdojo-heldout agentdojo-latency agentdojo-opa-down agentdojo-evidence
 
 eval:
 	python3 -m benchmark.runner --scenarios $(SCENARIOS) --summary results/summary.json
@@ -46,3 +47,16 @@ agentdojo-development-baselines:
 
 agentdojo-heldout:
 	python3 -m scripts.run_agentdojo_benchmark --phase heldout --mode asg --output-dir results/agentdojo/heldout/asg
+
+# Raises the gateway decide rate limit for the replay, then restores the default.
+agentdojo-latency:
+	DECIDE_RATE_LIMIT_MAX=$(LATENCY_RATE_LIMIT) docker compose up -d gateway
+	DECIDE_RATE_LIMIT_MAX=$(LATENCY_RATE_LIMIT) python3 -m scripts.measure_authorization_latency --run results/agentdojo/development/asg --output results/agentdojo/authorization-latency.json
+	docker compose up -d gateway
+
+# Requires the OPA container to be stopped first: docker compose stop opa
+agentdojo-opa-down:
+	python3 -m scripts.measure_authorization_latency --run results/agentdojo/development/asg --expect unavailable --repeats 1 --warmup 0 --output results/agentdojo/authorization-opa-down.json
+
+agentdojo-evidence:
+	python3 -m scripts.build_agentdojo_evidence
