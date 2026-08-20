@@ -16,7 +16,7 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 
 <p align="center"><em>Blocks unsafe tool calls before execution and records an auditable decision trace.</em></p>
 
-**Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) · **Technical brief:** [docs/technical-brief.md](docs/technical-brief.md) · **Authorship:** [AUTHORS.md](AUTHORS.md)
+**Case study:** [docs/case-study.md](docs/case-study.md) · **Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) · **Technical brief:** [docs/technical-brief.md](docs/technical-brief.md) · **Authorship:** [AUTHORS.md](AUTHORS.md)
 
 ---
 
@@ -261,6 +261,7 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 
 | Doc | Purpose |
 |---|---|
+| [Case study](docs/case-study.md) | Threat, contract, benchmark design, what went wrong, and what the numbers support |
 | [Architecture decisions (ADRs)](docs/adr/README.md) | Why the non-obvious calls were made, and what was rejected |
 | [Threat model](docs/agent-security-gate-threat-model.md) | Trust boundaries and abuse paths |
 | [Connector SDK](docs/connector-sdk.md) | Decide → execute contract |
