@@ -254,6 +254,7 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 
 ## Documentation
 
+- [Gated function-tool demo](examples/protected_function_tool.py) — a real function, an execution spy, and five decisions
 - [AgentDojo authorization adapter](docs/integrations/agentdojo.md)
 - [AgentDojo Banking benchmark protocol](docs/agentdojo-benchmark.md)
 - [AgentDojo local-model results](docs/benchmark-results/agentdojo-local.md)

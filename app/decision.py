@@ -27,6 +27,7 @@ from app import metrics as _metrics
 from app.policy import build_opa_input as _build_opa_input
 from app.policy import load_policy_config as _load_policy_config
 from app.policy import opa_post as _opa_post
+from app.policy import policy_context
 from app.policy import tenant_known as _tenant_known
 from app.schemas import DecideRequest, DecideResponse
 
@@ -146,7 +147,9 @@ def decide_tool_call_impl(
     redis_key = f"sessions:{body.tenant_id}:{body.session_id}:count"
     r = _redis()
 
-    tool_output = body.context.get("tool_output")
+    context = policy_context(body)
+
+    tool_output = context.get("tool_output")
     if isinstance(tool_output, str) and tool_output:
         reason_or_none, _redacted, extras = _scan_tool_output(tool_output=tool_output)
         if reason_or_none is not None:
@@ -164,7 +167,7 @@ def decide_tool_call_impl(
             )
             return response
 
-    sensitivity = str(body.context.get("sensitivity_label", "")).lower().strip()
+    sensitivity = str(context.get("sensitivity_label", "")).lower().strip()
     if sensitivity in {"confidential", "secret"}:
         audit_id = f"evt_{uuid.uuid4().hex}"
         response = DecideResponse(
@@ -179,8 +182,8 @@ def decide_tool_call_impl(
 
     if body.tool == "http.get":
         http_decision, _ = evaluate_http_target(
-            url=str(body.context.get("url", "")),
-            method=str(body.context.get("method", "GET")),
+            url=str(context.get("url", "")),
+            method=str(context.get("method", "GET")),
             allowed_hosts=list(policy_config.get("allowed_http_domains", [])),
             resolve_dns=True,
         )
