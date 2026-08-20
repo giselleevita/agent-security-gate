@@ -27,6 +27,10 @@ Authorization runs immediately before the callable, and answers exactly one of `
 - Injected runtime dependencies are stripped before they become policy arguments.
 - Audit events store hashes and bounded argument metadata, not raw arguments or tool output.
 
+![A real function behind the authorization contract: one allow and one execution, four refusals that never reached the function, then the same call refused with the policy engine stopped](assets/protected-tool-demo.gif)
+
+*[`examples/protected_function_tool.py`](../examples/protected_function_tool.py) — the function is ordinary Python with a side effect; the execution spy counts every real invocation. Recorded with [`docs/demo/protected-tool.tape`](demo/protected-tool.tape).*
+
 The interface is framework-neutral. Two adapters sit on it: AgentDojo's `Function.run`
 boundary and the OpenAI Agents SDK's tool input guardrail — with the SDK tool classes that
 do *not* pass through that guardrail documented as unsupported rather than glossed over.
