@@ -55,6 +55,49 @@ Each run preserves AgentDojo's raw per-task traces under `raw/` and writes `repo
 
 If report aggregation changes without changing any model trace, pass `--reuse-traces` to rebuild the report from the existing raw directory without making model calls. The report records whether traces were reused.
 
+## Authorization evidence
+
+`report.json` records only per-case utility and security. That is not enough to judge an authorization boundary: it hides which tool calls were proposed, which were blocked, and what the block cost. Three deterministic steps reconstruct that from artifacts already on disk.
+
+Derive per-call outcomes from the frozen traces — no model calls, no services:
+
+```bash
+python -m scripts.analyze_agentdojo_traces \
+  --run results/agentdojo/development/asg \
+  --baseline results/agentdojo/development/no-authorizer
+```
+
+This writes `authorization.json` next to the report with per-call decisions and reasons, a per-tool breakdown, policy-consistency checks against the frozen tenant policy, a hash manifest over every raw trace, and a paired comparison against the baseline. The paired comparison is what identifies false denials: cases the baseline completed and the enforced run did not, where at least one call was blocked.
+
+AgentDojo also runs each injection goal standalone against the pipeline under test. Those runs are analysed separately, because they are the only place in this configuration where the agent deliberately pursues the attacker's objective — and therefore the only matched test of whether the gate blocks it.
+
+Measure authorization latency and re-prove the no-execution guarantee against the live stack, by replaying every tool call the traces observed with an execution spy in place of the tool:
+
+```bash
+make agentdojo-latency
+```
+
+Then confirm fail-closed behaviour with policy infrastructure down:
+
+```bash
+docker compose stop opa
+make agentdojo-opa-down
+docker compose start opa
+```
+
+Regenerate the published evidence package from all of the above:
+
+```bash
+make agentdojo-evidence
+```
+
+`docs/benchmark-results/agentdojo-local.{json,md}` are generated, never hand-edited, so a published number cannot drift away from the artifact it came from. `tests/test_agentdojo_published_evidence.py` re-checks the published arithmetic and asserts that no prompt, argument value, or tool output was published.
+
 ## Interpretation
 
 This is candidate-authored evaluation until a separate person reproduces it from a clean checkout. Do not describe it as independent validation. The ASG, no-authorizer, and AgentDojo `tool_filter` development runs use the same local model artifact and task partition. A smaller local model may have lower task utility than a frontier hosted model; report that result directly rather than extrapolating beyond this configuration.
+
+Two interpretation traps are live in this configuration and are called out in the published results:
+
+- **Scored-case security proves nothing here.** Every arm scores 100%, including the unprotected baseline, because this model rarely pursued the injected goal. Only the standalone injection-goal runs distinguish the arms.
+- **The `tool_filter` arm is degenerate with this model.** It produced zero tool calls in every scored case, so its utility and security numbers describe an agent that did nothing, not a defense that worked.
