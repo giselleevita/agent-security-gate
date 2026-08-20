@@ -263,6 +263,7 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 | Doc | Purpose |
 |---|---|
 | [Case study](docs/case-study.md) | Threat, contract, benchmark design, what went wrong, and what the numbers support |
+| [Demo assets](docs/demo/README.md) | Reproducible terminal recordings, including the protected function tool |
 | [Architecture decisions (ADRs)](docs/adr/README.md) | Why the non-obvious calls were made, and what was rejected |
 | [Threat model](docs/agent-security-gate-threat-model.md) | Trust boundaries and abuse paths |
 | [Connector SDK](docs/connector-sdk.md) | Decide → execute contract |
