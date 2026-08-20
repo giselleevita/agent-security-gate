@@ -2,7 +2,7 @@ SCENARIOS=benchmark/scenarios/scenarios.yaml
 LATENCY_RATE_LIMIT=100000
 EVIDENCE_DIR=results/evidence
 
-.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security agentdojo-development agentdojo-development-baselines agentdojo-heldout agentdojo-latency agentdojo-opa-down agentdojo-evidence agentdojo-quality-baseline
+.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security agentdojo-development agentdojo-development-baselines agentdojo-heldout agentdojo-latency agentdojo-opa-down agentdojo-evidence agentdojo-quality-baseline agentdojo-quality-variant agentdojo-quality-smoke agentdojo-quality-compare
 
 eval:
 	python3 -m benchmark.runner --scenarios $(SCENARIOS) --summary results/summary.json
@@ -61,5 +61,19 @@ agentdojo-opa-down:
 agentdojo-evidence:
 	python3 -m scripts.build_agentdojo_evidence
 
+QUALITY_MODE ?= no-authorizer
+QUALITY_DIR = results/agentdojo/quality
+
 agentdojo-quality-baseline:
-	python3 -m scripts.run_agentdojo_benchmark --phase development --mode no-authorizer --output-dir results/agentdojo/quality/baseline
+	python3 -m scripts.run_agentdojo_benchmark --phase development --mode $(QUALITY_MODE) --output-dir $(QUALITY_DIR)/baseline
+
+# Cheap wiring check before committing an hour of inference: make agentdojo-quality-smoke VARIANT=v3-retry-empty-response
+agentdojo-quality-smoke:
+	python3 -m scripts.run_agentdojo_benchmark --phase development --mode $(QUALITY_MODE) --variant $(VARIANT) --limit 1 --output-dir $(QUALITY_DIR)/smoke-$(VARIANT)
+
+# make agentdojo-quality-variant VARIANT=v3-retry-empty-response
+agentdojo-quality-variant:
+	python3 -m scripts.run_agentdojo_benchmark --phase development --mode $(QUALITY_MODE) --variant $(VARIANT) --output-dir $(QUALITY_DIR)/$(VARIANT)
+
+agentdojo-quality-compare:
+	python3 -m scripts.compare_agent_quality --baseline $(QUALITY_DIR)/baseline --run $(QUALITY_DIR)/$(VARIANT)
