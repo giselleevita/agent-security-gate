@@ -2,7 +2,7 @@ SCENARIOS=benchmark/scenarios/scenarios.yaml
 LATENCY_RATE_LIMIT=100000
 EVIDENCE_DIR=results/evidence
 
-.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security agentdojo-development agentdojo-development-baselines agentdojo-heldout agentdojo-latency agentdojo-opa-down agentdojo-evidence agentdojo-quality-baseline agentdojo-quality-variant agentdojo-quality-smoke agentdojo-quality-compare agentdojo-quality-compare-models agentdojo-confirmation
+.PHONY: eval compare gate evidence verify-evidence verify migrate test integration lint security agentdojo-development agentdojo-development-baselines agentdojo-heldout agentdojo-latency agentdojo-opa-down agentdojo-evidence agentdojo-quality-baseline agentdojo-quality-variant agentdojo-quality-smoke agentdojo-quality-compare agentdojo-quality-compare-models agentdojo-confirmation agentdojo-quality-evidence
 
 eval:
 	python3 -m benchmark.runner --scenarios $(SCENARIOS) --summary results/summary.json
@@ -85,3 +85,6 @@ agentdojo-quality-compare-models:
 # One-time confirmation of the winning configuration on a suite never used for tuning.
 agentdojo-confirmation:
 	python3 -m scripts.run_agentdojo_benchmark --phase confirmation --mode no-authorizer --variant $(VARIANT) --output-dir $(QUALITY_DIR)/confirmation
+
+agentdojo-quality-evidence:
+	python3 -m scripts.build_agent_quality_evidence
