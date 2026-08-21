@@ -183,3 +183,21 @@ def test_an_intervention_comparison_still_renders_a_verdict(tmp_path: Path) -> N
 
     assert result["comparison_type"] == "intervention"
     assert result["verdict"]["accept"] is True
+
+
+def test_latency_is_dropped_when_the_host_degraded_but_tokens_are_not(tmp_path: Path) -> None:
+    cases = [("user_task_0", True, [], {"completion_tokens": 100, "model_latency_ms": 1000})]
+    baseline = _run(tmp_path, "baseline-host", cases)
+    run = _run(
+        tmp_path,
+        "variant-host",
+        [("user_task_0", True, [], {"completion_tokens": 80, "model_latency_ms": 900_000})],
+    )
+    _retarget(run, latency_comparable=False)
+
+    result = compare(baseline, run)
+
+    assert result["latency_comparable"] is False
+    assert "not comparable" in result["cost"]["model_latency_ms"]["note"]
+    # Tokens are unaffected by host load, so they are still compared.
+    assert result["cost"]["completion_tokens"]["delta"] == -20

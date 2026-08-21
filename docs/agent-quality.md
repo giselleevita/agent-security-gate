@@ -142,6 +142,21 @@ arithmetic and asserts that no prompt, argument value, or tool output reaches th
 skipped, and a run marked incomplete is refused outright. Rejected interventions are published
 beside accepted ones.
 
+## Host comparability
+
+Local inference shares the machine with everything else on it. The runner probes model latency
+before the run and refuses to start on a loaded host — but an opening probe cannot see a machine
+that becomes busy three hours in, which is the case that actually happens.
+
+So it probes again at the end and records `latency_comparable`. When the host degraded, latency is
+dropped from the comparison with a note, while **task completion and token counts are still
+compared**: greedy decoding at a fixed seed does not depend on machine load, so those numbers stand.
+Only wall-clock does not.
+
+Before a run, free the machine: stop local Kubernetes clusters, VMs, and anything else holding
+memory. On a 16 GB host a 9B model competing for RAM pages to disk, and a task that takes 90
+seconds on a free machine can take an hour on a busy one.
+
 ## Comparability
 
 `compare_agent_quality` refuses any pair of runs that differ in phase, mode, protocol hash, policy

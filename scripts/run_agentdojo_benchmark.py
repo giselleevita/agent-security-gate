@@ -363,8 +363,8 @@ def run(
     model_name, model_digest = resolve_model(protocol, variant)
     runtime = check_ollama_runtime(protocol, model_name, model_digest)
 
-    probe_ms = probe_model_latency(protocol, model_name)
     budget_ms = float(os.getenv("ASG_MODEL_PROBE_BUDGET_MS", "8000"))
+    probe_ms = probe_model_latency(protocol, model_name)
     if probe_ms > budget_ms:
         raise RuntimeError(
             f"host is too loaded for a comparable run: a trivial completion took "
@@ -461,6 +461,13 @@ def run(
         if client is not None:
             client.close()
 
+    # The opening probe cannot see a host that degrades later. Probing again at the end
+    # catches the case that actually happens: a machine that was free when the run started
+    # and busy by the time it finished. Task outcomes and token counts stay comparable —
+    # greedy decoding at a fixed seed does not depend on load — but latency does not.
+    end_probe_ms = probe_model_latency(protocol, model_name)
+    latency_comparable = end_probe_ms <= budget_ms
+
     records = _records(results)
     report = {
         "schema_version": 1,
@@ -484,6 +491,10 @@ def run(
         "reasoning_effort": protocol["reasoning_effort"],
         "seed": protocol["seed"],
         "host_probe_latency_ms": round(probe_ms, 3),
+        "host_probe_latency_ms_end": round(end_probe_ms, 3),
+        "host_probe_budget_ms": budget_ms,
+        # False means the host slowed during the run: utility and tokens stand, latency does not.
+        "latency_comparable": latency_comparable,
         "variant": variant_name,
         # A limited run is a smoke test of the wiring, never a result to compare.
         "task_limit": limit,
