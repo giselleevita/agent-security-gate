@@ -186,3 +186,101 @@ def test_intervention_flags_must_be_booleans(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="retry_empty_response to a boolean"):
         load_variant("loose", path)
     assert load_variant("strict", path) == {"denial_guidance": True}
+
+
+def test_a_variant_may_change_the_model_only_with_its_digest(tmp_path: Path) -> None:
+    from scripts.run_agentdojo_benchmark import load_variant
+
+    path = tmp_path / "variants.json"
+    path.write_text(
+        json.dumps(
+            {
+                "baseline": {},
+                "no-digest": {"model": "mistral:latest"},
+                "no-model": {"model_digest": "a" * 64},
+                "short-digest": {"model": "mistral:latest", "model_digest": "abc"},
+                "ok": {"model": "mistral:latest", "model_digest": "b" * 64},
+            }
+        )
+    )
+
+    for name in ("no-digest", "no-model"):
+        with pytest.raises(ValueError, match="together"):
+            load_variant(name, path)
+    with pytest.raises(ValueError, match="full model digest"):
+        load_variant("short-digest", path)
+    assert load_variant("ok", path)["model"] == "mistral:latest"
+
+
+def test_the_resolved_model_is_the_protocol_unless_a_variant_overrides_it() -> None:
+    from scripts.run_agentdojo_benchmark import resolve_model
+
+    protocol = {"model": "qwen3.5:9b", "ollama_model_digest": "q" * 64}
+
+    assert resolve_model(protocol, {}) == ("qwen3.5:9b", "q" * 64)
+    assert resolve_model(protocol, {"model": "mistral:latest", "model_digest": "m" * 64}) == (
+        "mistral:latest",
+        "m" * 64,
+    )
+
+
+def test_the_runtime_check_validates_the_model_the_run_will_actually_use(monkeypatch) -> None:
+    from scripts import run_agentdojo_benchmark as runner
+
+    installed = {
+        "models": [
+            {"name": "qwen3.5:9b", "digest": "q" * 64},
+            {"name": "mistral:latest", "digest": "m" * 64},
+        ]
+    }
+
+    class _Response:
+        def __init__(self, payload: dict) -> None:
+            self._payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return self._payload
+
+    class _Client:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def get(self, path: str):
+            return _Response({"version": "0.31.1"} if path == "/api/version" else installed)
+
+    monkeypatch.setattr(runner.httpx, "Client", _Client)
+    protocol = {"ollama_base_url": "http://127.0.0.1:11434", "ollama_version": "0.31.1"}
+
+    resolved = runner.check_ollama_runtime(protocol, "mistral:latest", "m" * 64)
+    assert resolved["model"] == "mistral:latest"
+    assert resolved["ollama_model_digest"] == "m" * 64
+
+    with pytest.raises(RuntimeError, match="digest mismatch"):
+        runner.check_ollama_runtime(protocol, "mistral:latest", "z" * 64)
+    with pytest.raises(RuntimeError, match="not installed"):
+        runner.check_ollama_runtime(protocol, "llama9:1t", "z" * 64)
+
+
+def test_a_phase_may_declare_its_own_suite_and_no_policy() -> None:
+    from scripts.run_agentdojo_benchmark import phase_policy, phase_suite
+
+    protocol = {
+        "suite": "banking",
+        "policy": "policies/banking.json",
+        "development": {},
+        "confirmation": {"suite": "slack", "policy": None},
+    }
+
+    assert phase_suite(protocol, "development") == "banking"
+    assert phase_policy(protocol, "development") == "policies/banking.json"
+    assert phase_suite(protocol, "confirmation") == "slack"
+    assert phase_policy(protocol, "confirmation") is None
