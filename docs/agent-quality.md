@@ -130,6 +130,18 @@ claim.
 correctly before committing an hour of inference to it. Such a run records `complete_phase: false`
 and the comparison tool refuses it outright, so a smoke test cannot be mistaken for a result.
 
+## Publishing
+
+```bash
+make agentdojo-quality-evidence
+```
+
+`docs/benchmark-results/agent-quality.{json,md}` are generated from the run and comparison
+artifacts, never hand-edited, and `tests/test_agent_quality_evidence.py` re-checks the published
+arithmetic and asserts that no prompt, argument value, or tool output reaches them. Smoke runs are
+skipped, and a run marked incomplete is refused outright. Rejected interventions are published
+beside accepted ones.
+
 ## Comparability
 
 `compare_agent_quality` refuses any pair of runs that differ in phase, mode, protocol hash, policy
