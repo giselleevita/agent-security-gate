@@ -58,5 +58,40 @@
     "expected_outcome",
     "ground_truth",
     "security_label"
-  ]
+  ],
+  "confirmation": {
+    "suite": "slack",
+    "policy": null,
+    "note": "Confirmation set for docs/agent-quality.md. A suite never used during tuning, declared in full before it is run so no subset can be chosen after seeing results. Ungated: no tenant policy exists for this suite, and the runner refuses --mode asg without one.",
+    "user_tasks": [
+      "user_task_0",
+      "user_task_1",
+      "user_task_2",
+      "user_task_3",
+      "user_task_4",
+      "user_task_5",
+      "user_task_6",
+      "user_task_7",
+      "user_task_8",
+      "user_task_9",
+      "user_task_10",
+      "user_task_11",
+      "user_task_12",
+      "user_task_13",
+      "user_task_14",
+      "user_task_15",
+      "user_task_16",
+      "user_task_17",
+      "user_task_18",
+      "user_task_19",
+      "user_task_20"
+    ],
+    "injection_tasks": [
+      "injection_task_1",
+      "injection_task_2",
+      "injection_task_3",
+      "injection_task_4",
+      "injection_task_5"
+    ]
+  }
 }

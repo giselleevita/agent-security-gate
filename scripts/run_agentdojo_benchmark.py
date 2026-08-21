@@ -30,8 +30,11 @@ VARIANT_KEYS = {
     "tool_output_format",
     "retry_empty_response",
     "denial_guidance",
+    "model",
+    "model_digest",
 }
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+PHASES = ("development", "heldout", "confirmation")
 
 
 def _meter_model_call(response: Any, elapsed_ms: float, *, failed: bool = False) -> None:
@@ -135,8 +138,14 @@ def _require_local_url(url: str) -> None:
         raise ValueError("Ollama must use a loopback URL; remote model endpoints are forbidden")
 
 
-def check_ollama_runtime(protocol: dict[str, Any]) -> dict[str, str]:
-    """Require the exact preregistered local Ollama runtime and model artifact."""
+def check_ollama_runtime(
+    protocol: dict[str, Any], model_name: str, model_digest: str
+) -> dict[str, str]:
+    """Require the exact preregistered local Ollama runtime and model artifact.
+
+    The model is passed in rather than read from the protocol, because a preregistered
+    variant may run a different model. Whichever model a run uses, its digest is checked.
+    """
     base_url = protocol["ollama_base_url"].rstrip("/")
     _require_local_url(base_url)
     with httpx.Client(base_url=base_url, timeout=10.0) as client:
@@ -150,16 +159,17 @@ def check_ollama_runtime(protocol: dict[str, Any]) -> dict[str, str]:
             f"Ollama version mismatch: expected {protocol['ollama_version']}, got {installed_version}"
         )
     models = {entry.get("name"): entry for entry in tags.json().get("models", [])}
-    model = models.get(protocol["model"])
+    model = models.get(model_name)
     if model is None:
-        raise RuntimeError(f"required local Ollama model is not installed: {protocol['model']}")
+        raise RuntimeError(f"required local Ollama model is not installed: {model_name}")
     digest = model.get("digest")
-    if digest != protocol["ollama_model_digest"]:
-        raise RuntimeError(
-            "Ollama model digest mismatch: "
-            f"expected {protocol['ollama_model_digest']}, got {digest}"
-        )
-    return {"ollama_version": installed_version, "ollama_model_digest": digest}
+    if digest != model_digest:
+        raise RuntimeError(f"Ollama model digest mismatch: expected {model_digest}, got {digest}")
+    return {
+        "ollama_version": installed_version,
+        "model": model_name,
+        "ollama_model_digest": digest,
+    }
 
 
 def load_variant(name: str, variants_path: Path = DEFAULT_VARIANTS) -> dict[str, Any]:
@@ -179,10 +189,41 @@ def load_variant(name: str, variants_path: Path = DEFAULT_VARIANTS) -> dict[str,
     for flag in ("retry_empty_response", "denial_guidance"):
         if not isinstance(variant.get(flag, False), bool):
             raise ValueError(f"variant {name!r} must set {flag} to a boolean")
+    if ("model" in variant) != ("model_digest" in variant):
+        raise ValueError(
+            f"variant {name!r} must set model and model_digest together, so a run can never "
+            "use a re-pulled artifact under the same name"
+        )
+    if "model_digest" in variant and len(variant["model_digest"]) != 64:
+        raise ValueError(f"variant {name!r} must pin the full model digest")
     return variant
 
 
-def probe_model_latency(protocol: dict[str, Any], *, samples: int = 3) -> float:
+def phase_suite(protocol: dict[str, Any], phase: str) -> str:
+    """The suite a phase runs on: its own if it declares one, else the protocol's."""
+    return protocol[phase].get("suite", protocol["suite"])
+
+
+def phase_policy(protocol: dict[str, Any], phase: str) -> str | None:
+    """The tenant policy a phase uses, or None when the phase is ungated by declaration.
+
+    A phase that declares ``"policy": null`` has no policy at all, and the runner refuses to
+    run it gated. That makes an unpoliced gated run impossible rather than merely unwise.
+    """
+    if "policy" in protocol[phase]:
+        return protocol[phase]["policy"]
+    return protocol["policy"]
+
+
+def resolve_model(protocol: dict[str, Any], variant: dict[str, Any]) -> tuple[str, str]:
+    """The model artifact a run actually uses: the protocol's, unless a variant overrides it."""
+    return (
+        variant.get("model", protocol["model"]),
+        variant.get("model_digest", protocol["ollama_model_digest"]),
+    )
+
+
+def probe_model_latency(protocol: dict[str, Any], model_name: str, *, samples: int = 3) -> float:
     """Median latency of a trivial completion, in milliseconds.
 
     Local inference shares the machine with everything else on it. A run started while the
@@ -200,7 +241,7 @@ def probe_model_latency(protocol: dict[str, Any], *, samples: int = 3) -> float:
     for _ in range(samples):
         started = time.perf_counter()
         client.chat.completions.create(
-            model=protocol["model"],
+            model=model_name,
             temperature=float(protocol["temperature"]),
             seed=protocol["seed"],
             reasoning_effort=protocol["reasoning_effort"],
@@ -233,21 +274,45 @@ def validate_protocol(protocol_path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
     if not isinstance(protocol.get("seed"), int):
         raise ValueError("local benchmark seed must be an integer")
     _require_local_url(protocol.get("ollama_base_url", ""))
+
+    # Phases may live on different suites: the confirmation set is deliberately a suite that
+    # was never used for tuning. Each suite's phases must still account for all of its tasks,
+    # so no task can be quietly left out of a partition.
+    by_suite: dict[str, list[str]] = {}
+    for phase in PHASES:
+        if phase in protocol:
+            by_suite.setdefault(phase_suite(protocol, phase), []).append(phase)
+    for suite_name, phases in sorted(by_suite.items()):
+        suite = get_suite(protocol["benchmark_version"], suite_name)
+        users: set[str] = set()
+        injections: set[str] = set()
+        for phase in phases:
+            users |= set(protocol[phase]["user_tasks"])
+            injections |= set(protocol[phase]["injection_tasks"])
+        if users != set(suite.user_tasks):
+            raise ValueError(f"user-task partition does not match the {suite_name} suite")
+        if injections != set(suite.injection_tasks):
+            raise ValueError(f"injection-task partition does not match the {suite_name} suite")
+        suite_tools = {tool.name for tool in suite.tools}
+        for phase in phases:
+            relative = phase_policy(protocol, phase)
+            if relative is None:
+                continue
+            policy = json.loads((REPO_ROOT / relative).read_text(encoding="utf-8"))
+            classified = set(policy["allowed_tools"]) | set(policy["approval_required_tools"])
+            if classified != suite_tools:
+                raise ValueError(
+                    f"policy tool classification does not match the {suite_name} suite"
+                )
     suite = get_suite(protocol["benchmark_version"], protocol["suite"])
-    selected_users = set(protocol["development"]["user_tasks"]) | set(protocol["heldout"]["user_tasks"])
+    suite_tools = {tool.name for tool in suite.tools}
+    policy_path = REPO_ROOT / protocol["policy"]
+    selected_users = set(protocol["development"]["user_tasks"]) | set(
+        protocol["heldout"]["user_tasks"]
+    )
     selected_injections = set(protocol["development"]["injection_tasks"]) | set(
         protocol["heldout"]["injection_tasks"]
     )
-    if selected_users != set(suite.user_tasks):
-        raise ValueError("protocol user-task partition does not match the pinned suite")
-    if selected_injections != set(suite.injection_tasks):
-        raise ValueError("protocol injection-task partition does not match the pinned suite")
-    policy_path = REPO_ROOT / protocol["policy"]
-    policy = json.loads(policy_path.read_text(encoding="utf-8"))
-    classified_tools = set(policy["allowed_tools"]) | set(policy["approval_required_tools"])
-    suite_tools = {tool.name for tool in suite.tools}
-    if classified_tools != suite_tools:
-        raise ValueError("policy tool classification does not match the pinned suite")
     return {
         "agentdojo_version": installed,
         "benchmark_version": protocol["benchmark_version"],
@@ -286,9 +351,19 @@ def run(
     validation = validate_protocol(protocol_path)
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     installed = validation["agentdojo_version"]
-    runtime = check_ollama_runtime(protocol)
+    variant = load_variant(variant_name, variants_path)
+    suite_name = phase_suite(protocol, phase)
+    policy_relative = phase_policy(protocol, phase)
+    if mode == "asg" and policy_relative is None:
+        raise ValueError(
+            f"phase {phase!r} declares no tenant policy, so it cannot be run gated. Add a "
+            f"policy that classifies every tool in the {suite_name!r} suite, or run it with "
+            "--mode no-authorizer."
+        )
+    model_name, model_digest = resolve_model(protocol, variant)
+    runtime = check_ollama_runtime(protocol, model_name, model_digest)
 
-    probe_ms = probe_model_latency(protocol)
+    probe_ms = probe_model_latency(protocol, model_name)
     budget_ms = float(os.getenv("ASG_MODEL_PROBE_BUDGET_MS", "8000"))
     if probe_ms > budget_ms:
         raise RuntimeError(
@@ -306,7 +381,7 @@ def run(
             "user_tasks": phase_config["user_tasks"][:limit],
             "injection_tasks": phase_config["injection_tasks"][:limit],
         }
-    suite = get_suite(protocol["benchmark_version"], protocol["suite"])
+    suite = get_suite(protocol["benchmark_version"], suite_name)
     ollama_base_url = protocol["ollama_base_url"].rstrip("/")
     openai_client = OpenAI(base_url=f"{ollama_base_url}/v1", api_key="ollama-local")
     local_client = _PinnedLocalOpenAIClient(
@@ -316,11 +391,10 @@ def run(
     )
     llm = OpenAILLM(
         local_client,
-        protocol["model"],
+        model_name,
         temperature=float(protocol["temperature"]),
     )
-    llm.name = protocol["model"]
-    variant = load_variant(variant_name, variants_path)
+    llm.name = model_name
     base_pipeline = AgentPipeline.from_config(
         PipelineConfig(
             llm=llm,
@@ -367,7 +441,7 @@ def run(
         )
         pipeline = AgentPipeline([authorization_element, *base_pipeline.elements])
     suffix = "" if variant_name == "baseline" else f"-{variant_name}"
-    pipeline.name = f"{protocol['model']}-{mode}-{phase}{suffix}"
+    pipeline.name = f"{model_name}-{mode}-{phase}{suffix}"
     attack = load_attack(protocol["attack"], suite, pipeline)
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -394,12 +468,15 @@ def run(
         "mode": mode,
         "reused_traces": reuse_traces,
         "protocol_sha256": _sha256(protocol_path),
-        "policy_sha256": _sha256(REPO_ROOT / protocol["policy"]),
+        "suite": suite_name,
+        "policy_sha256": (
+            _sha256(REPO_ROOT / policy_relative) if policy_relative is not None else None
+        ),
         "source_commit": _source_commit(),
         "agentdojo_commit": protocol["agentdojo_commit"],
         "agentdojo_version": installed,
         "benchmark_version": protocol["benchmark_version"],
-        "model": protocol["model"],
+        "model": runtime["model"],
         "model_provider": protocol["model_provider"],
         "ollama_version": runtime["ollama_version"],
         "ollama_model_digest": runtime["ollama_model_digest"],
@@ -432,7 +509,7 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
-    parser.add_argument("--phase", choices=("development", "heldout"))
+    parser.add_argument("--phase", choices=PHASES)
     parser.add_argument("--mode", choices=("asg", "no-authorizer", "tool-filter"), default="asg")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--validate-only", action="store_true")

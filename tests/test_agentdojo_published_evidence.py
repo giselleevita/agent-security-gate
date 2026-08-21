@@ -114,3 +114,22 @@ def test_headline_numbers_match_the_published_evidence(evidence: dict, document:
     assert f"{paired_cases} paired cases" in readme, (
         f"{document} does not state {paired_cases} paired cases"
     )
+
+
+def test_published_hashes_come_from_the_runs_not_the_current_files() -> None:
+    """The protocol can gain a later phase; the published hash must stay the runs' hash."""
+    import hashlib
+
+    from scripts.build_agentdojo_evidence import _agreed
+
+    evidence = json.loads(EVIDENCE_JSON.read_text(encoding="utf-8"))
+    current = hashlib.sha256((ROOT / "benchmark/agentdojo_protocol.json").read_bytes()).hexdigest()
+
+    # The confirmation phase was added after these runs, so recomputing would differ.
+    assert evidence["protocol_sha256"] != current
+
+    with pytest.raises(RuntimeError, match="disagree on protocol_sha256"):
+        _agreed(
+            {("a", "b"): {"protocol_sha256": "x" * 64}, ("c", "d"): {"protocol_sha256": "y" * 64}},
+            "protocol_sha256",
+        )

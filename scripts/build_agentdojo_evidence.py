@@ -44,6 +44,19 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _agreed(analyses: dict[tuple[str, str], dict[str, Any]], field: str) -> str:
+    """One value shared by every published run, or a refusal to publish."""
+    values = {
+        analysis[field] for analysis in analyses.values() if analysis.get(field) is not None
+    }
+    if len(values) != 1:
+        raise RuntimeError(
+            f"published runs disagree on {field}: {sorted(values)}. They are not one "
+            "experiment and must not be published as a single evidence package."
+        )
+    return values.pop()
+
+
 def _rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 6) if denominator else 0.0
 
@@ -154,6 +167,11 @@ def collect(results_root: Path) -> dict[str, Any]:
         )
 
     protocol = json.loads(PROTOCOL_PATH.read_text(encoding="utf-8"))
+    # Hashes come from the runs, never from the current files. The protocol can legitimately
+    # gain a later phase; recomputing here would silently republish a hash that never governed
+    # these runs.
+    protocol_sha256 = _agreed(analyses, "protocol_sha256")
+    policy_sha256 = _agreed(analyses, "policy_sha256")
     evidence: dict[str, Any] = {
         "schema_version": 2,
         "suite": protocol["suite"],
@@ -168,8 +186,8 @@ def collect(results_root: Path) -> dict[str, Any]:
         "temperature": protocol["temperature"],
         "reasoning_effort": protocol["reasoning_effort"],
         "seed": protocol["seed"],
-        "protocol_sha256": _sha256(PROTOCOL_PATH),
-        "policy_sha256": _sha256(POLICY_PATH),
+        "protocol_sha256": protocol_sha256,
+        "policy_sha256": policy_sha256,
         "runs": runs,
         "comparisons": comparisons,
     }

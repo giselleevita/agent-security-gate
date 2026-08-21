@@ -108,8 +108,14 @@ after seeing a result without saying so.
    user what is waiting on approval. The machine-readable head of the error is unchanged and comes
    first, so traces recorded before guidance existed still parse identically. Measured on the gated
    arm.
-5. **Model comparison.** A second freely available local model on the identical protocol, for
-   quality-per-token and latency evidence rather than a winner.
+5. **Model comparison** (`v5-mistral`). A second freely available local model — `mistral:latest`,
+   7.2B, already installed, tool-capable — on the identical protocol. A variant that changes the
+   model must pin its digest, so a run can never use a re-pulled artifact under the same tag.
+
+   This is **not** an intervention and the acceptance rule does not apply to it: choosing a model
+   is a tradeoff between task completion, tokens, and latency, not a change to keep or reject.
+   Compare it with `--across-models`, which relaxes only the model check and suppresses the
+   verdict.
 
 ## A note on the system prompt
 
@@ -124,11 +130,26 @@ claim.
 correctly before committing an hour of inference to it. Such a run records `complete_phase: false`
 and the comparison tool refuses it outright, so a smoke test cannot be mistaken for a result.
 
+## Comparability
+
+`compare_agent_quality` refuses any pair of runs that differ in phase, mode, protocol hash, policy
+hash, or model. Comparing a gated run to an ungated one measures the gate; comparing two models
+measures the model. Both are real questions, neither is what the acceptance rule answers, so the
+mismatch has to be deliberate rather than accidental.
+
 ## Confirmation
 
-The configuration that survives development is run **once** on an AgentDojo suite not used during
-tuning. That result is the reported outcome. If it does not reproduce the development gain, the
-development gain is reported as not confirmed.
+The configuration that survives development is run **once** on the `slack` suite — 21 user tasks
+and 5 injection tasks, 105 cases, declared in the protocol in full before it is run so no subset
+can be chosen after seeing results. Slack has never been used here, and Banking held-out has
+already been spent twice.
+
+The confirmation phase declares no tenant policy, because none exists for that suite. The runner
+refuses `--mode asg` for a phase without a policy, so an unpoliced gated run is impossible rather
+than merely unwise.
+
+That result is the reported outcome. If it does not reproduce the development gain, the development
+gain is reported as not confirmed.
 
 ## Reproducing
 
