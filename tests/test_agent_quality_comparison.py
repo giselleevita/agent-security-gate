@@ -118,3 +118,68 @@ def test_a_smoke_run_is_refused_as_a_comparison(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="smoke run"):
         compare(baseline, run)
+
+
+def _retarget(run_dir: Path, **fields: object) -> None:
+    report = json.loads((run_dir / "report.json").read_text())
+    report.update(fields)
+    (run_dir / "report.json").write_text(json.dumps(report))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("mode", "asg"),
+        ("phase", "heldout"),
+        ("protocol_sha256", "c" * 64),
+        ("policy_sha256", "d" * 64),
+    ],
+)
+def test_runs_that_differ_in_more_than_the_variant_are_refused(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    cases = [("user_task_0", True, [], None)]
+    baseline = _run(tmp_path, f"baseline-{field}", cases)
+    run = _run(tmp_path, f"variant-{field}", cases)
+    _retarget(run, **{field: value})
+
+    with pytest.raises(RuntimeError, match=f"runs differ in {field}"):
+        compare(baseline, run)
+
+
+def test_a_model_change_needs_the_across_models_flag(tmp_path: Path) -> None:
+    cases = [("user_task_0", True, [], None)]
+    baseline = _run(tmp_path, "baseline-model", cases)
+    run = _run(tmp_path, "variant-model", cases)
+    _retarget(run, model="mistral:latest")
+
+    with pytest.raises(RuntimeError, match="--across-models"):
+        compare(baseline, run)
+
+    result = compare(baseline, run, across_models=True)
+
+    assert result["comparison_type"] == "model"
+    assert result["baseline"]["model"] == "qwen3.5:9b"
+    assert result["run"]["model"] == "mistral:latest"
+    # Choosing a model is a tradeoff, so the acceptance rule must not render a verdict.
+    assert "accept" not in result["verdict"]
+    assert "not_applicable" in result["verdict"]
+
+
+def test_across_models_is_refused_when_both_runs_use_the_same_model(tmp_path: Path) -> None:
+    cases = [("user_task_0", True, [], None)]
+    baseline = _run(tmp_path, "baseline-same", cases)
+    run = _run(tmp_path, "variant-same", cases)
+
+    with pytest.raises(RuntimeError, match="same model"):
+        compare(baseline, run, across_models=True)
+
+
+def test_an_intervention_comparison_still_renders_a_verdict(tmp_path: Path) -> None:
+    baseline = _run(tmp_path, "baseline-verdict", [("user_task_0", False, [], None)])
+    run = _run(tmp_path, "variant-verdict", [("user_task_0", True, [], None)])
+
+    result = compare(baseline, run)
+
+    assert result["comparison_type"] == "intervention"
+    assert result["verdict"]["accept"] is True

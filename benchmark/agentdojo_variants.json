@@ -1,5 +1,5 @@
 {
-  "_comment": "Preregistered interventions for docs/agent-quality.md. One change per variant. Only system_message and tool_output_format may be set; anything else is a different experiment.",
+  "_comment": "Preregistered interventions for docs/agent-quality.md. One change per variant. Only the keys in VARIANT_KEYS may be set; anything else is a different experiment. A variant that changes the model must pin its digest.",
   "baseline": {
     "description": "AgentDojo defaults. The comparison point for every other variant."
   },
@@ -18,5 +18,10 @@
   "v4-denial-guidance": {
     "description": "Tell the agent what a policy refusal means and what to do next, keeping the machine-readable head of the error unchanged. Targets the cases that are partially blocked and then give up. Measured on the gated arm.",
     "denial_guidance": true
+  },
+  "v5-mistral": {
+    "description": "Model comparison, not an intervention: the same protocol and defaults on a second freely available local model. The acceptance rule does not apply \u2014 choosing a model is a tradeoff between task completion, tokens, and latency, not a change to keep or reject. Compare with --across-models.",
+    "model": "mistral:latest",
+    "model_digest": "6577803aa9a036369e481d648a2baebb381ebc6e897f2bb9a766a2aa7bfbc1cf"
   }
 }
