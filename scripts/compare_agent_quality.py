@@ -104,8 +104,18 @@ def compare(baseline_dir: Path, run_dir: Path, *, across_models: bool = False) -
     run_cost = _cost_totals([run_index[key] for key in shared])
     cost_delta: dict[str, Any] = {}
     comparable = base_cost["metered_cases"] and run_cost["metered_cases"]
+    # Latency is only meaningful if the host stayed free for both runs. Tokens and task
+    # outcomes are unaffected by load, so they are still compared.
+    latency_comparable = all(
+        _report(d).get("latency_comparable", True) for d in (baseline_dir, run_dir)
+    )
     for key in COST_KEYS:
         if not comparable:
+            continue
+        if key == "model_latency_ms" and not latency_comparable:
+            cost_delta[key] = {
+                "note": "host degraded during at least one run; latency is not comparable"
+            }
             continue
         before, after = base_cost[key], run_cost[key]
         cost_delta[key] = {
@@ -121,7 +131,9 @@ def compare(baseline_dir: Path, run_dir: Path, *, across_models: bool = False) -
     run_turns = sum(run_index[key]["assistant_turns"] for key in shared) / len(shared)
 
     improved = run_utility > base_utility or any(
-        entry["delta"] < 0 for key, entry in cost_delta.items() if key != "model_latency_ms"
+        isinstance(entry, dict) and entry.get("delta", 0) < 0
+        for key, entry in cost_delta.items()
+        if key != "model_latency_ms"
     )
     if across_models:
         # Choosing a model is a tradeoff, not a change to keep or reject, so the acceptance
@@ -170,6 +182,7 @@ def compare(baseline_dir: Path, run_dir: Path, *, across_models: bool = False) -
             "delta": round(run_turns - base_turns, 3),
         },
         "cost": cost_delta or {"note": "one or both runs predate model-call metering"},
+        "latency_comparable": latency_comparable,
         "verdict": verdict,
     }
 
