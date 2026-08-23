@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from app.policy import build_opa_input, policy_context
+import pytest
+
+from app.policy import build_opa_input, canonicalize_doc_path, policy_context
 from app.schemas import DecideRequest
 
 
@@ -62,3 +64,56 @@ def test_output_length_is_derived_from_a_nested_tool_output() -> None:
     )
 
     assert opa_input["context"]["output_length"] == 10
+
+
+# Red-team RT-001: the path the policy matches on is canonicalised, and the denied prefixes
+# are case-folded to the same form, so a non-canonical spelling cannot dodge startswith.
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "/internal/secrets.yaml",
+        "//internal/secrets.yaml",
+        "/INTERNAL/secrets.yaml",
+        "/public/../internal/secrets.yaml",
+        "/./internal/secrets.yaml",
+        "%2finternal%2fsecrets.yaml",
+    ],
+)
+def test_noncanonical_paths_reduce_to_the_denied_prefix(raw: str) -> None:
+    opa_input = build_opa_input(
+        _request({"path": raw}),
+        {"allowed_tools": ["docs.read"], "denied_doc_prefixes": ["/internal/"]},
+        action_count=1,
+    )
+    canonical = opa_input["context"]["path"]
+    prefixes = opa_input["config"]["denied_doc_prefixes"]
+    assert any(canonical.startswith(p) for p in prefixes), (raw, canonical, prefixes)
+
+
+def test_canonicalize_helper_folds_case_and_resolves_segments() -> None:
+    assert canonicalize_doc_path("//internal/x") == "/internal/x"
+    assert canonicalize_doc_path("/INTERNAL/x") == "/internal/x"
+    assert canonicalize_doc_path("/public/../internal/x") == "/internal/x"
+    assert canonicalize_doc_path("/./internal/x") == "/internal/x"
+    assert canonicalize_doc_path("%2finternal%2fx") == "/internal/x"
+
+
+def test_denied_prefixes_are_case_folded_in_the_opa_config() -> None:
+    opa_input = build_opa_input(
+        _request({"path": "/Secret/x"}),
+        {"allowed_tools": ["docs.read"], "denied_doc_prefixes": ["/SECRET/"]},
+        action_count=1,
+    )
+    assert opa_input["config"]["denied_doc_prefixes"] == ["/secret/"]
+    assert opa_input["context"]["path"] == "/secret/x"
+
+
+def test_benign_path_is_unchanged_apart_from_folding() -> None:
+    opa_input = build_opa_input(
+        _request({"path": "/public/readme.md"}),
+        {"allowed_tools": ["docs.read"], "denied_doc_prefixes": ["/internal/"]},
+        action_count=1,
+    )
+    assert opa_input["context"]["path"] == "/public/readme.md"

@@ -22,6 +22,8 @@ Public roadmap for AgentOps v2. Track progress via [GitHub Issues](https://githu
 
 ## Planned
 
+- [ ] Adaptive red-team suite: codify the red-team probe's findings into a repeatable
+      regression suite alongside the 18-scenario benchmark, and run the probe in CI.
 - [ ] Multi-tenant admin control plane UI
 - [ ] OpenTelemetry trace correlation for agent sessions
 - [ ] SIEM integration (syslog / Splunk HEC export)

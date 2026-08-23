@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class DecideRequest(BaseModel):
@@ -93,6 +93,19 @@ class PolicyExceptionCreateRequest(BaseModel):
     context_match: dict[str, Any] = Field(default_factory=dict)
     ttl_seconds: int = Field(default=3600, ge=1, le=86400 * 30)
     reason: str | None = None
+
+    @field_validator("context_match")
+    @classmethod
+    def _reject_empty_context_match(cls, value: dict[str, Any]) -> dict[str, Any]:
+        # An empty context_match matches every call for the tool, bypassing doc denies and
+        # the approval gate — an over-broad grant that reads as scoped (red-team RT-003). A
+        # grant must name at least one context key so it cannot silently mean "everything".
+        if not value:
+            raise ValueError(
+                "context_match must not be empty: an exception must be scoped to at least "
+                "one context key, otherwise it matches every call for the tool"
+            )
+        return value
 
 
 class PolicyExceptionCreateResponse(BaseModel):
