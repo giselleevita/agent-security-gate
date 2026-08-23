@@ -118,7 +118,7 @@ This project addresses the research question: **How can we enforce deterministic
 
 - **Tool-boundary PEP** — policy runs on proposed tool calls, not inside the model. A malicious agent that never calls the gate is out of scope.
 - **No LLM in this repo** — the `/agent` endpoint is a demo façade that maps plain text to tool calls; real agents integrate via the connector SDK.
-- **Policy regression benchmark** — 18 hand-authored scenarios with an intentional no-gate baseline; not adaptive red-team coverage.
+- **Policy regression benchmark** — 18 hand-authored scenarios with an intentional no-gate baseline. It is a regression suite, not adaptive coverage; one [adaptive red-team pass](docs/benchmark-results/redteam-001.md) supplements it and records its own limits. That pass found four weaknesses — a non-canonicalised document-prefix deny, a case-sensitive canary tripwire, an over-broad empty policy exception, and a crash on overlapping exceptions — and all four are now fixed, each with a regression test, with the 18-scenario benchmark unchanged.
 - **Demo defaults** — `ASG_ENFORCE_MODE=off` in `docker compose` so local try is frictionless. **Pilots should use `strict`** so tool endpoints require a prior allow decision (see below).
 - **Reference implementation, not a hosted product** — bring your own IdP (`OIDC_*`), secret mounts (`*_FILE`), immutable audit sink, and HA Redis/Postgres per the runbooks.
 

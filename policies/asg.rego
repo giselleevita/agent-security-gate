@@ -91,10 +91,18 @@ exception_applies if {
 	context_matches_exception(ex)
 }
 
-matched_exception_id := ex.id if {
+# All exceptions that match this request. More than one can match at once (e.g. two broad
+# grants for the same tool), so the id must be chosen deterministically rather than assigned
+# by a complete rule — assigning ex.id directly raised an eval conflict and 500'd every
+# decision for the tenant/tool, turning an operator mistake into an availability outage.
+matching_exception_ids := [ex.id |
 	some ex in input.active_exceptions
 	ex.tool == input.tool
 	context_matches_exception(ex)
+]
+
+matched_exception_id := sort(matching_exception_ids)[0] if {
+	count(matching_exception_ids) > 0
 }
 
 default matched_exception_id := null

@@ -162,3 +162,23 @@ def test_decide_records_policy_exception_id_in_audit(monkeypatch) -> None:
     assert r.json()["allowed"] is True
     assert audit_events
     assert audit_events[-1].get("policy_exception_id") == "exc-42"
+
+
+def test_empty_context_match_is_rejected(monkeypatch) -> None:
+    """Red-team RT-003: an empty context_match matches every call for the tool, so it must be
+    rejected at creation rather than accepted as a silent 'everything' grant."""
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    client = TestClient(main.app)
+    r = client.post(
+        "/v1/policy/exceptions",
+        json={
+            "tenant_id": "acme",
+            "tool": "docs.read",
+            "context_match": {},
+            "ttl_seconds": 600,
+            "reason": "too broad",
+        },
+        headers={"Authorization": "Bearer approver-token", "X-Approver-Id": "human-1"},
+    )
+    assert r.status_code == 422, r.text
+    assert "context_match" in r.text

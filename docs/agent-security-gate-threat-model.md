@@ -167,6 +167,23 @@ flowchart LR
 | `.github/workflows/` | Build, analysis, evidence, and release trust | TM-007 |
 | `app/static/approvals.js` | Privileged browser handling of stored agent-controlled values | TM-008 |
 
+## Adaptive red-team 001 — findings and fixes
+
+All findings from [docs/benchmark-results/redteam-001.md](benchmark-results/redteam-001.md)
+are fixed, each with a regression test. Recorded here so the threat table stays honest about
+what was found.
+
+| Ref | Finding | Fix | Regression test |
+|---|---|---|---|
+| RT-001 | `denied_doc_prefixes` matched by non-canonical `startswith`; `//internal/`, `/INTERNAL/`, `/public/../internal/`, url-encoded variants bypassed the deny. | `app/policy.py::canonicalize_doc_path` + case-folded prefixes in `build_opa_input`. | `tests/test_policy_context.py` |
+| RT-002 | Canary tripwire was case-sensitive exact substring; lowercasing, a space, or a zero-width character evaded it. | `app/dlp.py::_normalize_for_canary` (case-fold, drop zero-width, collapse whitespace). | `tests/test_dlp.py` |
+| RT-003 | Empty `context_match` exception matched every call for its tool, bypassing doc denies and the approval gate. | Reject empty `context_match` at creation in `app/schemas.py`. Hard rails were never exception-bypassable. | `tests/test_policy_exceptions.py` |
+| RT-004 | Two exceptions matching one tool crashed the decision path (OPA eval conflict → 500). | Deterministic `matched_exception_id` in `policies/asg.rego`. | `policies/asg_test.rego` |
+
+**Residual note (RT-001):** the prefix match is now case-insensitive, which is the safe
+direction for a deny but assumes a case-insensitive document store. Deployers on a
+case-sensitive store must keep denied prefixes and stored paths in one case.
+
 ## Quality Check
 
 - Runtime entry points and CI/release surfaces are separated.

@@ -43,6 +43,33 @@ def test_scan_passes_clean_output() -> None:
     assert extras == {}
 
 
+# Red-team RT-002: the canary tripwire is normalised (case-fold, drop zero-width, collapse
+# whitespace) so lowercasing, a stray space, or a zero-width character can no longer evade it.
+
+
+def test_canary_caught_when_lowercased() -> None:
+    reason, _redacted, _extras = scan_tool_output(tool_output="leak system_prompt contents")
+    assert reason == "canary_detected"
+
+
+def test_canary_caught_when_split_by_space() -> None:
+    # "INTERNAL_TOKEN" with a space injected mid-token
+    reason, _redacted, _extras = scan_tool_output(tool_output="x INTERNAL_ TOKEN y")
+    assert reason == "canary_detected"
+
+
+def test_canary_caught_when_zero_width_injected() -> None:
+    reason, _redacted, _extras = scan_tool_output(tool_output="INTERNAL​_TOKEN")
+    assert reason == "canary_detected"
+
+
+def test_multiword_canary_still_matches_after_normalisation() -> None:
+    reason, _redacted, _extras = scan_tool_output(
+        tool_output="header BEGIN RSA PRIVATE KEY synthetic"
+    )
+    assert reason == "canary_detected"
+
+
 class _FakeGatedClient:
     def __init__(self, body: str) -> None:
         self._body = body

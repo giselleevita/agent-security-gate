@@ -36,6 +36,32 @@ def load_canaries() -> list[str]:
     return []
 
 
+# Characters that carry no visible width and are used to split a canary so a plain
+# substring test misses it (red-team RT-002).
+_INVISIBLE = {
+    "​",  # zero-width space
+    "‌",  # zero-width non-joiner
+    "‍",  # zero-width joiner
+    "⁠",  # word joiner
+    "﻿",  # zero-width no-break space / BOM
+}
+
+
+def _normalize_for_canary(text: str) -> str:
+    """Fold a string to the form the canary tripwire matches on.
+
+    Case-fold, drop zero-width characters, and remove all whitespace. Canaries are planted
+    tripwire markers, so a missed marker (false negative) is the expensive error and a rare
+    false positive is tolerable; this deliberately errs toward catching a marker that has
+    been lowercased, split across a space, or interrupted by a zero-width character
+    (RT-002). The same normalisation is applied to the canary itself so multi-word markers
+    like "BEGIN RSA PRIVATE KEY" still match.
+    """
+    without_invisible = "".join(ch for ch in text if ch not in _INVISIBLE)
+    without_space = "".join(without_invisible.split())
+    return without_space.casefold()
+
+
 def scan_tool_output(*, tool_output: str) -> tuple[str | None, str, dict[str, Any]]:
     """
     Returns: (reason_or_none, redacted_output, audit_extras)
@@ -45,10 +71,17 @@ def scan_tool_output(*, tool_output: str) -> tuple[str | None, str, dict[str, An
     """
     redacted = tool_output
 
+    normalized_output = _normalize_for_canary(redacted)
     canaries = load_canaries()
     for c in canaries:
-        if c and c in redacted:
-            redacted = redacted.replace(c, "[REDACTED]")
+        if not c:
+            continue
+        # Detect on the normalised form so case, spacing and zero-width tricks do not evade.
+        if _normalize_for_canary(c) in normalized_output:
+            # Best-effort redaction of the visible form; the call is denied regardless, so a
+            # split/zero-width canary that resists in-place replacement is still not returned.
+            exact = re.sub(re.escape(c), "[REDACTED]", redacted, flags=re.IGNORECASE)
+            redacted = exact if exact != redacted else "[REDACTED]"
             return (
                 "canary_detected",
                 redacted,

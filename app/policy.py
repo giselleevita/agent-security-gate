@@ -4,6 +4,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 import httpx
 from fastapi import HTTPException
@@ -71,6 +72,39 @@ def load_policy_config(tenant_id: str | None = None) -> dict[str, Any]:
     return _normalize_policy(json.loads(policy_data_path().read_text(encoding="utf-8")))
 
 
+def canonicalize_doc_path(path: str) -> str:
+    """Canonicalise a document path for policy matching.
+
+    ``denied_doc_prefixes`` are matched with ``startswith``, so a path that names the same
+    document non-canonically must be reduced to one form first or the deny is trivially
+    dodged (red-team RT-001: ``//internal/``, ``/INTERNAL/``, ``/public/../internal/``,
+    ``/./internal/``, url-encoded separators all evaded the check). Canonicalisation is done
+    here in Python rather than in Rego, consistent with ADR 0001 keeping string-level
+    validation out of the policy.
+
+    Percent-decode once, collapse duplicate slashes, resolve ``.`` and ``..`` segments, and
+    fold case. Case folding makes the prefix match conservative (it denies ``/INTERNAL/`` as
+    well as ``/internal/``): for a security deny, treating differently-cased spellings of the
+    same prefix alike is the safe direction. Callers whose document store is case-sensitive
+    should keep denied prefixes and stored paths in one case.
+    """
+    decoded = unquote(path)
+    had_root = decoded.startswith("/")
+    segments: list[str] = []
+    for segment in decoded.split("/"):
+        if segment in ("", "."):
+            continue
+        if segment == "..":
+            if segments:
+                segments.pop()
+            continue
+        segments.append(segment)
+    canonical = "/".join(segments)
+    if had_root:
+        canonical = "/" + canonical
+    return canonical.casefold()
+
+
 def policy_context(body: DecideRequest) -> dict[str, Any]:
     """The context view that policy rules evaluate.
 
@@ -102,6 +136,23 @@ def build_opa_input(
         ctx["output_length"] = len(tool_output)
     elif "output_length" not in ctx:
         ctx["output_length"] = 0
+
+    # Canonicalise the path the policy matches on, and fold the denied prefixes to the same
+    # case, so a non-canonical spelling of a denied document cannot slip past startswith
+    # (red-team RT-001). The original path stays in body.context for the audit record.
+    config = policy_config
+    path = ctx.get("path")
+    if isinstance(path, str):
+        ctx["path"] = canonicalize_doc_path(path)
+        prefixes = policy_config.get("denied_doc_prefixes")
+        if isinstance(prefixes, list):
+            config = {
+                **policy_config,
+                "denied_doc_prefixes": [
+                    p.casefold() if isinstance(p, str) else p for p in prefixes
+                ],
+            }
+
     return {
         "tenant_id": body.tenant_id,
         "session_id": body.session_id,
@@ -110,7 +161,7 @@ def build_opa_input(
         "mode": body.mode,
         "context": ctx,
         "session": {"action_count": action_count},
-        "config": policy_config,
+        "config": config,
         "active_exceptions": active_exceptions or [],
     }
 
