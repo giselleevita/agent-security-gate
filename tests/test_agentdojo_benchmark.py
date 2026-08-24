@@ -40,6 +40,21 @@ def test_frozen_protocol_uses_exact_local_model_artifact() -> None:
     assert protocol["seed"] == 42
 
 
+def test_quality_protocol_revision_changes_only_the_declared_runtime_version() -> None:
+    frozen = json.loads((ROOT / "benchmark/agentdojo_protocol.json").read_text())
+    quality = json.loads(
+        (ROOT / "benchmark/agentdojo_quality_protocol_v2.json").read_text()
+    )
+
+    assert quality["protocol_revision"] == "quality-v2-ollama-0.32.15"
+    assert quality["supersedes_for_quality_only"] == "benchmark/agentdojo_protocol.json"
+    assert frozen["ollama_version"] == "0.31.1"
+    assert quality["ollama_version"] == "0.32.15"
+    for key, value in frozen.items():
+        if key != "ollama_version":
+            assert quality[key] == value
+
+
 def test_local_completion_applies_pins_to_every_model_call() -> None:
     delegate = MagicMock()
     completions = _PinnedLocalCompletions(delegate, "none", 42)

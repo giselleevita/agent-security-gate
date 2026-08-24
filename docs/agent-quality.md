@@ -4,8 +4,13 @@ The security evaluation in [`agentdojo-benchmark.md`](agentdojo-benchmark.md) me
 enforcement point stops. This one measures something different and equally concrete: **how often
 the agent actually completes the user's task, and what that costs in tokens and latency.**
 
-It runs on the same frozen protocol, the same local model, and the same task split. It is
-preregistered here before the interventions are run.
+It runs on the same local model and task split as the frozen security protocol. The published
+security evidence remains pinned to Ollama `0.31.1`. This machine now has Ollama `0.32.15`, so
+quality runs use the separate
+[`agentdojo_quality_protocol_v2.json`](../benchmark/agentdojo_quality_protocol_v2.json) revision.
+Every quality baseline, intervention, model comparison, and confirmation run uses that revision;
+results are never compared across the two Ollama versions. The interventions remain the ones
+preregistered here before any quality result was inspected.
 
 ## The problem, from the existing traces
 
@@ -192,8 +197,17 @@ make agentdojo-quality-compare VARIANT=v1-system-prompt
 ```
 
 `v4-denial-guidance` is measured on the gated arm, so it needs `QUALITY_MODE=asg` and its own
-baseline in that mode. Comparing a gated run against an ungated one measures the gate, not the
-intervention.
+baseline in that mode. Keep it in the same evidence root without overwriting the ungated baseline:
+
+```bash
+make agentdojo-quality-baseline QUALITY_MODE=asg QUALITY_BASELINE=asg-baseline
+make agentdojo-quality-variant QUALITY_MODE=asg VARIANT=v4-denial-guidance
+make agentdojo-quality-compare QUALITY_BASELINE=asg-baseline VARIANT=v4-denial-guidance
+```
+
+Comparing a gated run against an ungated one measures the gate, not the intervention. Override
+`QUALITY_PROTOCOL` or `QUALITY_DIR` only to start a separately named protocol revision; never use
+those switches to combine results from different Ollama versions.
 
 Each full run is roughly an hour on the preregistered machine, so the smoke target exists to catch
 a wiring mistake in two minutes rather than after the run.

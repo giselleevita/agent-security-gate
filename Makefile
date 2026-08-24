@@ -62,29 +62,31 @@ agentdojo-evidence:
 	python3 -m scripts.build_agentdojo_evidence
 
 QUALITY_MODE ?= no-authorizer
-QUALITY_DIR = results/agentdojo/quality
+QUALITY_PROTOCOL ?= benchmark/agentdojo_quality_protocol_v2.json
+QUALITY_DIR ?= results/agentdojo/quality-v2
+QUALITY_BASELINE ?= baseline
 
 agentdojo-quality-baseline:
-	python3 -m scripts.run_agentdojo_benchmark --phase development --mode $(QUALITY_MODE) --output-dir $(QUALITY_DIR)/baseline
+	python3 -m scripts.run_agentdojo_benchmark --protocol $(QUALITY_PROTOCOL) --phase development --mode $(QUALITY_MODE) --output-dir $(QUALITY_DIR)/$(QUALITY_BASELINE)
 
 # Cheap wiring check before committing an hour of inference: make agentdojo-quality-smoke VARIANT=v3-retry-empty-response
 agentdojo-quality-smoke:
-	python3 -m scripts.run_agentdojo_benchmark --phase development --mode $(QUALITY_MODE) --variant $(VARIANT) --limit 1 --output-dir $(QUALITY_DIR)/smoke-$(VARIANT)
+	python3 -m scripts.run_agentdojo_benchmark --protocol $(QUALITY_PROTOCOL) --phase development --mode $(QUALITY_MODE) --variant $(VARIANT) --limit 1 --output-dir $(QUALITY_DIR)/smoke-$(VARIANT)
 
 # make agentdojo-quality-variant VARIANT=v3-retry-empty-response
 agentdojo-quality-variant:
-	python3 -m scripts.run_agentdojo_benchmark --phase development --mode $(QUALITY_MODE) --variant $(VARIANT) --output-dir $(QUALITY_DIR)/$(VARIANT)
+	python3 -m scripts.run_agentdojo_benchmark --protocol $(QUALITY_PROTOCOL) --phase development --mode $(QUALITY_MODE) --variant $(VARIANT) --output-dir $(QUALITY_DIR)/$(VARIANT)
 
 agentdojo-quality-compare:
-	python3 -m scripts.compare_agent_quality --baseline $(QUALITY_DIR)/baseline --run $(QUALITY_DIR)/$(VARIANT)
+	python3 -m scripts.compare_agent_quality --baseline $(QUALITY_DIR)/$(QUALITY_BASELINE) --run $(QUALITY_DIR)/$(VARIANT)
 
 # Model comparison: reports the tradeoff, not an accept/reject verdict.
 agentdojo-quality-compare-models:
-	python3 -m scripts.compare_agent_quality --across-models --baseline $(QUALITY_DIR)/baseline --run $(QUALITY_DIR)/$(VARIANT)
+	python3 -m scripts.compare_agent_quality --across-models --baseline $(QUALITY_DIR)/$(QUALITY_BASELINE) --run $(QUALITY_DIR)/$(VARIANT)
 
 # One-time confirmation of the winning configuration on a suite never used for tuning.
 agentdojo-confirmation:
-	python3 -m scripts.run_agentdojo_benchmark --phase confirmation --mode no-authorizer --variant $(VARIANT) --output-dir $(QUALITY_DIR)/confirmation
+	python3 -m scripts.run_agentdojo_benchmark --protocol $(QUALITY_PROTOCOL) --phase confirmation --mode no-authorizer --variant $(VARIANT) --output-dir $(QUALITY_DIR)/confirmation
 
 agentdojo-quality-evidence:
-	python3 -m scripts.build_agent_quality_evidence
+	python3 -m scripts.build_agent_quality_evidence --results $(QUALITY_DIR)
