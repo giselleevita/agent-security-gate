@@ -16,6 +16,8 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 
 <p align="center"><em>Blocks unsafe tool calls before execution and records an auditable decision trace.</em></p>
 
+**Start here from any device:** [Reviewer information hub](docs/reviewer-hub.md)
+
 **Security reviewer guide:** [docs/security-reviewer-guide.md](docs/security-reviewer-guide.md) · **Case study:** [docs/case-study.md](docs/case-study.md) · **Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md) · **Authorship:** [AUTHORS.md](AUTHORS.md)
 
 ---
@@ -262,6 +264,7 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 
 | Doc | Purpose |
 |---|---|
+| [Reviewer information hub](docs/reviewer-hub.md) | One-page index for review, outreach, evidence, releases, and public status |
 | [Case study](docs/case-study.md) | Threat, contract, benchmark design, what went wrong, and what the numbers support |
 | [Security reviewer guide](docs/security-reviewer-guide.md) | Five-minute demo, review paths, non-claims, and independent reproduction template |
 | [Demo assets](docs/demo/README.md) | Reproducible terminal recordings, including the protected function tool |
