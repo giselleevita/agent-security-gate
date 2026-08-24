@@ -30,6 +30,8 @@ docker compose start opa
 
 The example puts a real side-effecting Python function behind the authorization seam and
 counts actual executions. Review both the returned decision and the execution count.
+For a timed narration and expected observations, use
+[`security-review-demo-script.md`](security-review-demo-script.md).
 
 ## Fifteen-minute review path
 
@@ -80,3 +82,7 @@ Please report:
 A reproduction is independent only when performed by someone who did not author the code
 or evaluation. Until such a report exists, the repository describes its evidence as
 candidate-authored.
+
+The author-assisted [`internal security pre-review`](../security_best_practices_report.md)
+is provided to make known findings and residual risks easy to inspect. It is not counted as
+independent validation.
