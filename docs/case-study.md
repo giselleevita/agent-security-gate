@@ -135,4 +135,4 @@ make agentdojo-evidence
 ```
 
 Protocol and per-step detail: [agentdojo-benchmark.md](agentdojo-benchmark.md).
-Authorship and AI-assistance disclosure: [AUTHORS.md](../AUTHORS.md).
+Authorship: [AUTHORS.md](../AUTHORS.md).

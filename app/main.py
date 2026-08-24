@@ -118,7 +118,7 @@ async def _lifespan(_app: FastAPI):
     _reset_clients()
 
 
-app = FastAPI(title="Agent Security Gate", version="0.6.0", lifespan=_lifespan)
+app = FastAPI(title="Agent Security Gate", version="0.7.0", lifespan=_lifespan)
 
 
 class _ToolOutputScanMiddleware(BaseHTTPMiddleware):

@@ -1,4 +1,4 @@
-# Authorship and AI assistance
+# Authorship
 
 Agent Security Gate was designed and implemented by **Giselle Evita Koch**.
 
@@ -8,6 +8,5 @@ Giselle's husband. That attribution is a Git metadata artifact, not a separate
 contributor. The original history is retained unchanged so the provenance remains
 transparent.
 
-Cursor was used as a coding assistant during development. Giselle directed the work,
-made the architectural and product decisions, reviewed and tested assisted edits, and
-takes responsibility for the final code and claims made about the project.
+Giselle takes responsibility for the code, architecture, evaluation, and public claims
+made about the project.

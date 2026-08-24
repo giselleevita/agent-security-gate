@@ -4,9 +4,10 @@
 
 The highest-risk areas are approval authorization, policy integrity, outbound HTTP
 requests, and audit integrity. The current reference deployment has meaningful
-controls, but its static bearer tokens, local audit file, demo credentials, and
-DNS time-of-check/time-of-use window are not sufficient for an internet-facing
-multi-tenant production service.
+controls, but demo credentials, optional static-token compatibility, locally mounted
+policy, and local audit storage are not sufficient defaults for an internet-facing
+multi-tenant production service. OIDC, strict tenant policies, HMAC signing, and an
+immutable audit sink are available but must be configured by the operator.
 
 ## Scope and Assumptions
 
@@ -16,10 +17,11 @@ and security-relevant CI workflows.
 Assumptions:
 
 - The documented Docker Compose deployment is for local evaluation.
-- Production would place TLS and identity-aware access controls in front of FastAPI.
+- Production configures TLS and an external OIDC identity provider for FastAPI.
 - OPA policy files and runtime environment variables are operator-controlled.
 - Agents may submit attacker-influenced prompts, tool arguments, and tool output.
-- Multi-tenant isolation is not claimed by this reference implementation.
+- Multi-tenant deployments enable `ASG_TENANT_POLICY_STRICT` and provide a dedicated
+  policy file for every tenant; the fallback mode is intended for local/single-tenant use.
 
 Out of scope: model-provider security, host compromise, and the security of external
 tools after ASG permits their execution.
@@ -31,11 +33,12 @@ share credentials, and whether requests may contain regulated or production data
 
 ### Primary Components
 
-- FastAPI enforcement service and approval API: `app/main.py`
+- FastAPI application and routers: `app/main.py`, `app/routers/`
+- Shared authorization path: `app/decision.py`
 - Authentication and resume tokens: `app/auth.py`
 - OPA policy decision point: `app/policy.py`, `policies/asg.rego`
 - Postgres approval state and migrations: `db/`, `scripts/migrate_db.py`
-- Redis request/session counters: `app/main.py`
+- Redis request/session counters: `app/decision.py`
 - Outbound HTTP and document adapters: `adapters/`
 - Hash-chained local audit events: `audit/events.py`
 - CI, CodeQL, dependency audit, and benchmark evidence: `.github/workflows/`
@@ -43,7 +46,8 @@ share credentials, and whether requests may contain regulated or production data
 ### Data Flows and Trust Boundaries
 
 - Agent -> FastAPI: JSON tool requests and bearer credentials over HTTP; Pydantic
-  validates shape, auth checks the static token, and Redis enforces counters.
+  validates shape, auth verifies a configured static credential or signed OIDC JWT,
+  and Redis enforces counters.
 - FastAPI -> OPA: normalized policy input over internal HTTP; OPA decides allow,
   deny, or approval-required.
 - Approver -> FastAPI -> Postgres: approval decisions and identity headers; approver
@@ -105,8 +109,8 @@ flowchart LR
 
 | Surface | How reached | Trust boundary | Notes | Evidence |
 |---|---|---|---|---|
-| Gateway decision API | Authenticated HTTP | Agent -> API | Tool, context, and output are attacker-influenced | `app/main.py:gateway_decide` |
-| Approval APIs | Authenticated HTTP | Approver -> API -> DB | High-impact authorization state | `app/main.py:approvals_approve` |
+| Gateway decision API | Authenticated HTTP | Agent -> API | Tool, context, and output are attacker-influenced | `app/decision.py`, `app/routers/decide.py` |
+| Approval APIs | Authenticated HTTP | Approver -> API -> DB | High-impact authorization state | `app/routers/approvals.py` |
 | HTTP proxy | Authenticated HTTP | API -> external network | SSRF and egress risk | `adapters/http.py:GatedHttpClient` |
 | Document adapter | Tool integration | API -> document source | Authorization must precede read | `adapters/docs.py:DocAdapter` |
 | Audit endpoint/file | Approver HTTP and filesystem | API -> audit sink | Tamper-evident locally; optionally HMAC-signed and mirrored to immutable WORM storage | `audit/events.py`, `audit/sinks.py` |
@@ -130,13 +134,13 @@ flowchart LR
 
 | ID | Threat | Existing Controls | Gaps | Recommended Mitigations | Likelihood | Impact | Priority |
 |---|---|---|---|---|---|---|---|
-| TM-001 | Stolen static bearer token permits agent or approver actions | Separate tokens, constant-time comparison, self-approval block (`app/auth.py`, `app/main.py`) | No external identity, rotation, scopes, or per-tenant principals | Use OIDC/mTLS, short-lived scoped credentials, and centralized revocation | Medium | High | High |
-| TM-002 | Approval token replay or operation substitution | Exact operation binding, issuer/audience JWT checks, single-use DB transition (`app/auth.py`, `app/main.py`) | Token remains bearer material until expiry | Reduce expiry, add token identifier and revocation telemetry | Low | High | Medium |
+| TM-001 | Stolen agent or approver credential permits privileged actions | Optional OIDC JWT validation with roles, separate static compatibility tokens, constant-time comparison, and self-approval prevention (`app/auth.py`) | Static compatibility tokens have no built-in rotation or centralized revocation | Configure OIDC with short-lived scoped credentials; disable static credentials where possible | Medium | High | High |
+| TM-002 | Approval token replay or operation substitution | Exact operation binding, issuer/audience JWT checks, and atomic single-use consumption (`app/auth.py`, `approvals/service.py`) | Token remains bearer material until expiry | Reduce expiry, protect transport/storage, and add revocation telemetry | Low | High | Medium |
 | TM-003 | SSRF reaches internal network through DNS rebinding | Scheme/IP/DNS checks, exact allowlist, redirects disabled, and connect-time IP pinning to the validated address (`adapters/http.py`) | Long-lived pooled connections could outlive their validated IP; egress is still host-based, not proxy-mediated | Force egress through a proxy/firewall that resolves and connects atomically; cap connection keep-alive | Low | High | Medium |
 | TM-004 | Policy/config compromise disables enforcement | OPA fail-closed rules and protected branch checks (`policies/asg.rego`, `.github/workflows/`) | Runtime policy files are locally mounted and unsigned | Use signed/versioned policy bundles and alert on policy changes | Low | High | Medium |
 | TM-005 | Audit file is altered, deleted, or filled | Hash chain and file locking, optional HMAC signing, and an optional S3 Object Lock (WORM) mirror with a chain-follow bundle verifier (`audit/events.py`, `audit/sinks.py`, `scripts/verify_audit.py`) | The local file itself is still deletable and not multi-writer safe; WORM guarantees depend on correct bucket Object Lock configuration and key/bucket separation | Enable `AUDIT_HMAC_KEY` + `AUDIT_S3_BUCKET` with Object Lock retention in production; keep the signing key on a separate trust boundary and alert on verification failures | Low | Medium | Medium |
-| TM-006 | Authenticated request flood exhausts dependencies | Redis counters and fail-closed dependency errors (`app/main.py`) | Static-token limits and no body-size/global concurrency limits | Add ingress limits, body-size caps, quotas, timeouts, and saturation alerts | Medium | Medium | Medium |
-| TM-007 | Malicious dependency or workflow change compromises release | CodeQL, dependency audit, required checks, branch protection (`.github/workflows/`) | Actions use floating major tags and releases depend on repository workflow integrity | Pin actions by commit SHA and use artifact attestations | Low | High | Medium |
+| TM-006 | Authenticated request flood exhausts dependencies | Per-caller Redis counters and fail-closed dependency errors (`app/decision.py`) | No body-size or global concurrency limit in the application | Add ingress limits, body-size caps, quotas, timeouts, and saturation alerts | Medium | Medium | Medium |
+| TM-007 | Malicious dependency or workflow change compromises release | Commit-pinned Actions, CodeQL, dependency audits, required checks, and protected `main` (`.github/workflows/`) | Release artifacts are not independently signed or attested | Add artifact attestations and protected signing identity | Low | High | Medium |
 
 ## Criticality Calibration
 
@@ -153,8 +157,8 @@ flowchart LR
 
 | Path | Why it matters | Threat IDs |
 |---|---|---|
-| `app/main.py` | Central request, approval, rate-limit, and audit orchestration | TM-001, TM-002, TM-006 |
-| `app/auth.py` | Static credentials and resume-token validation | TM-001, TM-002 |
+| `app/decision.py` | Central policy, rate-limit, grant, and audit orchestration | TM-001, TM-004, TM-006 |
+| `app/auth.py` | OIDC/static credentials and resume-token validation | TM-001, TM-002 |
 | `adapters/http.py` | Network egress and SSRF controls | TM-003 |
 | `policies/asg.rego` | Authoritative runtime policy logic | TM-004 |
 | `audit/events.py` | Audit-chain integrity and local storage behavior | TM-005 |
