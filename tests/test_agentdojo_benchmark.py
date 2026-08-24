@@ -14,6 +14,7 @@ from scripts.run_agentdojo_benchmark import (
     _PinnedLocalCompletions,
     _records,
     _require_local_url,
+    _safe_pipeline_component,
 )
 
 
@@ -78,6 +79,13 @@ def test_local_completion_applies_pins_to_every_model_call() -> None:
 def test_remote_model_endpoints_are_rejected(url: str) -> None:
     with pytest.raises(ValueError, match="loopback"):
         _require_local_url(url)
+
+
+def test_model_identifier_is_safe_for_agentdojo_trace_directories() -> None:
+    assert _safe_pipeline_component("qwen3.5:9b") == "qwen3.5-9b"
+    assert _safe_pipeline_component("registry/model:tag") == "registry-model-tag"
+    with pytest.raises(ValueError, match="filesystem-safe"):
+        _safe_pipeline_component(":/")
 
 
 def test_authorization_request_contains_no_benchmark_ground_truth() -> None:
