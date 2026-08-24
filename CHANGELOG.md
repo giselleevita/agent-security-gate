@@ -8,6 +8,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-08-24
+
+### Security
+
+- Prevent stored cross-site scripting in the approver console by rendering all
+  agent-controlled approval fields through DOM `textContent` instead of HTML parsing.
+- Serve the console JavaScript and CSS as same-origin assets under a restrictive Content
+  Security Policy, with clickjacking, MIME-sniffing, and referrer protections.
+
+### Added
+
+- Internal adversarial pre-review report and a timed security-review demonstration script.
+- Regression coverage for the console's safe rendering primitives and response headers.
+
 ## [0.7.0] — 2026-08-24
 
 ### Added

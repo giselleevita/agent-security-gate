@@ -111,6 +111,7 @@ flowchart LR
 |---|---|---|---|---|
 | Gateway decision API | Authenticated HTTP | Agent -> API | Tool, context, and output are attacker-influenced | `app/decision.py`, `app/routers/decide.py` |
 | Approval APIs | Authenticated HTTP | Approver -> API -> DB | High-impact authorization state | `app/routers/approvals.py` |
+| Approval console | Approver browser -> API; stored agent input -> browser | Agent -> DB -> approver browser | Agent-controlled fields must remain text, never active content | `app/static/approvals.js`, `app/routers/ui.py` |
 | HTTP proxy | Authenticated HTTP | API -> external network | SSRF and egress risk | `adapters/http.py:GatedHttpClient` |
 | Document adapter | Tool integration | API -> document source | Authorization must precede read | `adapters/docs.py:DocAdapter` |
 | Audit endpoint/file | Approver HTTP and filesystem | API -> audit sink | Tamper-evident locally; optionally HMAC-signed and mirrored to immutable WORM storage | `audit/events.py`, `audit/sinks.py` |
@@ -141,6 +142,7 @@ flowchart LR
 | TM-005 | Audit file is altered, deleted, or filled | Hash chain and file locking, optional HMAC signing, and an optional S3 Object Lock (WORM) mirror with a chain-follow bundle verifier (`audit/events.py`, `audit/sinks.py`, `scripts/verify_audit.py`) | The local file itself is still deletable and not multi-writer safe; WORM guarantees depend on correct bucket Object Lock configuration and key/bucket separation | Enable `AUDIT_HMAC_KEY` + `AUDIT_S3_BUCKET` with Object Lock retention in production; keep the signing key on a separate trust boundary and alert on verification failures | Low | Medium | Medium |
 | TM-006 | Authenticated request flood exhausts dependencies | Per-caller Redis counters and fail-closed dependency errors (`app/decision.py`) | No body-size or global concurrency limit in the application | Add ingress limits, body-size caps, quotas, timeouts, and saturation alerts | Medium | Medium | Medium |
 | TM-007 | Malicious dependency or workflow change compromises release | Commit-pinned Actions, CodeQL, dependency audits, required checks, and protected `main` (`.github/workflows/`) | Release artifacts are not independently signed or attested | Add artifact attestations and protected signing identity | Low | High | Medium |
+| TM-008 | Agent-controlled approval metadata executes active content in an approver browser | Safe DOM construction with `textContent`, no HTML parsing sinks, same-origin external assets, restrictive CSP, frame denial, and regression tests (`app/static/approvals.js`, `app/routers/ui.py`, `tests/test_ui.py`) | The console remains a reference demo and has not received independent browser-level penetration testing | Retain CSP and safe DOM invariants; include stored-content payloads in independent review | Low | High | Medium |
 
 ## Criticality Calibration
 
@@ -163,6 +165,7 @@ flowchart LR
 | `policies/asg.rego` | Authoritative runtime policy logic | TM-004 |
 | `audit/events.py` | Audit-chain integrity and local storage behavior | TM-005 |
 | `.github/workflows/` | Build, analysis, evidence, and release trust | TM-007 |
+| `app/static/approvals.js` | Privileged browser handling of stored agent-controlled values | TM-008 |
 
 ## Quality Check
 
