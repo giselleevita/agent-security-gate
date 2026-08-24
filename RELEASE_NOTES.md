@@ -1,27 +1,42 @@
-## Agent Security Gate v0.6.0
+## Agent Security Gate v0.7.0
 
-**Platform hardening release** — reference implementation for technical evaluation. See [docs/technical-brief.md](docs/technical-brief.md) and
-[docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md).
+**External-evidence and reviewer-readiness release** — a free, local reference
+implementation for evaluating deterministic authorization at the agent tool boundary.
 
 ### Highlights
 
-- **Connector SDK + strict enforcement** (`asg_sdk`, `ASG_ENFORCE_MODE=strict`) — binding
-  decide-to-execution grants via `X-ASG-Audit-Id`
-- **Enterprise identity & tenancy** — OIDC JWT (`asg:agent` / `asg:approver`), per-tenant
-  OPA policies, dual-control approvals, time-bound policy exceptions
-- **Audit & compliance** — S3 Object Lock sink, HMAC-signed entries, approver-only
-  `POST /v1/audit/export` with offline `verify.py`
-- **Operability** — Prometheus `/metrics`, `GET /v1/stats`, Grafana dashboard JSON,
-  backup/restore runbooks, HA compose overlay (2+ gateway replicas)
-- **Single decision path** — benchmark `gate` baseline exercises `_decide_tool_call_impl`
-  (18-scenario parity test); OPA via HTTP or `opa eval` in CI
+- **Real-agent evidence:** frozen AgentDojo Banking evaluation with a digest-pinned local
+  model. The unprotected standalone goal runs achieved 6/9 attacker goals and executed 11
+  policy-violating calls; ASG achieved 0/9 and executed none. Three legitimate held-out
+  cases were blocked by an approval policy. Scored-case security was already 100% in both
+  arms, so no uplift is claimed there.
+- **Binding authorizer seam:** framework-neutral authorize-then-execute contract with
+  AgentDojo and supported OpenAI Agents SDK integrations. Denial, approval-required,
+  malformed responses, exceptions, timeouts, and OPA outages do not execute the tool.
+- **Inspectable failure evidence:** the case study records benchmark contamination,
+  inverted metrics, inference-pin bypasses, a degenerate defense baseline, an adapter
+  argument-policy bypass, rate-limit contamination, and the regression tests added.
+- **Free reproduction:** `make verify`, Docker Compose, recorded demonstrations, and the
+  local Ollama protocol require no hosted or paid API.
+- **Reviewer package:** a protected side-effecting function demo, security reviewer guide,
+  explicit non-claims, and an independent-reproduction template.
 
-### Upgrade notes
+### Security and supply-chain hardening
 
-- Set real secrets via env or `*_FILE` mounts; disable `ASG_DEMO_MODE` in production
-- Enable `ASG_ENFORCE_MODE=strict` and integrate `asg_sdk` for mandatory enforcement
-- Configure `AUDIT_S3_*` for immutable audit durability; use per-replica audit files or
-  S3 sink in multi-replica deployments (`docker-compose.ha.yml`)
-- Optional: `OIDC_ISSUER` / `OIDC_AUDIENCE`, `ASG_TENANT_POLICY_STRICT=true`
+- OPA 1.19.1 and GitHub Actions are pinned; runtime, development, and AgentDojo lockfiles
+  are explicitly audited.
+- `main` requires current CI, Docker integration, and CodeQL checks.
+- OIDC, strict tenant policy isolation, single-use grants, HMAC audit signing, immutable
+  audit sinks, and fail-closed dependency behavior are documented against the current code.
+- Connector arguments are normalized before both OPA and Python pre-checks, closing an
+  argument-level policy bypass found while building the protected-function demo.
 
-See [CHANGELOG.md](CHANGELOG.md) for the full history.
+### Evaluation boundaries
+
+This release does not claim to prevent prompt injection, to generalise beyond the published
+suite/model/policy, or to be independently validated. The agent task-quality work is an
+ongoing preregistered experiment; no completed result is claimed in this release.
+
+Start with [the security reviewer guide](https://github.com/giselleevita/agent-security-gate/blob/v0.7.0/docs/security-reviewer-guide.md), then read the
+[case study](https://github.com/giselleevita/agent-security-gate/blob/v0.7.0/docs/case-study.md) and
+[AgentDojo results](https://github.com/giselleevita/agent-security-gate/blob/v0.7.0/docs/benchmark-results/agentdojo-local.md).

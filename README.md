@@ -8,7 +8,7 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![Version](https://img.shields.io/badge/version-0.6.0-informational)
+![Version](https://img.shields.io/badge/version-0.7.0-informational)
 
 <p align="center">
   <img src="./docs/assets/asg-demo.gif" alt="Agent Security Gate blocking unsafe AI agent tool calls" />
@@ -16,7 +16,7 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 
 <p align="center"><em>Blocks unsafe tool calls before execution and records an auditable decision trace.</em></p>
 
-**Case study:** [docs/case-study.md](docs/case-study.md) · **Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md) · **Technical brief:** [docs/technical-brief.md](docs/technical-brief.md) · **Authorship:** [AUTHORS.md](AUTHORS.md)
+**Security reviewer guide:** [docs/security-reviewer-guide.md](docs/security-reviewer-guide.md) · **Case study:** [docs/case-study.md](docs/case-study.md) · **Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md) · **Authorship:** [AUTHORS.md](AUTHORS.md)
 
 ---
 
@@ -202,7 +202,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 
 1. `docker compose up -d --build` and run the four curls above.
 2. `python scripts/verify_audit.py --path audit/events.jsonl`
-3. Skim `policies/asg.rego`, `app/main.py` (`_decide_tool_call_impl`), and `tests/integration/test_decide.py`.
+3. Skim `policies/asg.rego`, `app/decision.py` (`decide_tool_call_impl`), and `tests/integration/test_decide.py`.
 4. Optional: `ASG_ENFORCE_MODE=strict` + `examples/gated_agent.py`.
 
 Deeper write-up: [docs/technical-brief.md](docs/technical-brief.md)
@@ -263,8 +263,9 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 | Doc | Purpose |
 |---|---|
 | [Case study](docs/case-study.md) | Threat, contract, benchmark design, what went wrong, and what the numbers support |
+| [Security reviewer guide](docs/security-reviewer-guide.md) | Five-minute demo, review paths, non-claims, and independent reproduction template |
 | [Demo assets](docs/demo/README.md) | Reproducible terminal recordings, including the protected function tool |
-| [Agent task-quality experiment](docs/agent-quality.md) | Preregistered protocol for improving and costing task completion |
+| [Agent task-quality experiment](docs/agent-quality.md) | Ongoing preregistered protocol; no completed result is claimed yet |
 | [Architecture decisions (ADRs)](docs/adr/README.md) | Why the non-obvious calls were made, and what was rejected |
 | [Threat model](docs/agent-security-gate-threat-model.md) | Trust boundaries and abuse paths |
 | [Connector SDK](docs/connector-sdk.md) | Decide → execute contract |
@@ -273,7 +274,6 @@ Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies
 | [HA deployment](docs/runbooks/ha-deployment.md) | Multi-replica topology |
 | [Observability](docs/runbooks/observability.md) | Metrics, logs, dashboards |
 | [Backup / restore](docs/runbooks/backup-restore.md) | RPO/RTO procedures |
-| [Optional Fly deploy](docs/demo-deployment.md) | Paid hosted demo (not currently live) |
 
 ---
 

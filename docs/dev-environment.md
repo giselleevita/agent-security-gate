@@ -7,7 +7,7 @@
 source .venv/bin/activate
 ```
 
-This writes `.env` with your `ASG_UID`/`ASG_GID`, creates `.venv`, starts the standard Docker stack, and checks Fly login status.
+This writes `.env` with your `ASG_UID`/`ASG_GID`, creates `.venv`, starts the standard Docker stack, and checks the local demo.
 
 ## Docker Compose modes
 
@@ -31,17 +31,6 @@ A leftover `lb` container without healthy gateways causes **502 Bad Gateway**.
 curl -s http://localhost:8000/health
 curl -s http://localhost:8000/demo | jq .
 ```
-
-## Fly.io live demo (optional — paid)
-
-Skip unless you accept ~$3–10+/month for Postgres + Redis.
-
-```bash
-flyctl auth login
-./scripts/fly_demo_bootstrap.sh
-```
-
-See [demo-deployment.md](demo-deployment.md) for cost warning and tear-down commands.
 
 ## macOS notes
 

@@ -8,7 +8,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-24
+
+### Added
+
+- Framework-neutral pre-execution authorization contract with AgentDojo and supported
+  OpenAI Agents SDK adapters; every non-allow outcome prevents the callable from running
+- Frozen, free local AgentDojo Banking protocol and generated authorization evidence,
+  including paired utility, standalone attacker-goal runs, policy coverage, live OPA
+  latency replay, OPA-outage behavior, trace manifests, and explicit limitations
+- Protected-function demonstration with an execution spy for allow, argument denial,
+  post-authorization tampering, approval-required, SSRF, and OPA-down cases
+- Preregistered agent task-quality experiment with token/latency metering, one-change
+  variants, paired acceptance rules, host-load guards, and an untouched confirmation suite
+- Security reviewer guide with short review paths and an independent reproduction template
+- Version-consistency validation for public metadata and release tags
+
+### Changed
+
+- OPA upgraded and digest-pinned to 1.19.1; GitHub Actions are commit-pinned and all three
+  dependency lockfiles are audited in CI
+- Complete local verification is available through `make verify`, including hermetic tests,
+  policy checks, benchmarks, and isolated Docker integration
+- Benchmark snapshot automation is read-only and uploads evidence without creating branches
+  or pull requests
+- Public documentation now reflects OIDC, strict tenant policies, immutable audit options,
+  current decision-module ownership, free local evaluation, and candidate-authored evidence
+- Paid hosted-demo material was removed; Docker and reproducible recordings are the supported
+  free demonstration path
+
 ### Fixed
+
+- Connector adapters can no longer bypass argument-level document and HTTP policy checks;
+  all observed published AgentDojo calls were replayed to confirm the evidence is unaffected
+- AgentDojo runtime wrapping is isolated, security semantics are reported correctly, local
+  inference parameters and model digests are enforced, and degenerate baselines are labelled
+- Authorization latency measurements reject throttled or host-degraded runs rather than
+  publishing misleading wall-clock figures
+- Three tests now patch the decision module's database seam and non-integration CI runs with
+  Postgres and Redis deliberately unreachable
+
 - **Argument-level policy bypass through connector adapters.** Adapters nest tool arguments under `context.arguments` so the audit layer can hash them as one value, but policy rules read argument values from the top level of `context`. An adapter-driven `docs.read` of a `denied_doc_prefixes` path was therefore allowed where the same call through the gateway was denied, and `http.get` SSRF checks saw no URL at all. `app/policy.policy_context` now merges nested tool arguments into the context that OPA and the Python evaluators see, with explicit top-level keys winning on collision and the nested object preserved. Found by `examples/protected_function_tool.py`. Replaying all 107 tool calls observed in the published AgentDojo runs produced identical decisions before and after the fix, so those results are unaffected
 
 ### Added
