@@ -53,20 +53,22 @@ curl -H "Authorization: Bearer $APPROVER_TOKEN" http://localhost:8000/audit?limi
 python scripts/verify_audit.py --path audit/events.jsonl
 ```
 
-Then skim `policies/asg.rego`, `app/main.py`, and `docs/architecture.md`.
+Then skim `policies/asg.rego`, `app/decision.py`, and `docs/architecture.md`.
 
 ## Limitations (stated plainly)
 
-ASG does not replace enterprise IdP, HSM-backed signing, or immutable SIEM storage.
-Production hardening would add external identity, signed policy bundles, HA Postgres,
-and operational monitoring. The value of this repo is **visible control points** and
-**reproducible evidence** — not marketing claims.
+ASG accepts an external OIDC identity provider, but does not supply or operate one. The
+reference stack also does not replace HSM-backed signing or immutable SIEM storage.
+Production hardening requires configuring OIDC, signed policy delivery, HA Postgres,
+immutable audit storage, and operational monitoring. The value of this repo is **visible
+control points** and **reproducible evidence** — not marketing claims.
 
 ## Further reading
 
 - [Architecture](architecture.md)
 - [LangGraph integration](integrations/langgraph.md)
 - [Benchmark methodology](benchmark-methodology.md)
-- [Benchmark results](benchmark-results/latest.md)
+- [AgentDojo results](benchmark-results/agentdojo-local.md)
+- [Security reviewer guide](security-reviewer-guide.md)
 - [Threat model](agent-security-gate-threat-model.md)
 - [Release notes](../RELEASE_NOTES.md)

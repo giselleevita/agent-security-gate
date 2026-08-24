@@ -47,19 +47,6 @@ else
 fi
 
 echo ""
-echo "==> Fly.io (optional — costs money, skip for free portfolio)"
-if command -v flyctl >/dev/null 2>&1; then
-  if flyctl auth whoami >/dev/null 2>&1; then
-    echo "Fly logged in. Paid deploy only: ./scripts/fly_demo_bootstrap.sh"
-    echo "See docs/demo-deployment.md for cost warning."
-  else
-    echo "Fly optional. Skip unless you want a paid hosted URL."
-  fi
-else
-  echo "Fly optional (brew install flyctl). Not needed for portfolio."
-fi
-
-echo ""
 echo "Done. Activate venv: source .venv/bin/activate"
 echo "Run tests: make test"
 echo "Record GIF: vhs docs/demo/asg-demo.tape"

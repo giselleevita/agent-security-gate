@@ -2,7 +2,7 @@
 
 Public roadmap for AgentOps v2. Track progress via [GitHub Issues](https://github.com/giselleevita/agent-security-gate/issues?q=is%3Aissue+label%3Aroadmap).
 
-## Shipped (v0.6.0)
+## Shipped (v0.7.0)
 
 - [x] Pre-execution policy enforcement (OPA/Rego)
 - [x] SSRF defense and DLP/canary scanning
@@ -12,13 +12,13 @@ Public roadmap for AgentOps v2. Track progress via [GitHub Issues](https://githu
 - [x] CI benchmark gates and signed evidence bundles
 - [x] LangGraph integration example
 - [x] Minimal approval console (`/ui/approvals`)
-- [x] Fly.io demo deployment config
+- [x] Free local Docker demo with reproducible GIF and MP4 recordings
+- [x] AgentDojo authorization evidence and protected-function demonstration
+- [x] Read-only CI benchmark snapshots and downloadable evidence artifacts
 
 ## In progress
 
-- [ ] Public Fly.io demo URL (deploy + profile link)
-- [ ] CI-published benchmark snapshot on `main`
-- [ ] Demo video (3 min)
+- [ ] Independent clean-checkout reproduction by an external reviewer
 
 ## Planned
 
@@ -26,7 +26,7 @@ Public roadmap for AgentOps v2. Track progress via [GitHub Issues](https://githu
 - [ ] OpenTelemetry trace correlation for agent sessions
 - [ ] SIEM integration (syslog / Splunk HEC export)
 - [ ] Additional framework connectors (OpenAI Agents SDK, CrewAI)
-- [ ] Managed SaaS packaging (out of scope for open source)
+- [ ] Additional free local-model and benchmark-suite coverage
 
 ## How to contribute
 
