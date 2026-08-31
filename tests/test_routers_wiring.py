@@ -4,7 +4,12 @@ import app.main as main
 
 
 def test_all_expected_routes_are_registered() -> None:
-    paths = {r.path for r in main.app.routes}
+    # Read the surface from the OpenAPI schema rather than walking `app.routes`. Starlette
+    # 1.6 / FastAPI 0.141 stopped flattening `include_router` into the top-level route list
+    # and inserted opaque `_IncludedRouter` wrappers that carry no `.path`, so the old
+    # traversal broke on a routine dependency bump while routing itself was fine.
+    # `app.openapi()` is public API and reports the same paths under both layouts.
+    paths = set(main.app.openapi()["paths"])
     expected = {
         "/health",
         "/health/ready",

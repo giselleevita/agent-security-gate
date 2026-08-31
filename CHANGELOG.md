@@ -8,6 +8,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+
+- Route the `/agent` response scanner through the shared `app.dlp` canary check instead of a
+  second, private substring loop, so hardening of the canary match cannot reach the HTTP
+  proxy path while leaving the agent facade on a weaker test.
+
+### Fixed
+
+- Read the registered route surface from the OpenAPI schema in the router wiring test.
+  Starlette 1.6 / FastAPI 0.141 stopped flattening `include_router` into `app.routes`, which
+  broke the test on a routine dependency bump while routing itself was unaffected.
+
+### Added
+
+- Regression coverage for the `/agent` response scanner, including a guard that it delegates
+  to the shared scanner rather than re-implementing detection.
+
 ## [0.7.1] — 2026-08-24
 
 ### Security

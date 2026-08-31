@@ -31,7 +31,7 @@ from app.decision import (
     _operation_key,
     record_enforcement_grant as _record_enforcement_grant,
 )
-from app.dlp import load_canaries as _load_canaries
+from app.dlp import scan_tool_output as _scan_tool_output
 from app.exceptions import load_active_policy_exceptions as _load_active_policy_exceptions
 from app import metrics as _metrics
 from app.policy import opa_post as _opa_post
@@ -138,18 +138,16 @@ class _ToolOutputScanMiddleware(BaseHTTPMiddleware):
             except Exception:
                 return Response(content=raw, status_code=response.status_code, headers=headers, media_type=media_type)
 
-            reason_or_none = None
-            redacted_txt = txt
-            canaries = _load_canaries()
-            for c in canaries:
-                if c and c in redacted_txt:
-                    reason_or_none = "canary_detected"
-                    redacted_txt = redacted_txt.replace(c, "[REDACTED]")
-                    break
+            # Detect through the shared scanner rather than a private substring loop. This
+            # middleware previously kept its own copy of the canary check, so any hardening
+            # of the canary match in app.dlp reached the proxy path but silently left the
+            # /agent response path on the weaker test. Only a canary blocks here, as before:
+            # a DLP pattern match does not gate the /agent facade.
+            reason, _redacted, _extras = _scan_tool_output(tool_output=txt)
 
-            if reason_or_none is not None:
+            if reason == "canary_detected":
                 audit_id = f"evt_{uuid.uuid4().hex}"
-                payload = {"allowed": False, "reason": reason_or_none, "audit_id": audit_id, "latency_ms": 0.0}
+                payload = {"allowed": False, "reason": reason, "audit_id": audit_id, "latency_ms": 0.0}
                 _append_audit_event(audit_id, {"agent_response_redacted": True, "response": payload})
                 return JSONResponse(status_code=200, content=payload)
 

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 import app.main as main
 from adapters.http import HttpDecision
 from app.dlp import scan_tool_output
+from app.schemas import DecideResponse
 
 
 def test_scan_flags_ssn_as_dlp_redacted() -> None:
@@ -92,3 +93,75 @@ def test_http_proxy_allows_and_returns_scanned_clean_body(monkeypatch) -> None:
     data = r.json()
     assert data["allowed"] is True
     assert data["body"] == "public data with no secrets"
+
+
+def _allow_leaking(reason: str):
+    """A patched decision whose response body carries `reason` verbatim."""
+
+    def _decide(*, body, resume_token, x_requester_id):  # noqa: ARG001 - patch point signature
+        return DecideResponse(allowed=True, reason=reason, audit_id="evt_test", latency_ms=1.0)
+
+    return _decide
+
+
+def test_agent_facade_response_scan_blocks_a_canary(monkeypatch) -> None:
+    # The /agent response scanner is a middleware, not the proxy path, and had its own copy
+    # of the canary check. Exercise it end to end so the two paths cannot drift again.
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setattr(main, "_rate_limit_agent_or_raise", lambda **_k: None)
+    monkeypatch.setattr(main, "_decide_tool_call", _allow_leaking("leaked INTERNAL_TOKEN value"))
+    monkeypatch.setattr(main, "_append_audit_event", lambda *_a, **_k: None)
+
+    client = TestClient(main.app)
+    r = client.post(
+        "/agent",
+        json={"input": "read the public readme"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["allowed"] is False
+    assert data["reason"] == "canary_detected"
+    assert "INTERNAL_TOKEN" not in r.text
+
+
+def test_agent_facade_response_scan_passes_clean_output(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setattr(main, "_rate_limit_agent_or_raise", lambda **_k: None)
+    monkeypatch.setattr(main, "_decide_tool_call", _allow_leaking("allow"))
+    monkeypatch.setattr(main, "_append_audit_event", lambda *_a, **_k: None)
+
+    client = TestClient(main.app)
+    r = client.post(
+        "/agent",
+        json={"input": "read the public readme"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["allowed"] is True
+    assert data["reason"] == "allow"
+
+
+def test_agent_facade_response_scan_delegates_to_shared_scanner(monkeypatch) -> None:
+    # Guards the fix itself: the middleware must reach its verdict through app.dlp, not a
+    # private substring loop. The stub flags text that no literal canary would match, so the
+    # test fails if the delegation is ever replaced with an inline check again.
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setattr(main, "_rate_limit_agent_or_raise", lambda **_k: None)
+    monkeypatch.setattr(main, "_decide_tool_call", _allow_leaking("allow"))
+    monkeypatch.setattr(main, "_append_audit_event", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        main,
+        "_scan_tool_output",
+        lambda *, tool_output: ("canary_detected", "[REDACTED]", {}),
+    )
+
+    client = TestClient(main.app)
+    r = client.post(
+        "/agent",
+        json={"input": "read the public readme"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert r.json()["reason"] == "canary_detected"
+    assert r.json()["allowed"] is False
