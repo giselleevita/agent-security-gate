@@ -62,6 +62,8 @@ curl http://localhost:8000/health
 
 ### Four decisions in 30 seconds
 
+`POST /agent` is a demo façade, not an agent: it maps plain text to a tool call deterministically so the decision path can be shown without an LLM. The decisions below are the real ones — same code path as `POST /v1/gateway/decide`. Real agents integrate via the [connector SDK](docs/connector-sdk.md).
+
 ```bash
 # 1. Doc exfiltration → blocked
 curl -s -X POST http://localhost:8000/agent \
@@ -107,7 +109,7 @@ This project addresses the research question: **How can we enforce deterministic
 **Key contributions:**
 - **Policy-as-code safety gates**: Demonstrates OPA/Rego as a practical framework for agent authorization, with fail-closed semantics and auditability
 - **Binding enforcement + approval workflow**: Shows how hash-chained audit logs and human approvals create verifiable compliance traces for regulated domains
-- **Benchmark on realistic attack scenarios**: Evaluates 18 agent-based attack classes (doc exfiltration, SSRF, privilege escalation, prompt injection) with attack success rate reduction from 100% → 0%
+- **Two-tier evaluation**: 18 hand-authored policy-regression scenarios (doc exfiltration, SSRF, privilege escalation, prompt injection) against an intentional no-gate baseline, plus an external AgentDojo Banking run on a local model. The authored suite establishes regression correctness and runtime parity, not adaptive red-team coverage; the external run shows what the boundary stops inside a real agent loop, with its own limits stated rather than averaged away
 - **Connector SDK for agent integration**: Provides a reusable interface for coupling agent runtimes to safety policies
 
 **Thesis evaluation** (15 min): Quick start above + read [docs/technical-brief.md](docs/technical-brief.md) and [docs/benchmark-methodology.md](docs/benchmark-methodology.md).
