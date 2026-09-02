@@ -5,12 +5,24 @@ the execution counter, rather than the response text alone, is the important obs
 
 ## Before the call
 
+Allow installation and container builds to finish before timing the demo. These
+commands use Bash (Linux, macOS, or WSL). The host Python installation is needed
+because the example imports the SDK and adapters outside Docker.
+
 ```bash
 git clone --branch v0.7.1 https://github.com/giselleevita/agent-security-gate
 cd agent-security-gate
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --constraint requirements-dev.lock -e ".[dev,security]"
 cp .env.example .env
 docker compose up -d --build
+curl --fail http://localhost:8000/health/ready
 ```
+
+Wait for `/health/ready` to return HTTP 200 before running the example. If startup
+fails, inspect `docker compose logs gateway opa` before continuing. This setup
+correction does not change the v0.7.1 code or its published benchmark evidence.
 
 Open with this bounded claim:
 

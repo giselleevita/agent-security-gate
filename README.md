@@ -213,6 +213,8 @@ Deeper write-up: [docs/technical-brief.md](docs/technical-brief.md)
 
 ## Verify a clean checkout
 
+The full verification command requires Bash, GNU Make, curl, and Docker Compose
+(Linux, macOS, or WSL). Create and activate a Python virtual environment first.
 After installing the development and security extras, run the complete lint,
 dependency, policy, unit, benchmark, and Docker integration path with one command:
 
@@ -222,6 +224,10 @@ make verify
 ```
 
 For a minimal simulated agent flow, see [`examples/injected_agent_tool_call.py`](examples/injected_agent_tool_call.py). It demonstrates how an agent-produced tool call is checked before execution (no in-tree LLM).
+
+For the protected-function demonstration, use the
+[complete setup and expected observations](docs/security-review-demo-script.md).
+Installing the Docker image alone does not install the host-side Python example.
 
 ---
 
