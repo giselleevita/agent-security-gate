@@ -19,9 +19,23 @@ rarely followed the injection. Read the complete numbers and limits in
 
 ## Five-minute enforcement demonstration
 
+Run from the repository root after the one-time Python setup below. Docker installs
+the container's dependencies; the example also needs ASG installed in your host
+Python environment. The five minutes refer to the demonstration after installation
+and image builds have finished.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --constraint requirements-dev.lock -e ".[dev,security]"
+```
+
+On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1` instead.
+
 ```bash
 cp .env.example .env
 docker compose up -d --build
+curl --fail http://localhost:8000/health/ready
 python examples/protected_function_tool.py
 docker compose stop opa
 python examples/protected_function_tool.py --opa-down
@@ -50,8 +64,13 @@ and audit deletion or recomputation.
 
 ## Clean-checkout reproduction
 
-Prerequisites are Git, Docker Compose, Python 3.11+, and enough local resources for the
-containers. The complete security and integration path uses no paid service:
+Prerequisites are Git, Docker Compose, Python 3.11+, Bash, GNU Make, curl, and enough
+local resources for the containers. Use Linux, macOS, or WSL for `make verify`;
+the verification script uses POSIX shell utilities. The complete security and
+integration path uses no paid service:
+
+The audit implementation also imports POSIX `fcntl`, so the full Python test
+suite cannot run natively on Windows. Use WSL or Linux containers for that suite.
 
 ```bash
 git clone https://github.com/giselleevita/agent-security-gate
