@@ -136,7 +136,7 @@ def _warn_if_audit_unsigned() -> None:
         )
 
 
-app = FastAPI(title="Agent Security Gate", version="0.7.1", lifespan=_lifespan)
+app = FastAPI(title="Agent Security Gate", version="0.7.2", lifespan=_lifespan)
 
 
 class _ToolOutputScanMiddleware(BaseHTTPMiddleware):

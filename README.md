@@ -8,7 +8,7 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![Version](https://img.shields.io/badge/version-0.7.1-informational)
+![Version](https://img.shields.io/badge/version-0.7.2-informational)
 
 <p align="center">
   <img src="./docs/assets/asg-demo.gif" alt="Agent Security Gate blocking unsafe AI agent tool calls" />

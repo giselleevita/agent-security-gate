@@ -8,6 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-09-04
+
 ### Security
 
 - Re-resolve and re-pin outbound HTTP on every request. `httpx` pools connections by
