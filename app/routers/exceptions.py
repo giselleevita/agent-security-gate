@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
+from app import config
 from app import main as m
+from app import metrics as _metrics
 from app.auth import require_header as _require_header, verify_approver
 from app.exceptions import create_policy_exception as _create_policy_exception
 from app.exceptions import expire_stale_policy_exceptions as _expire_stale_policy_exceptions
 from app.schemas import PolicyExceptionCreateRequest, PolicyExceptionCreateResponse
 
 router = APIRouter()
+
+logger = logging.getLogger("asg.policy_exceptions")
 
 
 @router.post("/v1/policy/exceptions", response_model=PolicyExceptionCreateResponse)
@@ -21,7 +27,14 @@ def create_policy_exception(
     x_approver_id: str | None = Header(default=None, alias="X-Approver-Id"),
 ) -> PolicyExceptionCreateResponse:
     approver_id = _require_header(x_approver_id, "X-Approver-Id")
+    ttl_ceiling = config.max_exception_ttl_s()
+    if body.ttl_seconds > ttl_ceiling:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ttl_seconds exceeds the configured maximum of {ttl_ceiling}s",
+        )
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=body.ttl_seconds)
+    broad = not body.context_match
     with m._db_connect() as conn:
         with conn.cursor() as cur:
             _expire_stale_policy_exceptions(cur)
@@ -34,9 +47,41 @@ def create_policy_exception(
                     expires_at=expires_at,
                     reason=body.reason,
                     created_by=approver_id,
+                    allow_broad=body.allow_broad,
                 )
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # A policy exception is a second, time-bound authorization path that can bypass
+    # doc-prefix/id denies and approval gates. Record its creation in the same
+    # hash-chained audit log as decisions (so the log, not just the mutable DB row, is
+    # the source of truth), emit a metric, and log at WARNING so it is visible in ops.
+    audit_id = f"evt_{uuid.uuid4().hex}"
+    m._append_audit_event(
+        audit_id,
+        {
+            "kind": "policy_exception_created",
+            "exception_id": exception_id,
+            "tenant_id": body.tenant_id,
+            "tool": body.tool,
+            "context_match": dict(body.context_match),
+            "broad_match": broad,
+            "ttl_seconds": body.ttl_seconds,
+            "expires_at": expires_at.isoformat(),
+            "created_by": approver_id,
+            "reason": body.reason,
+        },
+    )
+    _metrics.record_policy_exception_created(tool=body.tool, broad=broad)
+    logger.warning(
+        "policy exception %s created: tenant=%s tool=%s broad=%s ttl=%ss by=%s",
+        exception_id,
+        body.tenant_id,
+        body.tool,
+        broad,
+        body.ttl_seconds,
+        approver_id,
+    )
     return PolicyExceptionCreateResponse(exception_id=exception_id, expires_at=expires_at.isoformat())
 
 
