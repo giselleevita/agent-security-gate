@@ -29,6 +29,24 @@ tools after ASG permits their execution.
 Open questions that change risk: whether the API is internet-exposed, whether tenants
 share credentials, and whether requests may contain regulated or production data.
 
+### Trusted Computing Base
+
+ASG mediates tool calls that reach it. It does not run the model and cannot intercept a
+call the agent process makes without routing through a gated adapter. The TCB for the
+enforcement guarantee is:
+
+- the **agent runtime and the connector SDK** — they must send every side-effecting call
+  through `decide` → gated adapter (`strict` mode makes the adapter refuse calls without a
+  valid single-use grant, but only for calls that go through the adapter);
+- the **gateway process, OPA, and the policy bundle** — the decision path itself;
+- the **network topology** — in production, tool backends must be reachable only via the
+  gateway (`deploy/network-policy.example.yaml`), otherwise a prompt-injected agent can
+  bypass the PEP by calling a tool endpoint directly.
+
+The model, its prompt, and tool *arguments/output* are untrusted inputs, not part of the
+TCB. If the agent runtime itself is malicious (not merely prompt-injected), it is outside
+this boundary — network egress restriction is the compensating control.
+
 ## System Model
 
 ### Primary Components
