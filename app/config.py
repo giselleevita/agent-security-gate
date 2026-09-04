@@ -40,6 +40,7 @@ AUDIT_S3_OBJECT_LOCK_MODE_ENV = "AUDIT_S3_OBJECT_LOCK_MODE"
 ENFORCE_MODE_ENV = "ASG_ENFORCE_MODE"
 ENFORCE_TTL_S_ENV = "ASG_ENFORCE_TTL_S"
 MAX_EXCEPTION_TTL_S_ENV = "ASG_MAX_EXCEPTION_TTL_S"
+CONTEXT_KEY_ALLOWLIST_ENV = "ASG_CONTEXT_KEY_ALLOWLIST"
 REPLICA_ID_ENV = "ASG_REPLICA_ID"
 
 DEMO_AUTH_TOKEN = "test-token"
@@ -286,6 +287,18 @@ def max_exception_ttl_s() -> int:
         return max(1, int(os.environ.get(MAX_EXCEPTION_TTL_S_ENV, str(86400))))
     except ValueError:
         return 86400
+
+
+def context_key_allowlist_enabled() -> bool:
+    """
+    Whether decide rejects context keys outside a tool's ``context_keys_allowed`` list.
+
+    Opt-in (like ``ASG_ENFORCE_MODE``): recommended on for pilots so nothing the policy or
+    an approver never reviewed can reach an adapter or an approval record. Off by default
+    so the offline benchmark, which injects policy knobs through request context, is
+    unaffected.
+    """
+    return os.environ.get(CONTEXT_KEY_ALLOWLIST_ENV, "false").lower() in {"1", "true", "yes", "on"}
 
 
 def agent_rate_limit_max() -> int:

@@ -260,8 +260,10 @@ Auth: bearer token or OIDC JWT. Full contract: [docs/connector-sdk.md](docs/conn
 | `ASG_ENFORCE_MODE` | `off` | Set `strict` for binding enforcement |
 | `ASG_DEMO_MODE` | `false` | `true` in compose demo (fixed tokens) |
 | `OIDC_ISSUER` / `OIDC_AUDIENCE` | unset | Production identity |
-| `AUDIT_HMAC_KEY` | unset | Sign audit entries |
+| `AUDIT_HMAC_KEY` | unset | Sign audit entries (tamper-resistance); warned about at startup when enforcing without it |
 | `ASG_TENANT_POLICY_STRICT` | `false` | Deny unknown tenants |
+| `ASG_CONTEXT_KEY_ALLOWLIST` | `false` | Reject decide-request context keys outside a tool's `context_keys_allowed` |
+| `ASG_MAX_EXCEPTION_TTL_S` | `86400` | Ceiling on time-bound policy-exception lifetime |
 
 Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies/data/tenants/{id}/`.
 

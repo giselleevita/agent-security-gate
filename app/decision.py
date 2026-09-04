@@ -20,11 +20,13 @@ from app.clients import http_client as _http
 from app.clients import redis_client as _redis
 from app.config import enforce_mode as _enforce_mode
 from app.config import enforce_recording_enabled as _enforce_recording_enabled
+from app.config import context_key_allowlist_enabled as _context_key_allowlist_enabled
 from app.config import enforce_ttl_s as _enforce_ttl_s
 from app.dlp import scan_egress as _scan_egress
 from app.exceptions import load_active_policy_exceptions as _load_active_policy_exceptions
 from app import metrics as _metrics
 from app.policy import build_opa_input as _build_opa_input
+from app.policy import disallowed_context_keys as _disallowed_context_keys
 from app.policy import load_policy_config as _load_policy_config
 from app.policy import opa_post as _opa_post
 from app.policy import policy_context
@@ -57,9 +59,12 @@ def operation_key(action: str, tool: str, context: dict[str, Any]) -> str:
     """
     Canonical fingerprint of the operation an approval is bound to.
 
-    Compares action + tool + the meaningful context, ignoring volatile output-scanning
-    fields and key ordering so a legitimate resume isn't rejected over incidental
-    differences (while still binding the approval to the actual operation).
+    Compares action + tool + the meaningful context, ignoring only the volatile
+    output-scanning fields in ``_OPERATION_VOLATILE_KEYS`` and key ordering, so a
+    legitimate resume isn't rejected over incidental differences while every other
+    context value stays bound to the approval. Combined with the decide-time context-key
+    allowlist (`app.policy.disallowed_context_keys`), an approver reviews exactly the
+    fields that can influence what executes.
     """
     filtered = {k: v for k, v in context.items() if k not in _OPERATION_VOLATILE_KEYS}
     return json.dumps(
@@ -148,6 +153,32 @@ def decide_tool_call_impl(
     r = _redis()
 
     context = policy_context(body)
+
+    unexpected_keys = (
+        _disallowed_context_keys(body.tool, context, policy_config)
+        if _context_key_allowlist_enabled()
+        else []
+    )
+    if unexpected_keys:
+        # Fail closed on context keys the tool's allowlist does not cover: they were never
+        # reviewed by policy or an approver, and must not reach an adapter or an approval.
+        audit_id = f"evt_{uuid.uuid4().hex}"
+        response = DecideResponse(
+            allowed=False,
+            reason="context_key_not_allowed",
+            audit_id=audit_id,
+            latency_ms=0.0,
+            approval_url=None,
+        )
+        _append_audit_event(
+            audit_id,
+            {
+                "request": audit_safe_request(body),
+                "response": response.model_dump(),
+                "disallowed_context_keys": unexpected_keys,
+            },
+        )
+        return response
 
     tool_output = context.get("tool_output")
     if isinstance(tool_output, str) and tool_output:
