@@ -164,7 +164,7 @@ Most LLM security tooling inspects **text**. ASG authorizes **actions**. The two
 
 What follows from being an enforcement point rather than a classifier:
 
-- **Deterministic, not probabilistic.** Decisions come from OPA/Rego policy plus explicit pre-checks (SSRF with DNS pinning, DLP), so the same call yields the same decision — no model in the decision path.
+- **Deterministic, not probabilistic.** Decisions come from OPA/Rego policy plus explicit pre-checks (SSRF with DNS pinning, DLP) — no model in the decision path. Given a fixed policy bundle and successful name resolution, the same call yields the same decision; DNS or OPA infrastructure failures resolve to *deny* (fail-closed), which is intentional and can differ from a prior allow.
 - **Fail closed.** An unknown tool is denied by default rather than passed through.
 - **Binding, not advisory.** In `strict` mode the adapters refuse any call without a valid single-use grant, so an agent cannot skip the gate and call the tool directly.
 - **Answers "what happened?"** Every decision lands in a hash-chained audit log built for after-the-fact review, with human approvals and dual-control for risky operations.

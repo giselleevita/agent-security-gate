@@ -19,6 +19,9 @@ Authorization runs immediately before the callable, and answers exactly one of `
 
 - Only an explicit `allow` reaches the function. Denial, approval-required, a malformed
   response, a timeout, an exception, and an unreachable policy engine all mean *not executed*.
+  The decision is deterministic given a fixed policy bundle and successful name resolution;
+  infrastructure failures (DNS, policy engine) fail closed to deny rather than reproducing a
+  prior allow.
 - Nested calls are authorized individually; there is no path that resolves a call after the
   check.
 - Policy input contains the tool name, public arguments, principal, tenant, session and
