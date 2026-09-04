@@ -21,7 +21,7 @@ from app.clients import redis_client as _redis
 from app.config import enforce_mode as _enforce_mode
 from app.config import enforce_recording_enabled as _enforce_recording_enabled
 from app.config import enforce_ttl_s as _enforce_ttl_s
-from app.dlp import scan_tool_output as _scan_tool_output
+from app.dlp import scan_egress as _scan_egress
 from app.exceptions import load_active_policy_exceptions as _load_active_policy_exceptions
 from app import metrics as _metrics
 from app.policy import build_opa_input as _build_opa_input
@@ -151,19 +151,25 @@ def decide_tool_call_impl(
 
     tool_output = context.get("tool_output")
     if isinstance(tool_output, str) and tool_output:
-        reason_or_none, _redacted, extras = _scan_tool_output(tool_output=tool_output)
-        if reason_or_none is not None:
+        # Shared egress scanner; this path folds the scan metadata into the decision
+        # audit event below, so it does not emit a separate dlp_block event.
+        scan = _scan_egress(tool_output=tool_output, source="gateway.decide", record=False)
+        if scan.blocked:
             audit_id = f"evt_{uuid.uuid4().hex}"
             response = DecideResponse(
                 allowed=False,
-                reason=reason_or_none,
+                reason=scan.reason,
                 audit_id=audit_id,
                 latency_ms=0.0,
                 approval_url=None,
             )
             _append_audit_event(
                 audit_id,
-                {"request": audit_safe_request(body), "response": response.model_dump(), "scan": extras},
+                {
+                    "request": audit_safe_request(body),
+                    "response": response.model_dump(),
+                    "scan": scan.extras,
+                },
             )
             return response
 
