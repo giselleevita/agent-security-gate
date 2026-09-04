@@ -22,6 +22,21 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 
 ---
 
+## Trust model
+
+ASG is a **policy enforcement point at the tool-call boundary**. It is enforceable for
+every tool call that reaches it — in `strict` mode the adapters refuse any call without a
+valid single-use grant from a prior `decide` — but a call that never reaches a gated
+adapter is outside its control. The **trusted computing base** is therefore the agent
+runtime plus the connector SDK; the model and its prompt are *not* trusted.
+
+Make "reaches it" non-optional in a real deployment: put the tool backends on a network
+where the gateway is the only route to them (see
+[`deploy/network-policy.example.yaml`](deploy/network-policy.example.yaml)). Then a
+prompt-injected agent that tries to skip the gate has nothing to call.
+
+---
+
 ## Benchmark (18 scenarios, 5 runs each)
 
 Policy regression comparing an intentional unprotected baseline to the gated runtime path:
@@ -118,7 +133,7 @@ This project addresses the research question: **How can we enforce deterministic
 
 ## Scope and limitations
 
-- **Tool-boundary PEP** — policy runs on proposed tool calls, not inside the model. A malicious agent that never calls the gate is out of scope.
+- **Tool-boundary PEP** — policy runs on proposed tool calls, not inside the model. A call that never reaches a gated adapter is out of scope; see [Trust model](#trust-model) for making that path the only one.
 - **No LLM in this repo** — the `/agent` endpoint is a demo façade that maps plain text to tool calls; real agents integrate via the connector SDK.
 - **Policy regression benchmark** — 18 hand-authored scenarios with an intentional no-gate baseline; not adaptive red-team coverage.
 - **Demo defaults** — `ASG_ENFORCE_MODE=off` in `docker compose` so local try is frictionless. **Pilots should use `strict`** so tool endpoints require a prior allow decision (see below).

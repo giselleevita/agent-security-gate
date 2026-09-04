@@ -38,6 +38,11 @@ The interface is framework-neutral. Two adapters sit on it: AgentDojo's `Functio
 boundary and the OpenAI Agents SDK's tool input guardrail — with the SDK tool classes that
 do *not* pass through that guardrail documented as unsupported rather than glossed over.
 
+This only binds calls that reach the seam. The trusted computing base is the agent runtime
+and the connector SDK; in a real deployment the tool backends must be reachable only
+through the gateway (see the threat model's *Trusted Computing Base* section) so a
+prompt-injected agent cannot route around it.
+
 ## The benchmark design
 
 The project's original benchmark was 18 authored scenarios against an intentionally

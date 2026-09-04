@@ -1,0 +1,57 @@
+# Make the gateway the only route to your tool backends.
+#
+# ASG enforces policy on every tool call that reaches it. This NetworkPolicy removes the
+# other routes: the agent runtime may talk to the ASG gateway and nothing else, and the
+# tool backends accept traffic only from the gateway. A prompt-injected agent that tries
+# to call a tool endpoint directly then has nowhere to send the request.
+#
+# Adjust namespace/labels to your cluster. Requires a CNI that enforces NetworkPolicy
+# (Calico, Cilium, etc.). For a non-Kubernetes deployment, the equivalent is: put the
+# tool backends on a private network/subnet with a security-group / firewall rule that
+# allows ingress only from the gateway's address, and give the agent runtime no route to
+# that network except through the gateway (or an egress proxy that forces it).
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-egress-through-gateway-only
+  namespace: agents
+spec:
+  podSelector:
+    matchLabels:
+      role: agent-runtime
+  policyTypes: ["Egress"]
+  egress:
+    # The ASG gateway.
+    - to:
+        - namespaceSelector:
+            matchLabels: { name: asg }
+          podSelector:
+            matchLabels: { app: asg-gateway }
+      ports:
+        - { protocol: TCP, port: 8000 }
+    # DNS only.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tool-backends-accept-gateway-only
+  namespace: tools
+spec:
+  podSelector:
+    matchLabels:
+      role: tool-backend
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { name: asg }
+          podSelector:
+            matchLabels: { app: asg-gateway }
