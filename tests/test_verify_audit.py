@@ -22,6 +22,26 @@ def test_verify_audit_ok_and_detects_tamper(tmp_path: Path) -> None:
     assert verify(path) is False
 
 
+def test_verify_audit_checks_hmac_signature(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AUDIT_HMAC_KEY", "test-signing-key")
+    path = tmp_path / "events.jsonl"
+    append_hash_chained_event(path, {"a": 1})
+    append_hash_chained_event(path, {"b": 2})
+
+    # Chain-only verification still passes; signature verification needs the key.
+    assert verify(path) is True
+    assert verify(path, hmac_key="test-signing-key") is True
+    assert verify(path, hmac_key="wrong-key") is False
+
+    # A recomputed chain without a valid signature fails when a key is expected.
+    lines = path.read_text(encoding="utf-8").splitlines()
+    obj = json.loads(lines[1])
+    obj.pop("signature", None)
+    lines[1] = json.dumps(obj, sort_keys=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert verify(path, hmac_key="test-signing-key") is False
+
+
 def test_truncating_log_starts_a_fresh_chain(tmp_path: Path) -> None:
     path = tmp_path / "events.jsonl"
     append_hash_chained_event(path, {"a": 1})

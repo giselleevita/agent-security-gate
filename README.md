@@ -200,7 +200,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 - Shared SSRF evaluator with DNS pinning ([adapters/http.py](adapters/http.py))
 - Human approval with dual-control, operation binding, resume tokens
 - DLP + canary scanning on the tool-output return path (redact + fail closed + audit; one shared scanner across all egress paths)
-- Hash-chained audit log; optional HMAC signing and S3 Object Lock mirror
+- Hash-chained audit log — tamper-**evident** by itself; tamper-**resistance** needs `AUDIT_HMAC_KEY` (held off-host) + an S3 Object Lock (WORM) mirror, both wired in and off by a flag
 - OIDC JWT auth (`asg:agent` / `asg:approver` roles)
 - Per-tenant policy files; Prometheus metrics and Grafana dashboard JSON
 - Test suite spanning unit, integration, and benchmark parity; CI benchmark threshold gate
