@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Header
 
 from app import main as m
 from app.auth import verify_bearer
-from app.dlp import scan_tool_output as _scan_tool_output
+from app.dlp import scan_egress as _scan_egress
 from app.policy import load_policy_config as _load_policy_config
 from app.schemas import (
     DocsReadRequest,
@@ -40,12 +40,12 @@ def http_proxy(
         decision, resp_body = client.request(body.method, body.url)
         if not decision.allowed:
             return HttpProxyResponse(allowed=False, reason=decision.reason)
-        # Scan the fetched body for canaries/PII, mirroring the docs adapter so no
-        # egress path returns unscanned tool output.
-        reason_or_none, scanned_body, _extras = _scan_tool_output(tool_output=resp_body or "")
-        if reason_or_none is not None:
-            return HttpProxyResponse(allowed=False, reason=reason_or_none)
-        return HttpProxyResponse(allowed=True, reason=decision.reason, status_code=200, body=scanned_body)
+        # Scan the fetched body for canaries/PII on the return path; a block or redaction
+        # is recorded in the audit log by the shared scanner.
+        scan = _scan_egress(tool_output=resp_body or "", source="http.proxy", audit_id=x_asg_audit_id)
+        if scan.blocked:
+            return HttpProxyResponse(allowed=False, reason=scan.reason)
+        return HttpProxyResponse(allowed=True, reason=decision.reason, status_code=200, body=scan.output)
     finally:
         client.close()
 
@@ -83,11 +83,11 @@ def docs_read(
             return DocsReadResponse(allowed=False, reason=str(reason_raw))
 
     output = _demo_read_doc(path=body.path, doc_id=body.doc_id)
-    reason_or_none, scanned_output, _extras = _scan_tool_output(tool_output=output)
-    if reason_or_none is not None:
-        return DocsReadResponse(allowed=False, reason=reason_or_none)
+    scan = _scan_egress(tool_output=output, source="docs.read", audit_id=x_asg_audit_id)
+    if scan.blocked:
+        return DocsReadResponse(allowed=False, reason=scan.reason)
 
-    output = scanned_output
+    output = scan.output
     limit = int(policy.get("output_max_chars", 2000))
     truncated = len(output) > limit
     if truncated:

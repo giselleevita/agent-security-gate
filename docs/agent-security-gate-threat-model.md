@@ -126,7 +126,9 @@ flowchart LR
 3. Submit an allowlisted hostname that resolves or rebinds to a private address and
    use the HTTP adapter to reach internal services.
 4. Place secrets in tool output and attempt to bypass DLP/canary detection or poison
-   the audit trail.
+   the audit trail. DLP/canary scanning is a return-path control: it redacts matches,
+   fails the call closed, and audits the block before the agent sees the output; it does
+   not undo a side effect the tool already performed.
 5. Flood authenticated endpoints to exhaust Redis, Postgres, OPA, or audit storage.
 6. Modify policy, workflow, or dependency inputs through a malicious repository change
    and publish a compromised release.

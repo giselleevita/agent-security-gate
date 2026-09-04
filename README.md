@@ -149,6 +149,11 @@ The SDK couples **decide → execute** and passes `X-ASG-Audit-Id` so adapters r
 | Unknown tool | `shell.exec` | deny (fail closed) |
 | PII / canary in output | SSN or canary token in tool output | `dlp_redacted` / `canary_detected` |
 
+DLP/canary scanning runs on the tool→agent **return path**: it redacts matches and fails
+the call closed (and records the block in the audit log) before the agent sees the output.
+It does not retract a side effect the tool already performed — pair it with the host
+allowlist and egress controls for that.
+
 ---
 
 ## How this differs from other LLM security tools
@@ -194,7 +199,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 - OPA Rego policy-as-code (fail closed on unknown tools)
 - Shared SSRF evaluator with DNS pinning ([adapters/http.py](adapters/http.py))
 - Human approval with dual-control, operation binding, resume tokens
-- DLP + canary scanning on tool outputs
+- DLP + canary scanning on the tool-output return path (redact + fail closed + audit; one shared scanner across all egress paths)
 - Hash-chained audit log; optional HMAC signing and S3 Object Lock mirror
 - OIDC JWT auth (`asg:agent` / `asg:approver` roles)
 - Per-tenant policy files; Prometheus metrics and Grafana dashboard JSON
