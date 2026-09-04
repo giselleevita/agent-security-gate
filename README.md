@@ -219,6 +219,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 - OIDC JWT auth (`asg:agent` / `asg:approver` roles)
 - Per-tenant policy files; Prometheus metrics and Grafana dashboard JSON
 - Test suite spanning unit, integration, and benchmark parity; CI benchmark threshold gate
+- Bounded exhaustive policy checks: `opa test` over every rule branch + full input-space enumeration of the safety invariants against the live OPA decision ([ADR 0006](docs/adr/0006-bounded-policy-checks.md))
 
 ---
 
