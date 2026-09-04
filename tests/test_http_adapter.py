@@ -125,8 +125,47 @@ def test_http_client_pins_resolved_ip(monkeypatch) -> None:
 
     assert decision.allowed is True
     assert body == "ok"
-    # The hostname is pinned to the validated IP used for the actual connect.
-    assert client._pinned["example.com"] == "93.184.216.34"  # noqa: SLF001
+    # The hostname is pinned to the validated address list used for the actual connect.
+    assert client._pinned["example.com"] == ["93.184.216.34"]  # noqa: SLF001
+
+
+def test_http_client_disables_connection_reuse() -> None:
+    # httpx pools by origin, not by IP, so a kept-alive socket to a stale address would
+    # dodge re-resolution. The gated client must not keep connections alive.
+    client = GatedHttpClient(allowed_hosts=["example.com"])
+    try:
+        pool = client._client._transport._pool  # noqa: SLF001
+        assert pool._max_keepalive_connections == 0  # noqa: SLF001
+    finally:
+        client.close()
+
+
+def test_http_client_repins_every_request(monkeypatch) -> None:
+    # One reused client: the first resolution is public and allowed, a later resolution
+    # rebinds to loopback and must be refused — the pin is recomputed, not cached.
+    answers = iter(
+        [
+            [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+            [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))],
+        ]
+    )
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_a, **_k: next(answers))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="ok")
+
+    client = GatedHttpClient(allowed_hosts=["example.com"])
+    client._client = httpx.Client(transport=httpx.MockTransport(handler))  # noqa: SLF001
+    try:
+        first, first_body = client.request("GET", "https://example.com/")
+        second, second_body = client.request("GET", "https://example.com/")
+    finally:
+        client.close()
+
+    assert (first.allowed, first_body) == (True, "ok")
+    assert second.allowed is False
+    assert second.reason == "ssrf_blocked_resolved_ip"
+    assert second_body is None
 
 
 def test_evaluate_http_target_allowlist_before_dns_failure() -> None:

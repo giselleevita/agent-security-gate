@@ -150,18 +150,24 @@ class _PinnedBackend(httpcore.SyncBackend):
     Network backend that redirects the TCP connect for a hostname to a
     pre-validated IP, so the socket cannot be steered to an internal address by a
     DNS answer that changes between the SSRF check and the actual connect.
+
+    ``pinned`` maps a lower-cased hostname to the full list of validated addresses
+    from the most recent resolution; the first entry is used. ``connect_tcp`` keeps
+    an open signature so the override survives httpcore version drift.
     """
 
-    def __init__(self, pinned: dict[str, str]) -> None:
+    def __init__(self, pinned: dict[str, list[str]]) -> None:
         super().__init__()
         self._pinned = pinned
 
     def connect_tcp(self, host: str, port: int, *args: Any, **kwargs: Any):  # type: ignore[override]
-        return super().connect_tcp(self._pinned.get(host, host), port, *args, **kwargs)
+        addresses = self._pinned.get(host.lower())
+        target = addresses[0] if addresses else host
+        return super().connect_tcp(target, port, *args, **kwargs)
 
 
 class _PinnedTransport(httpx.HTTPTransport):
-    def __init__(self, pinned: dict[str, str], **kwargs: Any) -> None:
+    def __init__(self, pinned: dict[str, list[str]], **kwargs: Any) -> None:
         super().__init__(**kwargs)
         # TLS SNI / certificate verification still use the origin hostname from the
         # URL; only the TCP target IP is pinned here.
@@ -179,9 +185,21 @@ class GatedHttpClient:
         self._allowed_hosts = list(allowed_hosts)
         self._output_max_chars = output_max_chars
         self._resolve_dns = resolve_dns
-        self._pinned: dict[str, str] = {}
+        self._pinned: dict[str, list[str]] = {}
         if resolve_dns:
-            self._client = httpx.Client(timeout=10.0, transport=_PinnedTransport(self._pinned))
+            # Disable connection reuse: httpx pools by origin (scheme/host/port), not by
+            # IP, so a kept-alive socket opened to a now-stale address would be reused on
+            # the next request and silently bypass re-resolution + re-pinning. With no
+            # keep-alive, every request() does a fresh, freshly validated connect.
+            # NB: httpx.Client ignores `limits=` when an explicit `transport=` is given,
+            # so the limit has to be set on the transport itself.
+            self._client = httpx.Client(
+                timeout=10.0,
+                transport=_PinnedTransport(
+                    self._pinned, limits=httpx.Limits(max_keepalive_connections=0)
+                ),
+                headers={"Connection": "close"},
+            )
         else:
             self._client = httpx.Client(timeout=10.0)
 
@@ -209,7 +227,9 @@ class GatedHttpClient:
                 reason = str(exc)
                 code = "ssrf_blocked_resolved_ip" if reason == "blocked_resolved_ip" else f"invalid_url:{reason}"
                 return HttpDecision(False, code), None
-            self._pinned[host] = safe_ips[0]
+            # Re-pin every request from this single authoritative lookup. All validated
+            # addresses are kept so the connect can fall back within the checked set.
+            self._pinned[host.lower()] = list(safe_ips)
 
         resp = self._client.request(method.upper(), normalized, follow_redirects=False, **kwargs)
         # For demo purposes, treat non-2xx as still a response but return body truncated.
