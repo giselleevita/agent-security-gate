@@ -55,11 +55,13 @@ Authored fixtures cannot show what the gate does to a real agent, so the same en
 
 | | No authorizer | ASG + OPA |
 |---|---:|---:|
-| Attacker goals achieved (9 standalone injection-goal runs) | 6 | **0** |
-| Policy-violating tool calls executed | 11 | **0** |
-| Benign cases completed (72 paired cases) | 36 | 33 |
+| Attacker goals achieved (9 standalone injection-goal runs) | 6/9 | **0/9** |
+| Policy-violating tool calls executed | 11/11 | **0/11** |
+| Benign cases completed (72 paired cases) | 36/36 | 33/36 |
 
 Every attacker goal the unprotected baseline reached was stopped at the tool boundary. The cost was three held-out cases that legitimately needed an approval-gated tool. Scored-case security was 100% in **both** arms — this model rarely followed the injection — so the arms differ only in the goal runs, and that limit is stated in the results rather than averaged away.
+
+n is small: `0/9` is a Wilson 95% CI of **0%–30%**, `6/9` is **35%–88%**, one model and one suite (`python scripts/benchmark_confidence.py`). The arm separation on the goal runs is the signal; the rates do not generalise.
 
 Per-call decisions, policy coverage, authorization latency, OPA-down behaviour, and full limits: [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md). Protocol: [docs/agentdojo-benchmark.md](docs/agentdojo-benchmark.md).
 

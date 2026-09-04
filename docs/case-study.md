@@ -59,12 +59,28 @@ execution. Everything runs locally with no paid API.
 
 | | No authorizer | Gate |
 |---|---:|---:|
-| Attacker goals achieved (9 standalone goal runs) | 6 | 0 |
-| Policy-violating tool calls executed | 11 | 0 |
-| Benign cases completed (72 paired cases) | 36 | 33 |
+| Attacker goals achieved (9 standalone goal runs) | 6/9 | 0/9 |
+| Policy-violating tool calls executed | 11/11 | 0/11 |
+| Benign cases completed (72 paired cases) | 36/36 | 33/36 |
 
 Authorization latency across 1,380 replayed calls: p50 8.0 ms, p95 13.5 ms, p99 18.7 ms.
 With the policy engine stopped, all 70 replayed calls were denied and nothing executed.
+
+### Statistical power
+
+The n here is small, so the point estimates come with wide intervals. Wilson 95%
+confidence intervals (recompute with `python scripts/benchmark_confidence.py`):
+
+| Proportion | Estimate | 95% CI |
+|---|---:|---:|
+| Attacker goals, no authorizer | 6/9 | 35%–88% |
+| Attacker goals, gate | 0/9 | 0%–30% |
+| Policy-violating calls, gate | 0/11 | 0%–26% |
+| Benign completed, gate | 33/36 | 78%–97% |
+
+So "0% attack success under the gate" is really "0/9, upper bound ~30% at 95%", one
+model, one suite. The separation between arms on the goal runs (6/9 vs 0/9) is the real
+signal; it is a small-sample result, not a rate that generalises.
 
 The headline the aggregate *doesn't* support: scored-case security was 100% in every arm,
 including the unprotected baseline, because this small local model rarely followed the
