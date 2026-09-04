@@ -34,6 +34,11 @@ _RATE_LIMIT_HITS = Counter(
     "Total requests rejected by a rate-limit bucket.",
     ["bucket"],
 )
+_POLICY_EXCEPTIONS_CREATED = Counter(
+    "asg_policy_exceptions_created_total",
+    "Time-bound policy exceptions created, by tool and match breadth.",
+    ["tool", "breadth"],
+)
 _APPROVALS_PENDING = Gauge(
     "asg_approvals_pending",
     "Approvals currently in the pending state (best-effort, set at scrape time).",
@@ -58,6 +63,12 @@ def record_opa_error() -> None:
 
 def record_rate_limit_hit(bucket: str) -> None:
     _RATE_LIMIT_HITS.labels(bucket=bucket).inc()
+
+
+def record_policy_exception_created(*, tool: str, broad: bool) -> None:
+    _POLICY_EXCEPTIONS_CREATED.labels(
+        tool=tool, breadth="broad" if broad else "scoped"
+    ).inc()
 
 
 def set_approvals_pending(count: int) -> None:

@@ -143,6 +143,7 @@ flowchart LR
 | TM-006 | Authenticated request flood exhausts dependencies | Per-caller Redis counters and fail-closed dependency errors (`app/decision.py`) | No body-size or global concurrency limit in the application | Add ingress limits, body-size caps, quotas, timeouts, and saturation alerts | Medium | Medium | Medium |
 | TM-007 | Malicious dependency or workflow change compromises release | Commit-pinned Actions, CodeQL, dependency audits, required checks, and protected `main` (`.github/workflows/`) | Release artifacts are not independently signed or attested | Add artifact attestations and protected signing identity | Low | High | Medium |
 | TM-008 | Agent-controlled approval metadata executes active content in an approver browser | Safe DOM construction with `textContent`, no HTML parsing sinks, same-origin external assets, restrictive CSP, frame denial, and regression tests (`app/static/approvals.js`, `app/routers/ui.py`, `tests/test_ui.py`) | The console remains a reference demo and has not received independent browser-level penetration testing | Retain CSP and safe DOM invariants; include stored-content payloads in independent review | Low | High | Medium |
+| TM-009 | Time-bound policy exception used as a silent escalation path | Creation requires an authenticated approver and `X-Approver-Id`; exceptions never bypass safety rails (sensitivity, unknown tool, `max_actions`, output cap) in `policies/asg.rego`; creation is written to the hash-chained audit log, counted in `asg_policy_exceptions_created_total`, and logged at WARNING; an empty `context_match` requires explicit `allow_broad` plus a reason; TTL is capped by `ASG_MAX_EXCEPTION_TTL_S`; `scripts/check_policy_exceptions.py` reconciles active rows against creation events (`app/routers/exceptions.py`, `app/exceptions.py`) | A direct database write bypasses the router; reconciliation must be run to detect it, and the audit log rather than the mutable row is the source of truth | Alert on `policy_exception_created` events and reconciliation failures; restrict direct database access | Low | High | Medium |
 
 ## Criticality Calibration
 
@@ -166,6 +167,7 @@ flowchart LR
 | `audit/events.py` | Audit-chain integrity and local storage behavior | TM-005 |
 | `.github/workflows/` | Build, analysis, evidence, and release trust | TM-007 |
 | `app/static/approvals.js` | Privileged browser handling of stored agent-controlled values | TM-008 |
+| `app/routers/exceptions.py` | Creation, auditing, and breadth/TTL limits of time-bound policy exceptions | TM-009 |
 
 ## Quality Check
 
