@@ -8,7 +8,7 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 ![CI](https://github.com/giselleevita/agent-security-gate/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![Version](https://img.shields.io/badge/version-0.7.1-informational)
+![Version](https://img.shields.io/badge/version-0.7.2-informational)
 
 <p align="center">
   <img src="./docs/assets/asg-demo.gif" alt="Agent Security Gate blocking unsafe AI agent tool calls" />
@@ -19,6 +19,21 @@ Deterministic policy enforcement **before** agent tool execution — OPA Rego, h
 **Start here from any device:** [Reviewer information hub](docs/reviewer-hub.md)
 
 **Security reviewer guide:** [docs/security-reviewer-guide.md](docs/security-reviewer-guide.md) · **Case study:** [docs/case-study.md](docs/case-study.md) · **Threat model:** [docs/agent-security-gate-threat-model.md](docs/agent-security-gate-threat-model.md) · **Benchmark:** [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md) · **Authorship:** [AUTHORS.md](AUTHORS.md)
+
+---
+
+## Trust model
+
+ASG is a **policy enforcement point at the tool-call boundary**. It is enforceable for
+every tool call that reaches it — in `strict` mode the adapters refuse any call without a
+valid single-use grant from a prior `decide` — but a call that never reaches a gated
+adapter is outside its control. The **trusted computing base** is therefore the agent
+runtime plus the connector SDK; the model and its prompt are *not* trusted.
+
+Make "reaches it" non-optional in a real deployment: put the tool backends on a network
+where the gateway is the only route to them (see
+[`deploy/network-policy.example.yaml`](deploy/network-policy.example.yaml)). Then a
+prompt-injected agent that tries to skip the gate has nothing to call.
 
 ---
 
@@ -40,11 +55,13 @@ Authored fixtures cannot show what the gate does to a real agent, so the same en
 
 | | No authorizer | ASG + OPA |
 |---|---:|---:|
-| Attacker goals achieved (9 standalone injection-goal runs) | 6 | **0** |
-| Policy-violating tool calls executed | 11 | **0** |
-| Benign cases completed (72 paired cases) | 36 | 33 |
+| Attacker goals achieved (9 standalone injection-goal runs) | 6/9 | **0/9** |
+| Policy-violating tool calls executed | 11/11 | **0/11** |
+| Benign cases completed (72 paired cases) | 36/36 | 33/36 |
 
 Every attacker goal the unprotected baseline reached was stopped at the tool boundary. The cost was three held-out cases that legitimately needed an approval-gated tool. Scored-case security was 100% in **both** arms — this model rarely followed the injection — so the arms differ only in the goal runs, and that limit is stated in the results rather than averaged away.
+
+n is small: `0/9` is a Wilson 95% CI of **0%–30%**, `6/9` is **35%–88%**, one model and one suite (`python scripts/benchmark_confidence.py`). The arm separation on the goal runs is the signal; the rates do not generalise.
 
 Per-call decisions, policy coverage, authorization latency, OPA-down behaviour, and full limits: [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md). Protocol: [docs/agentdojo-benchmark.md](docs/agentdojo-benchmark.md).
 
@@ -61,6 +78,8 @@ curl http://localhost:8000/health
 ```
 
 ### Four decisions in 30 seconds
+
+`POST /agent` is a demo façade, not an agent: it maps plain text to a tool call deterministically so the decision path can be shown without an LLM. The decisions below are the real ones — same code path as `POST /v1/gateway/decide`. Real agents integrate via the [connector SDK](docs/connector-sdk.md).
 
 ```bash
 # 1. Doc exfiltration → blocked
@@ -107,7 +126,7 @@ This project addresses the research question: **How can we enforce deterministic
 **Key contributions:**
 - **Policy-as-code safety gates**: Demonstrates OPA/Rego as a practical framework for agent authorization, with fail-closed semantics and auditability
 - **Binding enforcement + approval workflow**: Shows how hash-chained audit logs and human approvals create verifiable compliance traces for regulated domains
-- **Benchmark on realistic attack scenarios**: Evaluates 18 agent-based attack classes (doc exfiltration, SSRF, privilege escalation, prompt injection) with attack success rate reduction from 100% → 0%
+- **Two-tier evaluation**: 18 hand-authored policy-regression scenarios (doc exfiltration, SSRF, privilege escalation, prompt injection) against an intentional no-gate baseline, plus an external AgentDojo Banking run on a local model. The authored suite establishes regression correctness and runtime parity, not adaptive red-team coverage; the external run shows what the boundary stops inside a real agent loop, with its own limits stated rather than averaged away
 - **Connector SDK for agent integration**: Provides a reusable interface for coupling agent runtimes to safety policies
 
 **Thesis evaluation** (15 min): Quick start above + read [docs/technical-brief.md](docs/technical-brief.md) and [docs/benchmark-methodology.md](docs/benchmark-methodology.md).
@@ -116,7 +135,7 @@ This project addresses the research question: **How can we enforce deterministic
 
 ## Scope and limitations
 
-- **Tool-boundary PEP** — policy runs on proposed tool calls, not inside the model. A malicious agent that never calls the gate is out of scope.
+- **Tool-boundary PEP** — policy runs on proposed tool calls, not inside the model. A call that never reaches a gated adapter is out of scope; see [Trust model](#trust-model) for making that path the only one.
 - **No LLM in this repo** — the `/agent` endpoint is a demo façade that maps plain text to tool calls; real agents integrate via the connector SDK.
 - **Policy regression benchmark** — 18 hand-authored scenarios with an intentional no-gate baseline; not adaptive red-team coverage.
 - **Demo defaults** — `ASG_ENFORCE_MODE=off` in `docker compose` so local try is frictionless. **Pilots should use `strict`** so tool endpoints require a prior allow decision (see below).
@@ -147,6 +166,11 @@ The SDK couples **decide → execute** and passes `X-ASG-Audit-Id` so adapters r
 | Unknown tool | `shell.exec` | deny (fail closed) |
 | PII / canary in output | SSN or canary token in tool output | `dlp_redacted` / `canary_detected` |
 
+DLP/canary scanning runs on the tool→agent **return path**: it redacts matches and fails
+the call closed (and records the block in the audit log) before the agent sees the output.
+It does not retract a side effect the tool already performed — pair it with the host
+allowlist and egress controls for that.
+
 ---
 
 ## How this differs from other LLM security tools
@@ -162,7 +186,7 @@ Most LLM security tooling inspects **text**. ASG authorizes **actions**. The two
 
 What follows from being an enforcement point rather than a classifier:
 
-- **Deterministic, not probabilistic.** Decisions come from OPA/Rego policy plus explicit pre-checks (SSRF with DNS pinning, DLP), so the same call yields the same decision — no model in the decision path.
+- **Deterministic, not probabilistic.** Decisions come from OPA/Rego policy plus explicit pre-checks (SSRF with DNS pinning, DLP) — no model in the decision path. Given a fixed policy bundle and successful name resolution, the same call yields the same decision; DNS or OPA infrastructure failures resolve to *deny* (fail-closed), which is intentional and can differ from a prior allow.
 - **Fail closed.** An unknown tool is denied by default rather than passed through.
 - **Binding, not advisory.** In `strict` mode the adapters refuse any call without a valid single-use grant, so an agent cannot skip the gate and call the tool directly.
 - **Answers "what happened?"** Every decision lands in a hash-chained audit log built for after-the-fact review, with human approvals and dual-control for risky operations.
@@ -192,11 +216,12 @@ Details: [docs/architecture.md](docs/architecture.md)
 - OPA Rego policy-as-code (fail closed on unknown tools)
 - Shared SSRF evaluator with DNS pinning ([adapters/http.py](adapters/http.py))
 - Human approval with dual-control, operation binding, resume tokens
-- DLP + canary scanning on tool outputs
-- Hash-chained audit log; optional HMAC signing and S3 Object Lock mirror
+- DLP + canary scanning on the tool-output return path (redact + fail closed + audit; one shared scanner across all egress paths)
+- Hash-chained audit log — tamper-**evident** by itself; tamper-**resistance** needs `AUDIT_HMAC_KEY` (held off-host) + an S3 Object Lock (WORM) mirror, both wired in and off by a flag
 - OIDC JWT auth (`asg:agent` / `asg:approver` roles)
 - Per-tenant policy files; Prometheus metrics and Grafana dashboard JSON
 - Test suite spanning unit, integration, and benchmark parity; CI benchmark threshold gate
+- Bounded exhaustive policy checks: `opa test` over every rule branch + full input-space enumeration of the safety invariants against the live OPA decision ([ADR 0006](docs/adr/0006-bounded-policy-checks.md))
 
 ---
 
@@ -211,6 +236,8 @@ Deeper write-up: [docs/technical-brief.md](docs/technical-brief.md)
 
 ## Verify a clean checkout
 
+The full verification command requires Bash, GNU Make, curl, and Docker Compose
+(Linux, macOS, or WSL). Create and activate a Python virtual environment first.
 After installing the development and security extras, run the complete lint,
 dependency, policy, unit, benchmark, and Docker integration path with one command:
 
@@ -220,6 +247,10 @@ make verify
 ```
 
 For a minimal simulated agent flow, see [`examples/injected_agent_tool_call.py`](examples/injected_agent_tool_call.py). It demonstrates how an agent-produced tool call is checked before execution (no in-tree LLM).
+
+For the protected-function demonstration, use the
+[complete setup and expected observations](docs/security-review-demo-script.md).
+Installing the Docker image alone does not install the host-side Python example.
 
 ---
 
@@ -247,8 +278,10 @@ Auth: bearer token or OIDC JWT. Full contract: [docs/connector-sdk.md](docs/conn
 | `ASG_ENFORCE_MODE` | `off` | Set `strict` for binding enforcement |
 | `ASG_DEMO_MODE` | `false` | `true` in compose demo (fixed tokens) |
 | `OIDC_ISSUER` / `OIDC_AUDIENCE` | unset | Production identity |
-| `AUDIT_HMAC_KEY` | unset | Sign audit entries |
+| `AUDIT_HMAC_KEY` | unset | Sign audit entries (tamper-resistance); warned about at startup when enforcing without it |
 | `ASG_TENANT_POLICY_STRICT` | `false` | Deny unknown tenants |
+| `ASG_CONTEXT_KEY_ALLOWLIST` | `false` | Reject decide-request context keys outside a tool's `context_keys_allowed` |
+| `ASG_MAX_EXCEPTION_TTL_S` | `86400` | Ceiling on time-bound policy-exception lifetime |
 
 Policy data: `policies/data/policy_data.json`, per-tenant overrides in `policies/data/tenants/{id}/`.
 

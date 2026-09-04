@@ -49,6 +49,15 @@ sampling of model behavior.
 
 The comparison report also includes per-attack-class ASR, leakage, and pass rate.
 
+### Confidence intervals
+
+The external AgentDojo benchmark has a small n (9 standalone injection-goal runs, 11
+observed policy-violating calls, 36 benign paired cases). Its proportions are reported as
+`k/n` with a Wilson 95% confidence interval, not a bare percentage;
+`python scripts/benchmark_confidence.py` recomputes them from the counts. The internal
+18-scenario regression is a determinism check with fixed inputs, not statistical sampling
+of model behaviour, so it stays raw pass/fail.
+
 ## Reproduce
 
 ```bash

@@ -107,9 +107,9 @@ def test_headline_numbers_match_the_published_evidence(evidence: dict, document:
         rows = [line for line in readme.splitlines() if line.startswith(prefix)]
         assert len(rows) == 1, f"{document}: expected exactly one row for {prefix!r}"
         cells = [cell.strip().replace("*", "") for cell in rows[0].strip("|").split("|")]
-        assert tuple(int(cell) for cell in cells[1:3]) == values, (
-            f"{document} is stale: {rows[0]}"
-        )
+        # Cells are published as "k/n"; k is tied to the evidence, n is the denominator.
+        numerators = tuple(int(cell.split("/")[0]) for cell in cells[1:3])
+        assert numerators == values, f"{document} is stale: {rows[0]}"
     assert f"({goal_runs} " in readme, f"{document} does not state {goal_runs} goal runs"
     assert f"{paired_cases} paired cases" in readme, (
         f"{document} does not state {paired_cases} paired cases"

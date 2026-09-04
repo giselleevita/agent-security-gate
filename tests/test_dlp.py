@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+import app.audit_log as audit_log
 import app.main as main
 from adapters.http import HttpDecision
-from app.dlp import scan_tool_output
+from app.dlp import scan_egress, scan_tool_output
 
 
 def test_scan_flags_ssn_as_dlp_redacted() -> None:
@@ -41,6 +42,47 @@ def test_scan_passes_clean_output() -> None:
     assert reason is None
     assert redacted == "ordinary public documentation"
     assert extras == {}
+
+
+def test_scan_egress_records_block_event(monkeypatch) -> None:
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(audit_log, "append_audit_event", lambda eid, evt: events.append((eid, evt)))
+
+    outcome = scan_egress(
+        tool_output="employee ssn 123-45-6789 on file", source="http.proxy", audit_id="evt_grant"
+    )
+
+    assert outcome.blocked is True
+    assert outcome.reason == "dlp_redacted"
+    assert "123-45-6789" not in outcome.output
+    assert len(events) == 1
+    _eid, evt = events[0]
+    assert evt["kind"] == "dlp_block"
+    assert evt["source"] == "http.proxy"
+    assert evt["grant_audit_id"] == "evt_grant"
+    assert "ssn" in evt["scan"]["matched_patterns"]
+
+
+def test_scan_egress_record_false_stays_silent(monkeypatch) -> None:
+    events: list = []
+    monkeypatch.setattr(audit_log, "append_audit_event", lambda *a: events.append(a))
+
+    outcome = scan_egress(tool_output="leak SYSTEM_PROMPT now", source="gateway.decide", record=False)
+
+    assert outcome.blocked is True
+    assert outcome.reason == "canary_detected"
+    assert events == []
+
+
+def test_scan_egress_clean_output_never_audits(monkeypatch) -> None:
+    events: list = []
+    monkeypatch.setattr(audit_log, "append_audit_event", lambda *a: events.append(a))
+
+    outcome = scan_egress(tool_output="ordinary public text", source="docs.read")
+
+    assert outcome.blocked is False
+    assert outcome.output == "ordinary public text"
+    assert events == []
 
 
 class _FakeGatedClient:

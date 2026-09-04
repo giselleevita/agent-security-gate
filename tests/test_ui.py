@@ -32,6 +32,9 @@ def test_approvals_console_html(client: TestClient):
     assert r.headers["x-frame-options"] == "DENY"
     assert "innerHTML" not in r.text
     assert "<script>" not in r.text
+    # The approver must see the operation being authorized, not just the tool name.
+    assert "Operation" in r.text
+    assert 'colspan="7"' in r.text
     static = Path(__file__).resolve().parents[1] / "app" / "static" / "approvals.html"
     assert static.is_file()
 
@@ -43,6 +46,9 @@ def test_approvals_assets_are_same_origin_and_xss_safe(client: TestClient):
     assert "innerHTML" not in script.text
     assert "textContent" in script.text
     assert "replaceChildren" in script.text
+    # The full agent-influenced context is rendered for the approver, via textContent only.
+    assert "operationCell" in script.text
+    assert "approval.context" in script.text
     assert script.headers["x-content-type-options"] == "nosniff"
 
     styles = client.get("/ui/assets/approvals.css")

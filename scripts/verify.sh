@@ -70,3 +70,7 @@ for _ in $(seq 1 30); do
 done
 curl -sf http://127.0.0.1:8000/health/ready >/dev/null
 "${PYTHON_BIN}" -m pytest -m integration --timeout=30
+
+# Every active policy exception must have a creation event in the hash-chained audit log.
+docker compose --project-name "${COMPOSE_PROJECT}" exec -T api \
+  python scripts/check_policy_exceptions.py

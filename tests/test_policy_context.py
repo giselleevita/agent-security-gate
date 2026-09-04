@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.policy import build_opa_input, policy_context
+from app.policy import build_opa_input, disallowed_context_keys, policy_context
 from app.schemas import DecideRequest
 
 
@@ -62,3 +62,21 @@ def test_output_length_is_derived_from_a_nested_tool_output() -> None:
     )
 
     assert opa_input["context"]["output_length"] == 10
+
+
+_ALLOWLIST_POLICY = {"context_keys_allowed": {"docs.read": ["path", "doc_id"]}}
+
+
+def test_disallowed_context_keys_flags_unreviewed_keys() -> None:
+    ctx = {"path": "/public/x", "doc_id": "d1", "sensitivity_label": "public", "evil": "1"}
+    assert disallowed_context_keys("docs.read", ctx, _ALLOWLIST_POLICY) == ["evil"]
+
+
+def test_disallowed_context_keys_allows_derived_and_scanned_keys() -> None:
+    ctx = {"path": "/public/x", "tool_output": "x", "output_length": 1, "arguments": {}}
+    assert disallowed_context_keys("docs.read", ctx, _ALLOWLIST_POLICY) == []
+
+
+def test_disallowed_context_keys_skips_unlisted_tools() -> None:
+    # A tool with no allowlist entry is not restricted (backwards compatible).
+    assert disallowed_context_keys("db.write", {"anything": 1}, _ALLOWLIST_POLICY) == []

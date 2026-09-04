@@ -59,9 +59,17 @@ def create_policy_exception(
     expires_at: datetime,
     reason: str | None,
     created_by: str,
+    allow_broad: bool = False,
 ) -> str:
     if expires_at <= datetime.now(timezone.utc):
         raise ValueError("expires_at must be in the future")
+    if not context_match:
+        # Empty context_match matches every call for the tool. Require the caller to opt
+        # in explicitly and to justify it, so a blanket bypass is never created by accident.
+        if not allow_broad:
+            raise ValueError("empty context_match requires allow_broad=true")
+        if not (reason or "").strip():
+            raise ValueError("a broad exception (empty context_match) requires a reason")
     cur.execute(
         """
         INSERT INTO policy_exceptions (tenant_id, tool, context_match, reason, created_by, expires_at, status)

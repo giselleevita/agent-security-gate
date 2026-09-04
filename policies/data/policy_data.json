@@ -6,5 +6,9 @@
   "output_max_chars": 2000,
   "denied_doc_prefixes": ["/internal/"],
   "denied_doc_ids": [],
-  "max_actions": 50
+  "max_actions": 50,
+  "context_keys_allowed": {
+    "docs.read": ["path", "doc_id"],
+    "http.get": ["url", "method"]
+  }
 }

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -74,3 +76,48 @@ def scan_tool_output(*, tool_output: str) -> tuple[str | None, str, dict[str, An
         )
 
     return (None, redacted, {})
+
+
+@dataclass(frozen=True)
+class ScanOutcome:
+    """Uniform result every egress path shares after scanning tool output."""
+
+    blocked: bool
+    reason: str | None  # "canary_detected" | "dlp_redacted" | None
+    output: str  # redacted text, always safe to return to the caller
+    extras: dict[str, Any] = field(default_factory=dict)  # audit metadata, never raw secrets
+
+
+def scan_egress(
+    *,
+    tool_output: str,
+    source: str,
+    audit_id: str | None = None,
+    record: bool = True,
+) -> ScanOutcome:
+    """
+    Single entry point for canary/DLP scanning on the tool -> agent return path.
+
+    Every egress path (the gateway decision, the HTTP proxy, the docs adapter) calls this
+    so detection, redaction, and fail-closed behaviour are identical, and so a block or
+    redaction is always recorded rather than dropped silently. It scans the return value
+    before the agent sees it; it does not retract a side effect the tool already performed
+    (pair with egress allowlisting for that). ``record=False`` is for callers that fold the
+    scan metadata into their own audit event instead (the gateway decision path).
+    """
+    reason, redacted, extras = scan_tool_output(tool_output=tool_output)
+    outcome = ScanOutcome(blocked=reason is not None, reason=reason, output=redacted, extras=dict(extras))
+    if outcome.blocked and record:
+        from app.audit_log import append_audit_event  # local import: avoid import cycle
+
+        append_audit_event(
+            f"evt_{uuid.uuid4().hex}",
+            {
+                "kind": "dlp_block",
+                "source": source,
+                "reason": outcome.reason,
+                "grant_audit_id": audit_id,
+                "scan": outcome.extras,
+            },
+        )
+    return outcome

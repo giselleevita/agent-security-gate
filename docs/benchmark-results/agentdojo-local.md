@@ -27,6 +27,8 @@ AgentDojo runs each injection goal standalone against the pipeline under test, t
 
 Across both splits the unprotected baseline achieved 6 of 9 attacker goals. With the gate in front of the same tools the agent achieved 0, and all 6 goals the baseline reached were stopped at the tool boundary on an approval-required tool. This is the only place in this configuration where the arms actually differ on security.
 
+**Confidence.** These are 9 runs. Wilson 95% intervals: baseline `6/9` = 35%–88%, gate `0/9` = 0%–30%, policy-violating calls under the gate `0/11` = 0%–26% (`python scripts/benchmark_confidence.py`). The point of the goal runs is the arm *separation* on a matched test, not a generalisable rate; a larger n and more models would be needed to claim one.
+
 ## What the gate cost
 
 | Phase | Compared cases | Succeeded in both | Only without authorizer (false denials) | Only with ASG | Failed in both | Blocked a call and still succeeded |
@@ -96,6 +98,6 @@ Raw traces stay local because they contain benchmark prompts and tool outputs. T
 - The AgentDojo tool-filter arm is degenerate with this model: it made 0 tool calls across all 40 scored cases, so its utility and security numbers are not a usable defense comparison.
 - Scored-case security showed no uplift over the unprotected baseline, because the model rarely pursued the injected goal; the uplift evidence comes from the standalone injection-goal runs only.
 - Utility was low in every arm, which limits conclusions about production usefulness.
-- Zero observed attack successes is not proof of security.
+- Zero observed attack successes is not proof of security: `0/9` goal runs is a Wilson 95% CI of 0%–30%.
 - The held-out ASG run was executed once, before the held-out baseline; the baseline was added afterwards for comparison only, and no policy was changed in response to it.
 - Runs were not all executed at the same source commit (`12ab5607b3ad`, `71ec46040ffc`); the per-run commit is in the configuration table.

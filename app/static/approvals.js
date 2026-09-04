@@ -18,9 +18,22 @@ function textCell(value) {
 function showTableMessage(message) {
   const row = document.createElement("tr");
   const cell = textCell(message);
-  cell.colSpan = 6;
+  cell.colSpan = 7;
   row.append(cell);
   byId("rows").replaceChildren(row);
+}
+
+function operationCell(approval) {
+  // Show the approver the full operation they are authorizing: the action and every
+  // context key/value, verbatim. textContent only — the context is agent-influenced.
+  const cell = document.createElement("td");
+  const pre = document.createElement("pre");
+  pre.className = "operation";
+  let context = approval.context;
+  if (typeof context !== "object" || context === null) context = { value: context };
+  pre.textContent = `${approval.action ?? "?"}\n${JSON.stringify(context, null, 2)}`;
+  cell.append(pre);
+  return cell;
 }
 
 function actionButton(label, className, requestId, action) {
@@ -48,6 +61,7 @@ function approvalRow(approval) {
   row.append(
     idCell,
     textCell(approval.tool),
+    operationCell(approval),
     textCell(approval.status),
     textCell(approval.requester_id),
     textCell(approval.created_at),

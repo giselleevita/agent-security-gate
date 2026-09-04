@@ -105,3 +105,49 @@ def test_sensitivity_label_confidential_is_denied(monkeypatch) -> None:
     data = r.json()
     assert data["allowed"] is False
     assert data["reason"] == "sensitivity_label_denied"
+
+
+def test_unreviewed_context_key_is_denied(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setenv("ASG_CONTEXT_KEY_ALLOWLIST", "true")
+
+    class FakeRedis:
+        def get(self, _key):
+            return None
+
+        def incr(self, _key):
+            return 1
+
+        def expire(self, _key, _ttl):
+            return None
+
+        def zremrangebyscore(self, *_a):
+            return None
+
+        def zadd(self, *_a):
+            return None
+
+        def zcard(self, _key):
+            return 0
+
+        def zrange(self, *_a, **_k):
+            return []
+
+    monkeypatch.setattr(main.redis.Redis, "from_url", staticmethod(lambda *_a, **_k: FakeRedis()))
+
+    client = TestClient(main.app)
+    r = client.post(
+        "/v1/gateway/decide",
+        headers={"Authorization": "Bearer test-token"},
+        json={
+            "tenant_id": "acme",
+            "session_id": "s1",
+            "action": "tool_call",
+            "tool": "docs.read",
+            "context": {"path": "/public/readme.md", "smuggled": "payload"},
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["allowed"] is False
+    assert data["reason"] == "context_key_not_allowed"
