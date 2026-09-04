@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -22,6 +23,8 @@ from app.clients import reset_clients as _reset_clients
 from app.config import agent_rate_limit_max as _agent_rate_limit_max
 from app.config import agent_rate_limit_window_s as _agent_rate_limit_window_s
 from app.config import approval_ttl_s as _approval_ttl_s
+from app.config import audit_hmac_key as _audit_hmac_key
+from app.config import enforce_mode as _enforce_mode
 from app.config import validate_startup_secrets as _validate_startup_secrets
 from app.decision import (
     _decide_tool_call,
@@ -114,8 +117,23 @@ def _rate_limit_agent_or_raise(*, bearer_token: str) -> None:
 async def _lifespan(_app: FastAPI):
     _validate_startup_secrets()
     _metrics.configure_logging()
+    _warn_if_audit_unsigned()
     yield
     _reset_clients()
+
+
+def _warn_if_audit_unsigned() -> None:
+    """
+    The hash chain is tamper-*evident* (an in-place edit breaks it). Tamper-*resistance*
+    needs an HMAC key held off the app host so a recomputed chain still fails verification.
+    Warn loudly when enforcement is on but no key is set.
+    """
+    if _enforce_mode() != "off" and not _audit_hmac_key():
+        logging.getLogger("asg.audit").warning(
+            "AUDIT_HMAC_KEY is not set: audit entries are unsigned and the local log is "
+            "only tamper-evident. Set AUDIT_HMAC_KEY (on a separate trust boundary) and an "
+            "immutable mirror (AUDIT_S3_BUCKET with Object Lock) for tamper-resistance."
+        )
 
 
 app = FastAPI(title="Agent Security Gate", version="0.7.1", lifespan=_lifespan)
