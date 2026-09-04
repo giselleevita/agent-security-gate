@@ -8,6 +8,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-09-04
+
+### Security
+
+- Re-resolve and re-pin outbound HTTP on every request. `httpx` pools connections by
+  origin, not by resolved IP, so a kept-alive socket to an address that later fails the
+  SSRF re-check could be reused; connection reuse is now disabled on the gated client and
+  every request pins the full validated address set.
+- Record the creation of every time-bound policy exception in the hash-chained audit log
+  (plus a metric and a WARNING). Empty (match-all) `context_match` now requires an
+  explicit `allow_broad` flag and a reason; exception TTL is capped by
+  `ASG_MAX_EXCEPTION_TTL_S`. `scripts/check_policy_exceptions.py` reconciles active
+  exceptions against their creation events to surface out-of-band database inserts.
+- Route all four tool-output scan sites through one shared `app.dlp.scan_egress`. The
+  `/v1/http/proxy` and `/v1/docs/read` endpoints previously redacted or blocked silently;
+  server-side paths now always write a `dlp_block` audit event.
+- Add an opt-in per-tool context-key allowlist (`ASG_CONTEXT_KEY_ALLOWLIST`): `decide`
+  fails closed on context keys outside a tool's `context_keys_allowed`, so nothing the
+  policy or an approver never reviewed can reach an adapter or an approval record. The
+  approval console now renders the full operation and context to the approver.
+
+### Added
+
+- `deploy/network-policy.example.yaml` — restrict tool backends so the gateway is the
+  only route to them, making the tool-boundary PEP non-bypassable in a real deployment.
+- Startup warning when enforcement is enabled without `AUDIT_HMAC_KEY`; `.env.example`
+  ships a labelled throwaway dev signing key so the local audit log is signed.
+- Bounded exhaustive policy verification: `policies/asg_test.rego` covers every rule
+  branch and `tests/test_rego_invariants.py` enumerates the full tool/context/session/
+  exception input space against the live OPA decision. Rationale in ADR 0006.
+- `scripts/benchmark_confidence.py` — Wilson 95% confidence intervals for the AgentDojo
+  benchmark proportions.
+- Config: `ASG_MAX_EXCEPTION_TTL_S`, `ASG_CONTEXT_KEY_ALLOWLIST`.
+
+### Changed
+
+- Threat model: tighten TM-002/TM-003/TM-005, add TM-009 (policy exception as a silent
+  escalation path) and a "Trusted Computing Base" section; README gains a "Trust model"
+  section.
+- Documentation states the enforcement boundary precisely: "deterministic" is qualified
+  as given a fixed policy bundle and successful name resolution; the audit chain is
+  "tamper-evident" and tamper-*resistance* requires the HMAC key plus a WORM mirror; DLP
+  is a return-path redaction that fails closed, not a retraction of a side effect.
+- Benchmark figures are reported as `k/n` with a Wilson 95% interval instead of bare
+  percentages.
+
 ## [0.7.1] — 2026-08-24
 
 ### Security

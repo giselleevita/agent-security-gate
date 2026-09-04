@@ -73,11 +73,14 @@ class DocAdapter:
 
         # Post-fetch DLP/canary scan: the pre-execution decision cannot see content that
         # only exists after the read, so scan the fetched document before returning it.
-        from app.dlp import scan_tool_output
+        # record=False: this adapter runs client-side in the agent process, so it must not
+        # write to the gateway's audit log; the gateway already audited the decision.
+        from app.dlp import scan_egress
 
-        reason_or_none, _redacted, _extras = scan_tool_output(tool_output=result)
-        if reason_or_none is not None:
-            raise PermissionError(reason_or_none)
+        scan = scan_egress(tool_output=result, source="docs.adapter", record=False)
+        if scan.blocked:
+            raise PermissionError(scan.reason)
+        result = scan.output
 
         if len(result) > self._output_max_chars:
             return result[: self._output_max_chars]

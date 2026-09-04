@@ -11,5 +11,6 @@ alternatives that were rejected, and the consequences (including what we gave up
 | [0003](0003-single-use-grants-via-atomic-getdel.md) | Enforcement grants are single-use, consumed atomically | A recorded `audit_id` must not be replayable |
 | [0004](0004-per-replica-audit-chains.md) | Each replica owns an independent hash-chained audit stream | One shared append-only file across replicas silently forks the chain |
 | [0005](0005-hash-chain-plus-worm-over-merkle-tree.md) | Tamper-evidence is a hash chain + external WORM sink, not a Merkle tree | The threat is deletion/reordering by an insider, not membership proofs for third parties |
+| [0006](0006-bounded-policy-checks.md) | Policy correctness is bounded exhaustive checks (`opa test` + full input-space enumeration), not a formal proof | "Verify the policy" invites a formal model; the properties that matter are enumerable |
 
 Format is loosely [MADR](https://adr.github.io/madr/). New decisions get the next number; superseded ones are marked, not deleted.

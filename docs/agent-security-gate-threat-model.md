@@ -29,6 +29,24 @@ tools after ASG permits their execution.
 Open questions that change risk: whether the API is internet-exposed, whether tenants
 share credentials, and whether requests may contain regulated or production data.
 
+### Trusted Computing Base
+
+ASG mediates tool calls that reach it. It does not run the model and cannot intercept a
+call the agent process makes without routing through a gated adapter. The TCB for the
+enforcement guarantee is:
+
+- the **agent runtime and the connector SDK** — they must send every side-effecting call
+  through `decide` → gated adapter (`strict` mode makes the adapter refuse calls without a
+  valid single-use grant, but only for calls that go through the adapter);
+- the **gateway process, OPA, and the policy bundle** — the decision path itself;
+- the **network topology** — in production, tool backends must be reachable only via the
+  gateway (`deploy/network-policy.example.yaml`), otherwise a prompt-injected agent can
+  bypass the PEP by calling a tool endpoint directly.
+
+The model, its prompt, and tool *arguments/output* are untrusted inputs, not part of the
+TCB. If the agent runtime itself is malicious (not merely prompt-injected), it is outside
+this boundary — network egress restriction is the compensating control.
+
 ## System Model
 
 ### Primary Components
@@ -126,7 +144,9 @@ flowchart LR
 3. Submit an allowlisted hostname that resolves or rebinds to a private address and
    use the HTTP adapter to reach internal services.
 4. Place secrets in tool output and attempt to bypass DLP/canary detection or poison
-   the audit trail.
+   the audit trail. DLP/canary scanning is a return-path control: it redacts matches,
+   fails the call closed, and audits the block before the agent sees the output; it does
+   not undo a side effect the tool already performed.
 5. Flood authenticated endpoints to exhaust Redis, Postgres, OPA, or audit storage.
 6. Modify policy, workflow, or dependency inputs through a malicious repository change
    and publish a compromised release.
@@ -136,13 +156,14 @@ flowchart LR
 | ID | Threat | Existing Controls | Gaps | Recommended Mitigations | Likelihood | Impact | Priority |
 |---|---|---|---|---|---|---|---|
 | TM-001 | Stolen agent or approver credential permits privileged actions | Optional OIDC JWT validation with roles, separate static compatibility tokens, constant-time comparison, and self-approval prevention (`app/auth.py`) | Static compatibility tokens have no built-in rotation or centralized revocation | Configure OIDC with short-lived scoped credentials; disable static credentials where possible | Medium | High | High |
-| TM-002 | Approval token replay or operation substitution | Exact operation binding, issuer/audience JWT checks, and atomic single-use consumption (`app/auth.py`, `approvals/service.py`) | Token remains bearer material until expiry | Reduce expiry, protect transport/storage, and add revocation telemetry | Low | High | Medium |
-| TM-003 | SSRF reaches internal network through DNS rebinding | Scheme/IP/DNS checks, exact allowlist, redirects disabled, and connect-time IP pinning to the validated address (`adapters/http.py`) | Long-lived pooled connections could outlive their validated IP; egress is still host-based, not proxy-mediated | Force egress through a proxy/firewall that resolves and connects atomically; cap connection keep-alive | Low | High | Medium |
+| TM-002 | Approval token replay or operation substitution | Operation binding over action + tool + **every** non-volatile context field (only `tool_output`/`output_length` are excluded), a decide-time per-tool context-key allowlist (`ASG_CONTEXT_KEY_ALLOWLIST=true`) so no unreviewed key reaches an adapter or an approval record, the approval console rendering the full operation and context to the approver, issuer/audience JWT checks, and atomic single-use consumption (`app/decision.py:operation_key`, `app/policy.py:disallowed_context_keys`, `app/static/approvals.js`, `app/auth.py`, `approvals/service.py`) | Token remains bearer material until expiry; the context-key allowlist is opt-in (`ASG_CONTEXT_KEY_ALLOWLIST`) and per-tool | Reduce expiry, protect transport/storage, extend the allowlist to every high-impact tool, and add revocation telemetry | Low | High | Medium |
+| TM-003 | SSRF reaches internal network through DNS rebinding | Scheme/IP/DNS checks, exact allowlist, redirects disabled, connect-time IP pinning to the validated address, and connection reuse disabled so every request re-resolves and re-pins (`adapters/http.py`) | Egress is still host-based, not proxy-mediated, so a resolver compromised between the check and the kernel connect on the same request is not covered | Force egress through a proxy/firewall that resolves and connects atomically | Low | High | Medium |
 | TM-004 | Policy/config compromise disables enforcement | OPA fail-closed rules and protected branch checks (`policies/asg.rego`, `.github/workflows/`) | Runtime policy files are locally mounted and unsigned | Use signed/versioned policy bundles and alert on policy changes | Low | High | Medium |
-| TM-005 | Audit file is altered, deleted, or filled | Hash chain and file locking, optional HMAC signing, and an optional S3 Object Lock (WORM) mirror with a chain-follow bundle verifier (`audit/events.py`, `audit/sinks.py`, `scripts/verify_audit.py`) | The local file itself is still deletable and not multi-writer safe; WORM guarantees depend on correct bucket Object Lock configuration and key/bucket separation | Enable `AUDIT_HMAC_KEY` + `AUDIT_S3_BUCKET` with Object Lock retention in production; keep the signing key on a separate trust boundary and alert on verification failures | Low | Medium | Medium |
+| TM-005 | Audit file is altered, deleted, or filled | Hash chain and file locking make in-place edits tamper-*evident*; HMAC signing (a recomputed chain still fails verification without the key) and an S3 Object Lock (WORM) mirror with a chain-follow bundle verifier add tamper-*resistance* (`audit/events.py`, `audit/sinks.py`, `scripts/verify_audit.py`); startup warns when enforcement is on but no key is set; `.env.example` ships a throwaway dev key so the local log is signed | The local file itself is still deletable and not multi-writer safe; the shipped dev key is not a secret; WORM guarantees depend on correct bucket Object Lock configuration and key/bucket separation | Enable `AUDIT_HMAC_KEY` + `AUDIT_S3_BUCKET` with Object Lock retention outside local use; keep the signing key on a separate trust boundary and alert on verification failures | Low | Medium | Medium |
 | TM-006 | Authenticated request flood exhausts dependencies | Per-caller Redis counters and fail-closed dependency errors (`app/decision.py`) | No body-size or global concurrency limit in the application | Add ingress limits, body-size caps, quotas, timeouts, and saturation alerts | Medium | Medium | Medium |
 | TM-007 | Malicious dependency or workflow change compromises release | Commit-pinned Actions, CodeQL, dependency audits, required checks, and protected `main` (`.github/workflows/`) | Release artifacts are not independently signed or attested | Add artifact attestations and protected signing identity | Low | High | Medium |
 | TM-008 | Agent-controlled approval metadata executes active content in an approver browser | Safe DOM construction with `textContent`, no HTML parsing sinks, same-origin external assets, restrictive CSP, frame denial, and regression tests (`app/static/approvals.js`, `app/routers/ui.py`, `tests/test_ui.py`) | The console remains a reference demo and has not received independent browser-level penetration testing | Retain CSP and safe DOM invariants; include stored-content payloads in independent review | Low | High | Medium |
+| TM-009 | Time-bound policy exception used as a silent escalation path | Creation requires an authenticated approver and `X-Approver-Id`; exceptions never bypass safety rails (sensitivity, unknown tool, `max_actions`, output cap) in `policies/asg.rego`; creation is written to the hash-chained audit log, counted in `asg_policy_exceptions_created_total`, and logged at WARNING; an empty `context_match` requires explicit `allow_broad` plus a reason; TTL is capped by `ASG_MAX_EXCEPTION_TTL_S`; `scripts/check_policy_exceptions.py` reconciles active rows against creation events (`app/routers/exceptions.py`, `app/exceptions.py`) | A direct database write bypasses the router; reconciliation must be run to detect it, and the audit log rather than the mutable row is the source of truth | Alert on `policy_exception_created` events and reconciliation failures; restrict direct database access | Low | High | Medium |
 
 ## Criticality Calibration
 
@@ -166,6 +187,7 @@ flowchart LR
 | `audit/events.py` | Audit-chain integrity and local storage behavior | TM-005 |
 | `.github/workflows/` | Build, analysis, evidence, and release trust | TM-007 |
 | `app/static/approvals.js` | Privileged browser handling of stored agent-controlled values | TM-008 |
+| `app/routers/exceptions.py` | Creation, auditing, and breadth/TTL limits of time-bound policy exceptions | TM-009 |
 
 ## Quality Check
 

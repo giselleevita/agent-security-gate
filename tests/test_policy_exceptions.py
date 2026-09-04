@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 
+import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
@@ -103,6 +105,125 @@ def test_create_policy_exception_endpoint(monkeypatch) -> None:
     assert data["exception_id"]
     assert "expires_at" in data
     assert any("INSERT INTO policy_exceptions" in q for q, _ in fake_cursor.executed)
+
+
+def test_create_policy_exception_writes_audit_event(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    fake_cursor = _FakeCursor(rows=[("00000000-0000-0000-0000-000000000099",)])
+
+    @contextmanager
+    def fake_db_connect():
+        yield _FakeConn(fake_cursor)
+
+    monkeypatch.setattr(main, "_db_connect", fake_db_connect)
+    events: list[dict] = []
+    monkeypatch.setattr(main, "_append_audit_event", lambda _id, evt: events.append(evt))
+
+    client = TestClient(main.app)
+    r = client.post(
+        "/v1/policy/exceptions",
+        json={
+            "tenant_id": "acme",
+            "tool": "docs.read",
+            "context_match": {"path": "/internal/x"},
+            "ttl_seconds": 600,
+            "reason": "maintenance window",
+        },
+        headers={"Authorization": "Bearer approver-token", "X-Approver-Id": "human-1"},
+    )
+    assert r.status_code == 200, r.text
+    assert events, "exception creation must write an audit event"
+    evt = events[-1]
+    assert evt["kind"] == "policy_exception_created"
+    assert evt["exception_id"] == r.json()["exception_id"]
+    assert evt["tool"] == "docs.read"
+    assert evt["broad_match"] is False
+    assert evt["created_by"] == "human-1"
+
+
+def test_broad_policy_exception_rejected_without_opt_in(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+
+    @contextmanager
+    def fake_db_connect():
+        yield _FakeConn(_FakeCursor(rows=[("id",)]))
+
+    monkeypatch.setattr(main, "_db_connect", fake_db_connect)
+    monkeypatch.setattr(main, "_append_audit_event", lambda _id, _evt: None)
+    client = TestClient(main.app)
+
+    base = {
+        "tenant_id": "acme",
+        "tool": "docs.read",
+        "context_match": {},
+        "ttl_seconds": 600,
+    }
+    headers = {"Authorization": "Bearer approver-token", "X-Approver-Id": "human-1"}
+
+    r = client.post("/v1/policy/exceptions", json=base, headers=headers)
+    assert r.status_code == 400 and "allow_broad" in r.text
+
+    r = client.post("/v1/policy/exceptions", json={**base, "allow_broad": True}, headers=headers)
+    assert r.status_code == 400 and "reason" in r.text
+
+    r = client.post(
+        "/v1/policy/exceptions",
+        json={**base, "allow_broad": True, "reason": "incident 42 bypass"},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_policy_exception_ttl_capped(monkeypatch) -> None:
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setenv("ASG_MAX_EXCEPTION_TTL_S", "3600")
+
+    @contextmanager
+    def fake_db_connect():
+        yield _FakeConn(_FakeCursor(rows=[("id",)]))
+
+    monkeypatch.setattr(main, "_db_connect", fake_db_connect)
+    monkeypatch.setattr(main, "_append_audit_event", lambda _id, _evt: None)
+    client = TestClient(main.app)
+
+    r = client.post(
+        "/v1/policy/exceptions",
+        json={
+            "tenant_id": "acme",
+            "tool": "docs.read",
+            "context_match": {"path": "/x"},
+            "ttl_seconds": 7200,
+        },
+        headers={"Authorization": "Bearer approver-token", "X-Approver-Id": "human-1"},
+    )
+    assert r.status_code == 400 and "maximum" in r.text
+
+
+def test_check_policy_exceptions_flags_unaudited_row(monkeypatch, tmp_path) -> None:
+    from scripts import check_policy_exceptions as checker
+
+    log = tmp_path / "events.jsonl"
+    log.write_text(
+        json.dumps({"event": {"kind": "policy_exception_created", "exception_id": "known-1"}}) + "\n",
+        encoding="utf-8",
+    )
+    assert checker._audited_exception_ids(log) == {"known-1"}
+
+    monkeypatch.setattr(
+        checker,
+        "_active_exceptions",
+        lambda _dsn: [
+            ("known-1", "acme", "docs.read", "human-1"),
+            ("orphan-9", "acme", "docs.read", "?"),
+        ],
+    )
+    monkeypatch.setattr(checker, "audit_log_path", lambda: log)
+    monkeypatch.setattr(checker, "database_url", lambda: "postgresql:///unused")
+    monkeypatch.setattr(checker.sys, "argv", ["check_policy_exceptions.py"])
+
+    with pytest.raises(SystemExit) as exc:
+        checker.main()
+    assert exc.value.code == 1
 
 
 def test_decide_records_policy_exception_id_in_audit(monkeypatch) -> None:

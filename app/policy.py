@@ -26,7 +26,37 @@ def _normalize_policy(raw: dict[str, Any]) -> dict[str, Any]:
         "dual_approval_tools": list(raw.get("dual_approval_tools", [])),
         "allowed_http_domains": list(raw.get("allowed_http_domains", [])),
         "max_actions": int(raw.get("max_actions", 50)),
+        "context_keys_allowed": {
+            str(tool): [str(k) for k in keys]
+            for tool, keys in dict(raw.get("context_keys_allowed", {})).items()
+            if isinstance(keys, list)
+        },
     }
+
+
+# Keys derived or scanned by the gate itself rather than supplied to influence a decision;
+# always permitted regardless of a tool's context-key allowlist.
+_ALWAYS_ALLOWED_CONTEXT_KEYS = frozenset(
+    {"arguments", "sensitivity_label", "tool_output", "output_length"}
+)
+
+
+def disallowed_context_keys(
+    tool: str, context: dict[str, Any], policy_config: dict[str, Any]
+) -> list[str]:
+    """
+    Context keys the caller sent that the tool's allowlist does not cover.
+
+    The allowlist is opt-in per tool: a tool with no entry in ``context_keys_allowed`` is
+    not restricted (backwards compatible). When a tool *is* listed, any other key is
+    rejected at decide time so nothing the approver/policy never reviewed can reach an
+    adapter or be bound into an approval record.
+    """
+    allowed_map = policy_config.get("context_keys_allowed") or {}
+    if tool not in allowed_map:
+        return []
+    allowed = set(allowed_map[tool]) | _ALWAYS_ALLOWED_CONTEXT_KEYS
+    return sorted(k for k in context if k not in allowed)
 
 
 def tenant_policy_path(tenant_id: str) -> Path | None:

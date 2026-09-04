@@ -10,10 +10,14 @@ code and evidence cannot change underneath the review.
 
 ## Begin here
 
-1. [Security reviewer guide](https://github.com/giselleevita/agent-security-gate/blob/v0.7.1/docs/security-reviewer-guide.md)
-2. [Five-minute demonstration script](https://github.com/giselleevita/agent-security-gate/blob/v0.7.1/docs/security-review-demo-script.md)
+1. [Security reviewer guide](security-reviewer-guide.md)
+2. [Five-minute demonstration script](security-review-demo-script.md)
 3. [Ready-to-send reviewer outreach](reviewer-outreach.md)
 4. [Independent reproduction request, issue #65](https://github.com/giselleevita/agent-security-gate/issues/65)
+
+The guides above include current setup corrections, including host Python
+dependencies. The demonstration still checks out v0.7.1; the evidence and source
+links below remain pinned to that release.
 
 ## Evidence and claims
 

@@ -93,6 +93,9 @@ class PolicyExceptionCreateRequest(BaseModel):
     context_match: dict[str, Any] = Field(default_factory=dict)
     ttl_seconds: int = Field(default=3600, ge=1, le=86400 * 30)
     reason: str | None = None
+    # An empty context_match makes the exception apply to every call for the tool. That
+    # is a broad grant, so it must be requested explicitly and carry a reason.
+    allow_broad: bool = False
 
 
 class PolicyExceptionCreateResponse(BaseModel):

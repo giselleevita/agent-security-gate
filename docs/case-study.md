@@ -19,6 +19,9 @@ Authorization runs immediately before the callable, and answers exactly one of `
 
 - Only an explicit `allow` reaches the function. Denial, approval-required, a malformed
   response, a timeout, an exception, and an unreachable policy engine all mean *not executed*.
+  The decision is deterministic given a fixed policy bundle and successful name resolution;
+  infrastructure failures (DNS, policy engine) fail closed to deny rather than reproducing a
+  prior allow.
 - Nested calls are authorized individually; there is no path that resolves a call after the
   check.
 - Policy input contains the tool name, public arguments, principal, tenant, session and
@@ -34,6 +37,11 @@ Authorization runs immediately before the callable, and answers exactly one of `
 The interface is framework-neutral. Two adapters sit on it: AgentDojo's `Function.run`
 boundary and the OpenAI Agents SDK's tool input guardrail — with the SDK tool classes that
 do *not* pass through that guardrail documented as unsupported rather than glossed over.
+
+This only binds calls that reach the seam. The trusted computing base is the agent runtime
+and the connector SDK; in a real deployment the tool backends must be reachable only
+through the gateway (see the threat model's *Trusted Computing Base* section) so a
+prompt-injected agent cannot route around it.
 
 ## The benchmark design
 
@@ -51,12 +59,28 @@ execution. Everything runs locally with no paid API.
 
 | | No authorizer | Gate |
 |---|---:|---:|
-| Attacker goals achieved (9 standalone goal runs) | 6 | 0 |
-| Policy-violating tool calls executed | 11 | 0 |
-| Benign cases completed (72 paired cases) | 36 | 33 |
+| Attacker goals achieved (9 standalone goal runs) | 6/9 | 0/9 |
+| Policy-violating tool calls executed | 11/11 | 0/11 |
+| Benign cases completed (72 paired cases) | 36/36 | 33/36 |
 
 Authorization latency across 1,380 replayed calls: p50 8.0 ms, p95 13.5 ms, p99 18.7 ms.
 With the policy engine stopped, all 70 replayed calls were denied and nothing executed.
+
+### Statistical power
+
+The n here is small, so the point estimates come with wide intervals. Wilson 95%
+confidence intervals (recompute with `python scripts/benchmark_confidence.py`):
+
+| Proportion | Estimate | 95% CI |
+|---|---:|---:|
+| Attacker goals, no authorizer | 6/9 | 35%–88% |
+| Attacker goals, gate | 0/9 | 0%–30% |
+| Policy-violating calls, gate | 0/11 | 0%–26% |
+| Benign completed, gate | 33/36 | 78%–97% |
+
+So "0% attack success under the gate" is really "0/9, upper bound ~30% at 95%", one
+model, one suite. The separation between arms on the goal runs (6/9 vs 0/9) is the real
+signal; it is a small-sample result, not a rate that generalises.
 
 The headline the aggregate *doesn't* support: scored-case security was 100% in every arm,
 including the unprotected baseline, because this small local model rarely followed the
