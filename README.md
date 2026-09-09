@@ -46,6 +46,22 @@ Every attacker goal the unprotected baseline reached was stopped at the tool bou
 
 Per-call decisions, policy coverage, authorization latency, OPA-down behaviour, and full limits: [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md). Protocol: [docs/agentdojo-benchmark.md](docs/agentdojo-benchmark.md).
 
+### Agent task quality (development)
+
+<!-- agent-quality-results:start -->
+| Run | Mode | Model | Task completion | Result |
+| --- | --- | --- | ---: | --- |
+| `asg-baseline` | asg | qwen3.5:9b | 15/40 (37.5%) | baseline |
+| `baseline` | no-authorizer | qwen3.5:9b | 19/40 (47.5%) | baseline |
+| `v1-system-prompt` | no-authorizer | qwen3.5:9b | 19/40 (47.5%) | rejected |
+| `v2-json-tool-output` | no-authorizer | qwen3.5:9b | 16/40 (40%) | rejected |
+| `v3-retry-empty-response` | no-authorizer | qwen3.5:9b | 19/40 (47.5%) | rejected |
+| `v4-denial-guidance` | asg | qwen3.5:9b | 15/40 (37.5%) | kept |
+| `v5-mistral` | no-authorizer | mistral:latest | 10/40 (25%) | model tradeoff |
+
+These are development-only, candidate-authored results. Slack confirmation and the matched accepted-prompt security rerun remain pending.
+<!-- agent-quality-results:end -->
+
 ---
 
 ## Quick start (local, free)
