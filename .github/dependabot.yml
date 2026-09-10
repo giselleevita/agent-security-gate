@@ -4,10 +4,18 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    groups:
+      pip-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     ignore:
       - dependency-name: actions/checkout
         update-types: ["version-update:semver-major"]
