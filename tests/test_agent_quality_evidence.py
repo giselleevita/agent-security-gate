@@ -15,6 +15,7 @@ from scripts.build_agent_quality_evidence import (
     collect,
     limitations,
     render_markdown,
+    render_readme_section,
     replace_job_fair_results,
     replace_readme_results,
     validate_development_package,
@@ -240,3 +241,15 @@ def test_readme_caption_refuses_to_cover_a_confirmation_run(results: Path) -> No
 
     with pytest.raises(RuntimeError, match="confirmation pending"):
         replace_readme_results(readme, evidence)
+
+
+def test_caption_reports_a_null_development_phase_instead_of_a_pending_run(results: Path) -> None:
+    """Confirmation reproduces a gain, so it is only pending while a gain exists."""
+    evidence = collect(results)
+    for comparison in evidence["comparisons"]:
+        comparison["utility"]["delta"] = 0
+
+    caption = render_readme_section(evidence)
+
+    assert "No intervention raised task completion" in caption
+    assert "remains pending" not in caption

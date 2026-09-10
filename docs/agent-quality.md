@@ -183,6 +183,29 @@ than merely unwise.
 That result is the reported outcome. If it does not reproduce the development gain, the development
 gain is reported as not confirmed.
 
+### Outcome: not triggered
+
+The development phase produced no gain for this run to reproduce, so it was not run and the
+`slack` suite remains unspent.
+
+`v1-system-prompt` and `v3-retry-empty-response` left task completion exactly at the baseline's
+19/40; `v2-json-tool-output` reduced it to 16/40. All three were rejected. The one accepted
+change, `v4-denial-guidance`, was measured on the gated arm against `asg-baseline` at 15/40
+against 15/40 — `delta: 0`, with no case gained and none lost — and was accepted on cost alone,
+which rule 4 allows. Its mechanism is the text the agent sees when policy refuses a call, so it
+has nothing to act on in an ungated run, and the confirmation phase is ungated because no tenant
+policy exists for `slack`.
+
+Confirming it there would therefore measure an inert variant and spend the one unused suite on a
+number indistinguishable from an ungated baseline. Reporting the development phase as null is the
+result; rule 5 already treats a rejected intervention as evidence about the system.
+
+Two things follow, and neither is done here. Running `slack` as an external-validity check on the
+failure-mode breakdown rather than as confirmation of a gain is a different question from the one
+this protocol declared, so it would have to be declared in writing first. Building a `slack`
+tenant policy so the gated change could be confirmed would replace a preregistered `policy: null`
+after seeing results, which is the move preregistration exists to prevent.
+
 ## Reproducing
 
 ```bash

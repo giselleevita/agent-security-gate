@@ -274,6 +274,30 @@ def render_markdown(evidence: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _readme_caption(evidence: dict[str, Any]) -> str:
+    """State what the development phase actually produced, not what was hoped for.
+
+    Confirmation reproduces a development gain, so it is only pending while a gain
+    exists to reproduce. Deriving this keeps the front page from asserting a pending
+    run after the phase it depends on has come back empty.
+    """
+    accepted = [
+        comparison
+        for comparison in evidence["comparisons"]
+        if comparison["verdict"].get("accept")
+    ]
+    if any(comparison["utility"]["delta"] > 0 for comparison in accepted):
+        return (
+            "These are development-only, candidate-authored results. Slack confirmation of "
+            "the accepted configuration remains pending."
+        )
+    return (
+        "These are development-only, candidate-authored results. No intervention raised task "
+        "completion, so the preregistered confirmation run — which exists to reproduce a "
+        "development gain — was not triggered. Changes marked kept were accepted on cost."
+    )
+
+
 def render_readme_section(evidence: dict[str, Any]) -> str:
     """Render the compact, generated development-results table used on the front page."""
     other_phases = sorted({run["phase"] for run in evidence["runs"]} - {"development"})
@@ -301,13 +325,7 @@ def render_readme_section(evidence: dict[str, Any]) -> str:
             f"{run['utility_successes']}/{run['cases']} ({_percent(run['utility_rate'])}) | "
             f"{result} |"
         )
-    lines.extend(
-        [
-            "",
-            "These are development-only, candidate-authored results. Slack confirmation and the "
-            "matched accepted-prompt security rerun remain pending.",
-        ]
-    )
+    lines.extend(["", _readme_caption(evidence)])
     return "\n".join(lines)
 
 

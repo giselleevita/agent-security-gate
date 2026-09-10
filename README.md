@@ -78,7 +78,7 @@ Per-call decisions, policy coverage, authorization latency, OPA-down behaviour, 
 | `v4-denial-guidance` | asg | qwen3.5:9b | 15/40 (37.5%) | kept |
 | `v5-mistral` | no-authorizer | mistral:latest | 10/40 (25%) | model tradeoff |
 
-These are development-only, candidate-authored results. Slack confirmation and the matched accepted-prompt security rerun remain pending.
+These are development-only, candidate-authored results. No intervention raised task completion, so the preregistered confirmation run — which exists to reproduce a development gain — was not triggered. Changes marked kept were accepted on cost.
 <!-- agent-quality-results:end -->
 
 ---
