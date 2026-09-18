@@ -8,7 +8,6 @@ import uuid
 from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import Response
 
 _TRACEPARENT = re.compile(
     r"^(?P<version>[0-9a-f]{2})-(?P<trace>[0-9a-f]{32})-(?P<span>[0-9a-f]{16})-(?P<flags>[0-9a-f]{2})$"
