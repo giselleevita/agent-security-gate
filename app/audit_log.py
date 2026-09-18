@@ -5,6 +5,7 @@ from typing import Any
 
 from audit.events import append_hash_chained_event
 from app.config import audit_log_path
+from app.tracing import correlation_fields
 
 
 def append_audit_event(audit_id: str, event: dict[str, Any]) -> None:
@@ -13,6 +14,7 @@ def append_audit_event(audit_id: str, event: dict[str, Any]) -> None:
         {
             "audit_id": audit_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            **correlation_fields(),
             **event,
         },
     )

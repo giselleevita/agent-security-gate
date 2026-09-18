@@ -39,6 +39,7 @@ from app.exceptions import load_active_policy_exceptions as _load_active_policy_
 from app import metrics as _metrics
 from app.policy import opa_post as _opa_post
 from app.schemas import DecideResponse, RateLimitExceededResponse
+from app.tracing import CorrelationMiddleware, configure_otel, shutdown_otel
 
 # Re-export decision entrypoints for routers/tests that patch `app.main`.
 __all__ = [
@@ -119,6 +120,7 @@ async def _lifespan(_app: FastAPI):
     _metrics.configure_logging()
     _warn_if_audit_unsigned()
     yield
+    shutdown_otel()
     _reset_clients()
 
 
@@ -137,6 +139,8 @@ def _warn_if_audit_unsigned() -> None:
 
 
 app = FastAPI(title="Agent Security Gate", version="0.7.2", lifespan=_lifespan)
+configure_otel(app)
+app.add_middleware(CorrelationMiddleware)
 
 
 class _ToolOutputScanMiddleware(BaseHTTPMiddleware):
