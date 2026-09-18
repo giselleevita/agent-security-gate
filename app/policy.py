@@ -64,7 +64,7 @@ def tenant_policy_path(tenant_id: str) -> Path | None:
     Path to a tenant's dedicated policy file (`.../tenants/{tenant_id}/policy_data.json`),
     or None if `tenant_id` is not a safe, single path segment.
     """
-    if not _SAFE_TENANT_ID.match(tenant_id or ""):
+    if not _SAFE_TENANT_ID.fullmatch(tenant_id or ""):
         return None
     # Reject dot-only segments ('.', '..') which pass the charset check but resolve to
     # the current/parent directory.
