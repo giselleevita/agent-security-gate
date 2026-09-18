@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import time
 
 from fastapi import APIRouter, Depends, Query
@@ -39,7 +40,10 @@ def audit_export(
         hmac_key=_audit_hmac_key(),
     )
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    suffix = f"-{tenant_id}" if tenant_id else ""
+    # Never reflect a caller-provided tenant identifier into a response header.
+    # A short digest keeps scoped exports distinguishable without exposing the ID
+    # or allowing header-control characters into the filename.
+    suffix = f"-{hashlib.sha256(tenant_id.encode()).hexdigest()[:12]}" if tenant_id else ""
     filename = f"asg-audit-export{suffix}-{stamp}.tar.gz"
     return Response(
         content=package,

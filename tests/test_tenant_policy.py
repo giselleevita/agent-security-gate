@@ -59,7 +59,9 @@ def test_strict_mode_marks_unknown_tenant(tenant_policies, monkeypatch):
     assert policy.tenant_known(None) is False
 
 
-@pytest.mark.parametrize("bad", ["../evil", "a/b", "..", "", "x" * 200, "with space"])
+@pytest.mark.parametrize(
+    "bad", ["../evil", "a/b", "..", "", "x" * 200, "with space", "tenant-a\n"]
+)
 def test_path_traversal_tenant_ids_rejected(tenant_policies, bad, monkeypatch):
     monkeypatch.setenv("ASG_TENANT_POLICY_STRICT", "true")
     assert policy.tenant_policy_path(bad) is None

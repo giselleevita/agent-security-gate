@@ -34,3 +34,20 @@ def test_export_returns_targz_for_approver(monkeypatch, tmp_path):
     with tarfile.open(fileobj=io.BytesIO(r.content), mode="r:gz") as tar:
         names = set(tar.getnames())
     assert {"events.jsonl", "manifest.json", "verify.py", "policy_data.json"} <= names
+
+
+def test_export_does_not_reflect_tenant_in_download_filename(monkeypatch, tmp_path):
+    monkeypatch.setenv("ASG_DEMO_MODE", "true")
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "events.jsonl"))
+    client = TestClient(main.app)
+
+    response = client.post(
+        "/v1/audit/export",
+        params={"tenant_id": "sensitive-tenant"},
+        headers={"Authorization": "Bearer approver-token"},
+    )
+
+    assert response.status_code == 200
+    disposition = response.headers["content-disposition"]
+    assert "sensitive-tenant" not in disposition
+    assert "asg-audit-export-" in disposition
