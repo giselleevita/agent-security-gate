@@ -4,7 +4,9 @@ import app.main as main
 
 
 def test_all_expected_routes_are_registered() -> None:
-    paths = {r.path for r in main.app.routes}
+    # Assert against FastAPI's public schema instead of its internal route objects;
+    # newer FastAPI releases use lazy ``_IncludedRouter`` wrappers without ``path``.
+    paths = set(main.app.openapi()["paths"])
     expected = {
         "/health",
         "/health/ready",
