@@ -35,8 +35,12 @@ certified appliance. It still shows concrete controls an engineer can verify in 
 | Tamper-evident audit | Hash-chained JSONL with verification script |
 | Measurable gate effect | Benchmark compares explicit `no_gate` vs `gate` baselines |
 
-Verified on 18 deterministic scenarios (5 runs each): **no-gate ASR 100% / leakage
-100%** → **gate ASR 0% / leakage 0% / false positives 0%**.
+Measured on [AgentDojo](https://github.com/ethz-spylab/agentdojo)'s Banking suite with a
+local model and a protocol frozen before any run: attacker goals **6/9 → 0/9**,
+policy-violating calls **11/11 → 0/11**, benign cases **36/36 → 33/36**. Small n; Wilson
+intervals in [the results](benchmark-results/agentdojo-local.md). A separate 18-scenario
+fixture set runs as a CI determinism check (100% → 0%) — authored by the same person who
+wrote the policy, so it is regression evidence, not security evidence.
 
 ## Why policy-as-code
 
