@@ -4,8 +4,13 @@ The security evaluation in [`agentdojo-benchmark.md`](agentdojo-benchmark.md) me
 enforcement point stops. This one measures something different and equally concrete: **how often
 the agent actually completes the user's task, and what that costs in tokens and latency.**
 
-It runs on the same frozen protocol, the same local model, and the same task split. It is
-preregistered here before the interventions are run.
+It runs on the same local model and task split as the frozen security protocol. The published
+security evidence remains pinned to Ollama `0.31.1`. This machine now has Ollama `0.32.15`, so
+quality runs use the separate
+[`agentdojo_quality_protocol_v2.json`](../benchmark/agentdojo_quality_protocol_v2.json) revision.
+Every quality baseline, intervention, model comparison, and confirmation run uses that revision;
+results are never compared across the two Ollama versions. The interventions remain the ones
+preregistered here before any quality result was inspected.
 
 ## The problem, from the existing traces
 
@@ -178,6 +183,29 @@ than merely unwise.
 That result is the reported outcome. If it does not reproduce the development gain, the development
 gain is reported as not confirmed.
 
+### Outcome: not triggered
+
+The development phase produced no gain for this run to reproduce, so it was not run and the
+`slack` suite remains unspent.
+
+`v1-system-prompt` and `v3-retry-empty-response` left task completion exactly at the baseline's
+19/40; `v2-json-tool-output` reduced it to 16/40. All three were rejected. The one accepted
+change, `v4-denial-guidance`, was measured on the gated arm against `asg-baseline` at 15/40
+against 15/40 — `delta: 0`, with no case gained and none lost — and was accepted on cost alone,
+which rule 4 allows. Its mechanism is the text the agent sees when policy refuses a call, so it
+has nothing to act on in an ungated run, and the confirmation phase is ungated because no tenant
+policy exists for `slack`.
+
+Confirming it there would therefore measure an inert variant and spend the one unused suite on a
+number indistinguishable from an ungated baseline. Reporting the development phase as null is the
+result; rule 5 already treats a rejected intervention as evidence about the system.
+
+Two things follow, and neither is done here. Running `slack` as an external-validity check on the
+failure-mode breakdown rather than as confirmation of a gain is a different question from the one
+this protocol declared, so it would have to be declared in writing first. Building a `slack`
+tenant policy so the gated change could be confirmed would replace a preregistered `policy: null`
+after seeing results, which is the move preregistration exists to prevent.
+
 ## Reproducing
 
 ```bash
@@ -192,8 +220,17 @@ make agentdojo-quality-compare VARIANT=v1-system-prompt
 ```
 
 `v4-denial-guidance` is measured on the gated arm, so it needs `QUALITY_MODE=asg` and its own
-baseline in that mode. Comparing a gated run against an ungated one measures the gate, not the
-intervention.
+baseline in that mode. Keep it in the same evidence root without overwriting the ungated baseline:
+
+```bash
+make agentdojo-quality-baseline QUALITY_MODE=asg QUALITY_BASELINE=asg-baseline
+make agentdojo-quality-variant QUALITY_MODE=asg VARIANT=v4-denial-guidance
+make agentdojo-quality-compare QUALITY_BASELINE=asg-baseline VARIANT=v4-denial-guidance
+```
+
+Comparing a gated run against an ungated one measures the gate, not the intervention. Override
+`QUALITY_PROTOCOL` or `QUALITY_DIR` only to start a separately named protocol revision; never use
+those switches to combine results from different Ollama versions.
 
 Each full run is roughly an hour on the preregistered machine, so the smoke target exists to catch
 a wiring mistake in two minutes rather than after the run.
