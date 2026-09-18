@@ -132,6 +132,8 @@ def log_decision(
     reason: str,
     latency_ms: float,
 ) -> None:
+    from app.tracing import correlation_fields
+
     _decision_logger.info(
         json.dumps(
             {
@@ -145,6 +147,7 @@ def log_decision(
                 "outcome": outcome,
                 "reason": reason,
                 "latency_ms": round(latency_ms, 3),
+                **correlation_fields(),
             }
         )
     )
