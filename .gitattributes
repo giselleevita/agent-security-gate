@@ -1,0 +1,9 @@
+# Artifacts whose bytes are hashed into published evidence must not be renormalized
+# per platform. A benchmark report records the SHA-256 of the protocol and policy it
+# ran under, and the evidence builder recomputes those hashes from the working copy to
+# refuse a drifted package. With autocrlf on Windows a fresh checkout produces CRLF and
+# every hash changes, so an honest package becomes unpublishable on one platform and
+# publishable on another. Pin them to LF so the hash is a property of the artifact.
+benchmark/*.json text eol=lf
+policies/**/*.json text eol=lf
+policies/**/*.rego text eol=lf

@@ -7,6 +7,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -136,6 +137,14 @@ def _require_local_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or parsed.hostname not in LOCAL_HOSTS:
         raise ValueError("Ollama must use a loopback URL; remote model endpoints are forbidden")
+
+
+def _safe_pipeline_component(value: str) -> str:
+    """Return a model label that AgentDojo can use as a directory on every platform."""
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip("-")
+    if not safe:
+        raise ValueError("model identifier has no filesystem-safe characters")
+    return safe
 
 
 def check_ollama_runtime(
@@ -441,7 +450,7 @@ def run(
         )
         pipeline = AgentPipeline([authorization_element, *base_pipeline.elements])
     suffix = "" if variant_name == "baseline" else f"-{variant_name}"
-    pipeline.name = f"{model_name}-{mode}-{phase}{suffix}"
+    pipeline.name = f"{_safe_pipeline_component(model_name)}-{mode}-{phase}{suffix}"
     attack = load_attack(protocol["attack"], suite, pipeline)
     output_dir.mkdir(parents=True, exist_ok=True)
     try:

@@ -7,7 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from scripts.build_agent_quality_evidence import collect, limitations, render_markdown
+from scripts.build_agent_quality_evidence import (
+    JOB_FAIR_END,
+    JOB_FAIR_START,
+    README_END,
+    README_START,
+    collect,
+    limitations,
+    render_markdown,
+    render_readme_section,
+    replace_job_fair_results,
+    replace_readme_results,
+    validate_development_package,
+)
 
 ATTACKER_IBAN = "US133000000121212121212"
 
@@ -174,3 +186,70 @@ def test_published_evidence_contains_no_benchmark_content(results: Path) -> None
 
     assert ATTACKER_IBAN not in serialized
     assert "working" not in serialized
+
+
+def test_readme_table_is_generated_from_complete_non_smoke_runs(results: Path) -> None:
+    evidence = collect(results)
+    readme = f"before\n{README_START}\nstale\n{README_END}\nafter\n"
+
+    rendered = replace_readme_results(readme, evidence)
+
+    assert "`baseline`" in rendered
+    assert "`v1-system-prompt`" in rendered
+    assert "`v2-json-tool-output`" in rendered
+    assert "smoke-v5-mistral" not in rendered
+    assert "Slack confirmation" in rendered
+    assert rendered.startswith("before\n")
+    assert rendered.endswith("after\n")
+
+
+def test_readme_generation_requires_one_marker_pair(results: Path) -> None:
+    evidence = collect(results)
+
+    with pytest.raises(RuntimeError, match="exactly one"):
+        replace_readme_results("no markers", evidence)
+
+
+def test_job_fair_table_is_generated_from_paired_results(results: Path) -> None:
+    evidence = collect(results)
+    brief = f"before\n{JOB_FAIR_START}\nstale\n{JOB_FAIR_END}\nafter\n"
+
+    rendered = replace_job_fair_results(brief, evidence)
+
+    assert "`baseline`" in rendered
+    assert "`v1-system-prompt`" in rendered
+    assert "+2 cases" in rendered
+    assert "kept" in rendered
+    assert "`v2-json-tool-output`" in rendered
+    assert "-1 cases" in rendered
+    assert "rejected" in rendered
+    assert "smoke-v5-mistral" not in rendered
+
+
+def test_development_publication_refuses_a_partial_package(results: Path) -> None:
+    evidence = collect(results)
+
+    with pytest.raises(RuntimeError, match="missing required runs"):
+        validate_development_package(evidence)
+
+
+def test_readme_caption_refuses_to_cover_a_confirmation_run(results: Path) -> None:
+    """The front-page caption asserts confirmation is pending, so it must not outlive that."""
+    evidence = collect(results)
+    evidence["runs"].append(dict(evidence["runs"][0], name="slack-confirmation", phase="confirmation"))
+    readme = f"before\n{README_START}\nstale\n{README_END}\nafter\n"
+
+    with pytest.raises(RuntimeError, match="confirmation pending"):
+        replace_readme_results(readme, evidence)
+
+
+def test_caption_reports_a_null_development_phase_instead_of_a_pending_run(results: Path) -> None:
+    """Confirmation reproduces a gain, so it is only pending while a gain exists."""
+    evidence = collect(results)
+    for comparison in evidence["comparisons"]:
+        comparison["utility"]["delta"] = 0
+
+    caption = render_readme_section(evidence)
+
+    assert "No intervention raised task completion" in caption
+    assert "remains pending" not in caption
