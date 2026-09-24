@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software or its evaluation, please cite it as below."
+title: "Agent Security Gate: Pre-Execution Policy Enforcement for LLM Agent Tool Calls"
+authors:
+  - family-names: Koch
+    given-names: Giselle Evita
+    email: giselle.evita@gmail.com
+version: 0.7.2
+license: Apache-2.0
+repository-code: "https://github.com/giselleevita/agent-security-gate"
+abstract: >-
+  A pre-execution policy enforcement point for LLM agent tool calls, built on Open Policy
+  Agent, with a pre-registered evaluation on the AgentDojo Banking suite. B.Sc. thesis,
+  Technische Universität Darmstadt.
+keywords:
+  - prompt injection
+  - LLM agents
+  - AI security
+  - policy enforcement
+  - Open Policy Agent
+  - AgentDojo

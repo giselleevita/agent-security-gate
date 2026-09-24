@@ -1,0 +1,26 @@
+{
+  "title": "Agent Security Gate: Pre-Execution Policy Enforcement for LLM Agent Tool Calls",
+  "upload_type": "software",
+  "description": "A pre-execution policy enforcement point for LLM agent tool calls, built on Open Policy Agent, with a pre-registered evaluation on the AgentDojo Banking suite. This release is the version described in the accompanying paper. B.Sc. thesis, Technische Universität Darmstadt.",
+  "creators": [
+    {
+      "name": "Koch, Giselle Evita"
+    }
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "prompt injection",
+    "LLM agents",
+    "AI security",
+    "policy enforcement",
+    "Open Policy Agent",
+    "AgentDojo"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/giselleevita/agent-security-gate",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}
