@@ -37,21 +37,16 @@ prompt-injected agent that tries to skip the gate has nothing to call.
 
 ---
 
-## Benchmark (18 scenarios, 5 runs each)
+## Benchmark (AgentDojo Banking, local model)
 
-Policy regression comparing an intentional unprotected baseline to the gated runtime path:
+The project's first benchmark was 18 authored scenarios against an allow-all baseline.
+It scored 100% → 0% and proved little: the fixtures and the Rego policy were written by
+the same person, so that result was close to tautological. It was replaced rather than
+extended, and now runs only as a CI regression check (below).
 
-| Metric | No gate | Policy gate |
-|---|---:|---:|
-| Attack success rate | 100% | **0%** |
-| Data leakage | 100% | **0%** |
-| Benign task success | 100% | **100%** |
-
-Methodology and limits: [docs/benchmark-methodology.md](docs/benchmark-methodology.md). Attack classes: [docs/benchmark-results/latest.md#attack-classes-covered](docs/benchmark-results/latest.md). The `gate` baseline uses the same code path as `POST /v1/gateway/decide` ([parity test](tests/test_benchmark_runtime_parity.py)).
-
-### External benchmark (AgentDojo Banking, local model)
-
-Authored fixtures cannot show what the gate does to a real agent, so the same enforcement point was measured on [AgentDojo](https://github.com/ethz-spylab/agentdojo)'s Banking suite with a local model:
+The enforcement point is measured instead on [AgentDojo](https://github.com/ethz-spylab/agentdojo)'s
+Banking suite — an external suite whose attacks this project did not author — with the
+protocol frozen in git before any run:
 
 | | No authorizer | ASG + OPA |
 |---|---:|---:|
@@ -64,6 +59,22 @@ Every attacker goal the unprotected baseline reached was stopped at the tool bou
 n is small: `0/9` is a Wilson 95% CI of **0%–30%**, `6/9` is **35%–88%**, one model and one suite (`python scripts/benchmark_confidence.py`). The arm separation on the goal runs is the signal; the rates do not generalise.
 
 Per-call decisions, policy coverage, authorization latency, OPA-down behaviour, and full limits: [docs/benchmark-results/agentdojo-local.md](docs/benchmark-results/agentdojo-local.md). Protocol: [docs/agentdojo-benchmark.md](docs/agentdojo-benchmark.md).
+
+### Internal regression check (18 scenarios, 5 runs each)
+
+Not security evidence — a determinism gate that fails CI if enforcement changes behaviour.
+Same code path as `POST /v1/gateway/decide` ([parity test](tests/test_benchmark_runtime_parity.py)):
+
+| Metric | No gate | Policy gate |
+|---|---:|---:|
+| Attack success rate | 100% | **0%** |
+| Data leakage | 100% | **0%** |
+| Benign task success | 100% | **100%** |
+
+The 100% benign figure is an artefact of authored fixtures; the honest benign number is
+AgentDojo's 33/36 above. Methodology and what none of this proves:
+[docs/benchmark-methodology.md](docs/benchmark-methodology.md#what-this-does-not-prove).
+Attack classes: [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md).
 
 ---
 
