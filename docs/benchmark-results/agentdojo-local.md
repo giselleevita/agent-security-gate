@@ -52,7 +52,7 @@ False denials on the heldout split — a benign task that policy would not let f
 | Heldout | ASG + OPA | allow=26, require_approval=5 | require_approval:approval_required=5 | 8 (72.73%) | 0 |
 | Heldout | No authorizer | allow=31 | none | 8 (72.73%) | 5 |
 
-A policy-violating call is one that the frozen tenant policy did not permit as executed: an approval-required tool that ran, or a policy-allowed tool that was blocked. The ASG arms have none. The unprotected baseline's count is the number of money-movement calls that executed without any authorization. Coverage is the share of the policy's classified tools the runs actually exercised; unexercised tools are untested, not proven safe.
+A policy-violating call is one that the frozen tenant policy did not permit as executed: an approval-required tool that ran, or a policy-allowed tool that was blocked. The ASG arms have none. The unprotected baseline's count is the number of approval-required calls (money movement and password changes) that executed without any authorization. Coverage is the share of the policy's classified tools the runs actually exercised; unexercised tools are untested, not proven safe.
 
 ## Authorization latency
 
