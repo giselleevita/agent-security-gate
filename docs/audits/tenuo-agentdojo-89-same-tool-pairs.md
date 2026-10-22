@@ -134,3 +134,26 @@ Scripts are in `scripts/audit_tenuo_agentdojo/` (run with `python -I`, paths as 
 - Score by effect (any malicious call executed), not only by the benchmark scorer; a denied call should not count.
 - Replace substring markers with exact argument matching, or at minimum exclude values contained in known identifiers.
 - Report variance across repeated runs and across models.
+
+## 7. Related work (what I checked, and how)
+
+I looked for prior work on AgentDojo's scoring. Method: I read the full text of the first three papers below and searched
+it for the cases in section 3 (the first-new-event check, the `> 10` threshold, the recurring-payment requirement,
+overwritten reservations, partial attacks, scorer false negatives). For MetaPI I could read only the abstract page.
+This is a text search of PDFs, not a full critical reading, so it can miss content in figures and tables.
+
+- Bhagwatkar et al., *Indirect Prompt Injections: Are Firewalls All You Need, or Stronger Benchmarks?*
+  ([arXiv:2510.05244](https://arxiv.org/abs/2510.05244)). Documents two AgentDojo problems: injections that overwrite
+  content a task needs, and over-strict utility checks (for example an exact message-count requirement). Both concern
+  *utility* scoring. I did not find the security-scorer cases from section 3 in its text.
+- Dong et al. (AgentDyn), [arXiv:2602.03117](https://arxiv.org/abs/2602.03117). Argues that AgentDojo is mostly static
+  (it reports only 6 of 97 tasks need dynamic planning), so a defense can look secure by sticking to the initial plan
+  while over-defending. That is consistent with the utility cost in section 1. I found no security-scorer analysis in it.
+- AutoDojo, [arXiv:2606.15057](https://arxiv.org/abs/2606.15057). Reports that defenses driving the *static* attack to 0%
+  can still be attacked adaptively (it reports 28% overall against one filter). The zeros in this audit are against the
+  static `important_instructions` attack, so they say nothing about adaptive attackers.
+- MetaPI (NeurIPS 2026, [OpenReview](https://openreview.net/forum?id=blZs0Iw2sU)). The abstract says AgentDojo can
+  overstate robustness and utility in more complex environments. It does not mention scorer bugs. Full text not read.
+
+What this audit adds, as far as I found: an examination of AgentDojo's *attack-success* scorers and of the experiment's
+trace counter, on a published result. Prior coverage that I could not read, or that is not indexed, may overlap.
