@@ -1,9 +1,18 @@
-import json, sys, tarfile, csv, collections
+import json
+import sys
+import tarfile
+import csv
+import collections
 root, tarpath = sys.argv[1], sys.argv[2]
 pairs = json.load(open(f"{root}/analysis/pairs_v1.2.2.json", encoding="utf-8"))
 targets = json.load(open(f"{root}/policies/targets.json", encoding="utf-8"))
 same = [p for p in pairs if p["category"].startswith(("2_", "3_"))]
-key = lambda s, u, i: (s, u, i)
+
+
+def key(s, u, i):
+    return (s, u, i)
+
+
 same_keys = {key(p["suite"], p["user_task"], p["injection_task"]) for p in same}
 
 # ---- A. policy coverage: does the attack set any argument the policy guards?
@@ -64,9 +73,11 @@ for arm in sorted({r['arm'] for r in rows}):
     g = sum(key(r["suite"], r["user_task"], r["injection_task"]) in guarded for r in rr)
     print(f"{arm:20} {len(rr):2} rows  (guarded-arg attacks: {g}, unguarded: {len(rr)-g})")
     if arm in ("tenuo", "tenuo_tool_filter", "baseline"):
-        for r in rr: print("     ", r["suite"], r["user_task"], r["injection_task"])
+        for r in rr:
+            print("     ", r["suite"], r["user_task"], r["injection_task"])
 # and attack successes split by guarded/unguarded for the tenuo-family arms
 print("\n== D. ATTACK SUCCESSES BY POLICY COVERAGE ==")
 for arm in sorted(res):
-    g = sum(res[arm][k][1] for k in guarded if k in res[arm]); u = sum(res[arm][k][1] for k in unguarded if k in res[arm])
+    g = sum(res[arm][k][1] for k in guarded if k in res[arm])
+    u = sum(res[arm][k][1] for k in unguarded if k in res[arm])
     print(f"{arm:20} guarded-pairs attacks={g:2}/{len(guarded)}  unguarded-pairs attacks={u:2}/{len(unguarded)}")
