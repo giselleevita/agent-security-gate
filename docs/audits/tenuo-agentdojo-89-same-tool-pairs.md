@@ -146,13 +146,15 @@ This is a text search of PDFs, not a full critical reading, so it can miss conte
   ([arXiv:2510.05244](https://arxiv.org/abs/2510.05244)). Documents two AgentDojo problems: injections that overwrite
   content a task needs, and over-strict utility checks (for example an exact message-count requirement). Both concern
   *utility* scoring. I did not find the security-scorer cases from section 3 in its text.
-- Dong et al. (AgentDyn), [arXiv:2602.03117](https://arxiv.org/abs/2602.03117). Argues that AgentDojo is mostly static
-  (it reports only 6 of 97 tasks need dynamic planning), so a defense can look secure by sticking to the initial plan
-  while over-defending. That is consistent with the utility cost in section 1. I found no security-scorer analysis in it.
-- AutoDojo, [arXiv:2606.15057](https://arxiv.org/abs/2606.15057). Reports that defenses driving the *static* attack to 0%
-  can still be attacked adaptively (it reports 28% overall against one filter). The zeros in this audit are against the
-  static `important_instructions` attack, so they say nothing about adaptive attackers.
-- MetaPI (NeurIPS 2026, [OpenReview](https://openreview.net/forum?id=blZs0Iw2sU)). The abstract says AgentDojo can
+- Li et al., *AgentDyn: Are Your Agent Security Defenses Deployable in Real-World Dynamic Environments?*
+  ([arXiv:2602.03117](https://arxiv.org/abs/2602.03117)). Argues that AgentDojo is mostly static (it reports that only
+  6 of 97 tasks need dynamic planning), so a defense can look secure by sticking to the initial plan while over-defending. That is consistent with the utility cost in section 1. I found no security-scorer analysis in it.
+- Ma et al., *AutoDojo: A Generative Benchmark for Evaluating Prompt Injection Defenses in LLM Agents*
+  ([arXiv:2606.15057](https://arxiv.org/abs/2606.15057)). Argues that static benchmarks can overestimate defense efficacy.
+  Example it reports: PIGuard, an injection classifier that blocks the static attack entirely on GPT-4o-mini, reaches
+  28.0% attack success under its adaptive attack. It also reports that some system-level defenses held up better. The
+  zeros in this audit are against the static `important_instructions` attack, so they say nothing about adaptive attackers.
+- Wang et al., *MetaPI* (NeurIPS 2026, [OpenReview](https://openreview.net/forum?id=blZs0Iw2sU)). The abstract says AgentDojo can
   overstate robustness and utility in more complex environments. It does not mention scorer bugs. Full text not read.
 
 What this audit adds, as far as I found: an examination of AgentDojo's *attack-success* scorers and of the experiment's
