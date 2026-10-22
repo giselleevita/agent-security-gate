@@ -1,6 +1,6 @@
 # Independent audit: Tenuo's "89 same-tool pairs" AgentDojo result
 
-> **DRAFT, not yet reviewed or published.** Review every claim and the "Not verified" section before sharing.
+> **Status:** published for comment. One model, one run per pair; see "Not verified" below. Corrections welcome.
 
 Audited repository: `tenuo-ai/agentdojo-experiment` at commit `7d00fd6` (21 Oct 2026).
 Data audited: the development run, `gpt-4o-mini-2024-07-18`, benchmark v1.2.2, AgentDojo package v0.1.35.
