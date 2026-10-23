@@ -13,7 +13,7 @@ anyio==4.14.2
     #   httpx
     #   starlette
     #   watchfiles
-certifi==2026.5.20
+certifi==2026.10.19
     # via
     #   httpcore
     #   httpx
@@ -57,7 +57,7 @@ pydantic==2.13.4
     #   fastapi
 pydantic-core==2.46.4
     # via pydantic
-pyjwt==2.13.0
+pyjwt==2.15.0
     # via
     #   agent-security-gate (pyproject.toml)
     #   pyjwt
