@@ -78,6 +78,18 @@ Attack classes: [docs/benchmark-results/latest.md](docs/benchmark-results/latest
 
 ---
 
+## Audits
+
+- **Independent audit of a published AgentDojo result** (Tenuo's 89 same-tool pairs). Recomputed from the authors' raw
+  logs: the headline reproduces, but the benchmark's attack-success scorers miss attacks that executed and the authors'
+  trace counter has false positives. Scripts reproduce every number:
+  [report](docs/audits/tenuo-agentdojo-89-same-tool-pairs.md),
+  [scripts](scripts/audit_tenuo_agentdojo/),
+  [write-up](docs/blog/reproducing-a-zero-percent-result.md). Discussion:
+  [ethz-spylab/agentdojo#184](https://github.com/ethz-spylab/agentdojo/issues/184).
+
+---
+
 ## Quick start (local, free)
 
 ```bash
