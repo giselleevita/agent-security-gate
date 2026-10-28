@@ -45,7 +45,7 @@ distro==1.9.0
     #   google-genai
     #   langsmith
     #   openai
-dnspython==2.8.0
+dnspython==2.9.0
     # via email-validator
 docstring-parser==0.18.0
     # via
@@ -55,7 +55,7 @@ email-validator==2.3.0
     # via pydantic
 fastavro==1.12.2
     # via cohere
-filelock==3.32.3
+filelock==4.2.1
     # via huggingface-hub
 fsspec==2026.7.0
     # via huggingface-hub
