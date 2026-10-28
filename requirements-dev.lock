@@ -40,7 +40,7 @@ defusedxml==0.7.1
     # via py-serializable
 fastapi==0.136.3
     # via agent-security-gate (pyproject.toml)
-filelock==3.29.3
+filelock==4.2.1
     # via cachecontrol
 h11==0.16.0
     # via
@@ -65,7 +65,7 @@ markdown-it-py==4.2.0
     # via rich
 mdurl==0.1.2
     # via markdown-it-py
-msgpack==1.2.1
+msgpack==1.2.3
     # via
     #   agent-security-gate (pyproject.toml)
     #   cachecontrol
