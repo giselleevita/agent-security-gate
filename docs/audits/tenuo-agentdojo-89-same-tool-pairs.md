@@ -186,3 +186,8 @@ This is a text search of PDFs, not a full critical reading, so it can miss conte
 
 What this audit adds, as far as I found: an examination of AgentDojo's *attack-success* scorers and of the experiment's
 trace counter, on a published result. Prior coverage that I could not read, or that is not indexed, may overlap.
+
+## 8. How this was done
+
+I did this analysis with Claude Code and ran the scripts in `scripts/audit_tenuo_agentdojo/` myself, checking the
+results against the sources. I take responsibility for the content. Corrections are welcome.

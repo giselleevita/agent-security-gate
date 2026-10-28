@@ -68,3 +68,6 @@ reason, so utility belongs next to the headline number.
 The report, with the method, the per-episode classification and what I did not verify, is in
 [docs/audits/tenuo-agentdojo-89-same-tool-pairs.md](../audits/tenuo-agentdojo-89-same-tool-pairs.md). The scripts that
 reproduce every number are in [scripts/audit_tenuo_agentdojo/](../../scripts/audit_tenuo_agentdojo/).
+
+*How this was done: I did this analysis with Claude Code and ran the scripts myself, checking the results against the
+sources. I take responsibility for the content.*
