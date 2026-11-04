@@ -123,8 +123,17 @@ check("D7 a child can make a gated tool fully gated (whole-tool gate)",
 # ---------------------------------------------------------------- Issuance (approvers and threshold)
 print("\n== Issuance: approvers and threshold")
 issuer_key = SigningKey.generate()
-ISSUER = (Warrant.mint_builder().issuer().issuable_tools(["transfer"]).approval_gates({"transfer": None})
-          .required_approvers([ap1.public_key]).min_approvals(1).holder(issuer_key.public_key).ttl(3600).max_issue_depth(2).mint(ctl))
+
+
+def make_issuer(approvers, threshold):
+    b = Warrant.mint_builder().issuer().issuable_tools(["transfer"]).approval_gates({"transfer": None})
+    b = b.required_approvers([a.public_key for a in approvers])
+    if threshold is not None:
+        b = b.min_approvals(threshold)
+    return b.holder(issuer_key.public_key).ttl(3600).max_issue_depth(2).mint(ctl)
+
+
+ISSUER = make_issuer([ap1], 1)
 
 
 def step(builder, name, *args):
@@ -132,8 +141,8 @@ def step(builder, name, *args):
     return builder if result is None else result
 
 
-def issue(*setters):
-    b = ISSUER.issue_execution()
+def issue(*setters, issuer=None):
+    b = (issuer or ISSUER).issue_execution()
     b = step(b, "tool", "transfer")
     b = step(b, "holder", agent.public_key)
     b = step(b, "ttl", 600)
@@ -153,7 +162,7 @@ check("I1 an issuer warrant keeps approval gates, approvers and threshold (and i
       and inherited.inspect_approval_gate("transfer").kind == "whole_tool",
       f"approvers={len(approvers_of(inherited))}, threshold={inherited.approval_threshold()}, gate={inherited.inspect_approval_gate('transfer').kind}")
 added = issue(("required_approvers", [ap1.public_key, ap2.public_key]), ("min_approvals", 2))
-check("I2 issuance can add an approver and raise the threshold",
+check("I2 issuance can add an approver and raise the threshold in the same call (1-of-1 becomes 2-of-2)",
       len(approvers_of(added)) == 2 and added.approval_threshold() == 2,
       f"approvers={len(approvers_of(added))}, threshold={added.approval_threshold()}")
 for label, setters in (("I3 issuance cannot remove an approver", [("required_approvers", [ap2.public_key])]),
@@ -163,6 +172,40 @@ for label, setters in (("I3 issuance cannot remove an approver", [("required_app
         check(label, False, "issued without error")
     except Exception as exc:
         check(label, "onoton" in type(exc).__name__ or "onoton" in str(exc), f"{type(exc).__name__}: {str(exc)[:70]}")
+
+
+def raises(name_part, *setters, issuer=None):
+    try:
+        issue(*setters, issuer=issuer)
+    except Exception as exc:
+        return name_part in type(exc).__name__, f"{type(exc).__name__}: {str(exc)[:70]}"
+    return False, "issued without error"
+
+
+# The threshold must be at least the issuer's threshold plus the number of approvers added.
+# The issuer's threshold is its min_approvals, or all of its approvers if it set none.
+auto = issue(("required_approvers", [ap1.public_key, ap2.public_key]))
+check("I5 adding one approver to a 1-of-1 issuer, with min_approvals unset, gives 2-of-2",
+      (len(approvers_of(auto)), auto.approval_threshold()) == (2, 2), f"approvers={len(approvers_of(auto))}, threshold={auto.approval_threshold()}")
+ok, seen = raises("onoton", ("required_approvers", [ap1.public_key, ap2.public_key]), ("min_approvals", 1))
+check("I6 adding an approver while keeping min_approvals at 1 fails with a MonotonicityError", ok, seen)
+issuer_1of2 = make_issuer([ap1, ap2], 1)
+ap3 = SigningKey.generate()
+auto3 = issue(("required_approvers", [ap1.public_key, ap2.public_key, ap3.public_key]), issuer=issuer_1of2)
+check("I7 adding one approver to a 1-of-2 issuer, with min_approvals unset, gives 2-of-3",
+      (len(approvers_of(auto3)), auto3.approval_threshold()) == (3, 2), f"approvers={len(approvers_of(auto3))}, threshold={auto3.approval_threshold()}")
+ok, seen = raises("onoton", ("required_approvers", [ap1.public_key, ap2.public_key, ap3.public_key]), ("min_approvals", 1), issuer=issuer_1of2)
+check("I8 on a 1-of-2 issuer, adding one approver and keeping min_approvals at 1 fails with a MonotonicityError", ok, seen)
+issuer_unset = make_issuer([ap1, ap2], None)
+inherited_unset = issue(issuer=issuer_unset)
+check("I9 an issuer with min_approvals unset needs all of its approvers (2-of-2), and issued warrants inherit that",
+      inherited_unset.approval_threshold() == 2, f"threshold={inherited_unset.approval_threshold()}")
+ok, seen = raises("alidation", ("required_approvers", [ap1.public_key, ap2.public_key]), ("min_approvals", 3))
+check("I10 min_approvals above the number of approvers fails with a ValidationError", ok, seen)
+same = issue(("required_approvers", [ap1.public_key, ap1.public_key]))
+check("I11 listing an existing approver twice does not count as adding one (still 1-of-1)",
+      (len(set(map(str, approvers_of(same)))), same.approval_threshold()) == (1, 1),
+      f"distinct approvers={len(set(map(str, approvers_of(same))))}, threshold={same.approval_threshold()}")
 
 builder = p1.attenuate_builder()
 exposed = [n for n in dir(builder) if ("approver" in n or "min_approvals" in n) and not n.startswith("_")]
