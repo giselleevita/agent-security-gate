@@ -122,7 +122,7 @@ langgraph-checkpoint==4.2.0
     #   langgraph-prebuilt
 langgraph-prebuilt==1.1.0
     # via langgraph
-langgraph-sdk==0.4.4
+langgraph-sdk==0.4.6
     # via langgraph
 langsmith==0.11.0
     # via langchain-core
@@ -145,7 +145,7 @@ packaging==26.3
     #   huggingface-hub
     #   langchain-core
     #   langsmith
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth
