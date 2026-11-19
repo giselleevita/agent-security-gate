@@ -8,13 +8,20 @@ from app.config import audit_log_path
 from app.tracing import correlation_fields
 
 
+class AuditWriteError(RuntimeError):
+    """The audit event could not be persisted, so the decision must not be allowed."""
+
+
 def append_audit_event(audit_id: str, event: dict[str, Any]) -> None:
-    append_hash_chained_event(
-        audit_log_path(),
-        {
-            "audit_id": audit_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            **correlation_fields(),
-            **event,
-        },
-    )
+    try:
+        append_hash_chained_event(
+            audit_log_path(),
+            {
+                "audit_id": audit_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                **correlation_fields(),
+                **event,
+            },
+        )
+    except OSError as exc:
+        raise AuditWriteError(f"audit event {audit_id} could not be written") from exc
