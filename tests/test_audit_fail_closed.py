@@ -39,3 +39,27 @@ def test_decision_is_denied_when_audit_cannot_be_written(monkeypatch, tmp_path):
 
     assert response.allowed is False
     assert response.reason == "audit_unavailable"
+
+
+def test_failed_audit_does_not_leave_an_enforcement_grant(monkeypatch):
+    grants: list[tuple[str, str]] = []
+
+    def fail_audit(*_args, **_kwargs):
+        raise AuditWriteError("audit unavailable")
+
+    monkeypatch.setattr(decision, "_append_audit_event", fail_audit)
+    monkeypatch.setattr(
+        decision,
+        "record_enforcement_grant",
+        lambda audit_id, op_key: grants.append((audit_id, op_key)),
+    )
+
+    with pytest.raises(AuditWriteError):
+        decision._append_audit_and_record_grant(
+            audit_id="evt_allow",
+            audit_event={"response": {"allowed": True}},
+            allowed=True,
+            op_key="docs.read:/safe",
+        )
+
+    assert grants == []
