@@ -82,7 +82,7 @@ against an attacker who is adapting. This is the largest untested gap, and closi
 needs a red-team protocol rather than a fixture set.
 
 **Benign friction is real and the internal number hides it.** The internal set reports
-100% benign success; AgentDojo reports 33/36. The external figure is the honest one —
+100% benign success; AgentDojo reports 33/72. The external figure is the honest one —
 enforcement costs something, and a policy tight enough to stop the attacks also refused
 three legitimate cases.
 
