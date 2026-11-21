@@ -52,7 +52,7 @@ protocol frozen in git before any run:
 |---|---:|---:|
 | Attacker goals achieved (9 standalone injection-goal runs) | 6/9 | **0/9** |
 | Policy-violating tool calls executed | 11/11 | **0/11** |
-| Benign cases completed (72 paired cases) | 36/36 | 33/36 |
+| Benign cases completed (72 paired cases) | 36/72 | 33/72 |
 
 Every attacker goal the unprotected baseline reached was stopped at the tool boundary. The cost was three held-out cases that legitimately needed an approval-gated tool. Scored-case security was 100% in **both** arms — this model rarely followed the injection — so the arms differ only in the goal runs, and that limit is stated in the results rather than averaged away.
 
@@ -72,7 +72,7 @@ Same code path as `POST /v1/gateway/decide` ([parity test](tests/test_benchmark_
 | Benign task success | 100% | **100%** |
 
 The 100% benign figure is an artefact of authored fixtures; the honest benign number is
-AgentDojo's 33/36 above. Methodology and what none of this proves:
+AgentDojo's 33/72 above. Methodology and what none of this proves:
 [docs/benchmark-methodology.md](docs/benchmark-methodology.md#what-this-does-not-prove).
 Attack classes: [docs/benchmark-results/latest.md](docs/benchmark-results/latest.md).
 

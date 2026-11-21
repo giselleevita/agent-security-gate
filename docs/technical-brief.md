@@ -37,7 +37,7 @@ certified appliance. It still shows concrete controls an engineer can verify in 
 
 Measured on [AgentDojo](https://github.com/ethz-spylab/agentdojo)'s Banking suite with a
 local model and a protocol frozen before any run: attacker goals **6/9 → 0/9**,
-policy-violating calls **11/11 → 0/11**, benign cases **36/36 → 33/36**. Small n; Wilson
+policy-violating calls **11/11 → 0/11**, benign cases **36/72 → 33/72**. Small n; Wilson
 intervals in [the results](benchmark-results/agentdojo-local.md). A separate 18-scenario
 fixture set runs as a CI determinism check (100% → 0%) — authored by the same person who
 wrote the policy, so it is regression evidence, not security evidence.

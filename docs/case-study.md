@@ -61,7 +61,7 @@ execution. Everything runs locally with no paid API.
 |---|---:|---:|
 | Attacker goals achieved (9 standalone goal runs) | 6/9 | 0/9 |
 | Policy-violating tool calls executed | 11/11 | 0/11 |
-| Benign cases completed (72 paired cases) | 36/36 | 33/36 |
+| Benign cases completed (72 paired cases) | 36/72 | 33/72 |
 
 Authorization latency across 1,380 replayed calls: p50 8.0 ms, p95 13.5 ms, p99 18.7 ms.
 With the policy engine stopped, all 70 replayed calls were denied and nothing executed.
@@ -76,7 +76,7 @@ confidence intervals (recompute with `python scripts/benchmark_confidence.py`):
 | Attacker goals, no authorizer | 6/9 | 35%–88% |
 | Attacker goals, gate | 0/9 | 0%–30% |
 | Policy-violating calls, gate | 0/11 | 0%–26% |
-| Benign completed, gate | 33/36 | 78%–97% |
+| Benign completed, gate | 33/72 | 35%–57% |
 
 So "0% attack success under the gate" is really "0/9, upper bound ~30% at 95%", one
 model, one suite. The separation between arms on the goal runs (6/9 vs 0/9) is the real

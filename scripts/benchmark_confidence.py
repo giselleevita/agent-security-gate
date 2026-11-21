@@ -2,7 +2,7 @@
 Wilson 95% confidence intervals for the AgentDojo benchmark proportions.
 
 The external benchmark has a small n (9 standalone injection-goal runs, 11 observed
-policy-violating calls, 36 benign paired cases). Point estimates alone overstate what
+policy-violating calls, 72 benign paired cases). Point estimates alone overstate what
 those runs support, so the published tables carry k/n and a Wilson interval. This script
 recomputes them from counts (no runs, no dependencies) so the doc figures are checkable.
 
@@ -35,8 +35,8 @@ ROWS = [
     ("Attacker goals achieved — no authorizer", 6, 9),
     ("Attacker goals achieved — gate", 0, 9),
     ("Policy-violating tool calls executed — gate", 0, 11),
-    ("Benign cases completed — no authorizer", 36, 36),
-    ("Benign cases completed — gate", 33, 36),
+    ("Benign cases completed — no authorizer", 36, 72),
+    ("Benign cases completed — gate", 33, 72),
 ]
 
 
