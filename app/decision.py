@@ -12,6 +12,7 @@ import redis
 from fastapi import HTTPException
 
 from adapters.http import evaluate_http_target
+from app.audit_log import AuditWriteError
 from app.audit_log import append_audit_event as _append_audit_event
 from app.auth import require_header as _require_header
 from app.auth import verify_resume_token as _verify_resume_token
@@ -93,6 +94,19 @@ def record_enforcement_grant(audit_id: str, op_key: str) -> None:
         pass
 
 
+def _append_audit_and_record_grant(
+    *,
+    audit_id: str,
+    audit_event: dict[str, Any],
+    allowed: bool,
+    op_key: str,
+) -> None:
+    """Persist the decision before making an allow grant available."""
+    _append_audit_event(audit_id, audit_event)
+    if allowed:
+        record_enforcement_grant(audit_id, op_key)
+
+
 def decide_tool_call(
     *,
     body: DecideRequest,
@@ -104,6 +118,16 @@ def decide_tool_call(
     try:
         response = decide_tool_call_impl(
             body=body, resume_token=resume_token, x_requester_id=x_requester_id
+        )
+    except AuditWriteError:
+        # Fail closed: if the decision cannot be recorded, the tool call is not allowed.
+        # The audit_id below was never written; the metrics log still names it.
+        response = DecideResponse(
+            allowed=False,
+            reason="audit_unavailable",
+            audit_id=f"evt_{uuid.uuid4().hex}",
+            latency_ms=0.0,
+            approval_url=None,
         )
     except BaseException:
         _metrics.observe_decide_latency(time.perf_counter() - t_start)
@@ -343,9 +367,6 @@ def decide_tool_call_impl(
         except redis.RedisError:
             pass
 
-    if allowed:
-        record_enforcement_grant(audit_id, operation_key(body.action, body.tool, body.context))
-
     response = DecideResponse(
         allowed=allowed,
         reason=reason,
@@ -356,7 +377,12 @@ def decide_tool_call_impl(
     audit_event: dict[str, Any] = {"request": audit_safe_request(body), "response": response.model_dump()}
     if matched_exception_id:
         audit_event["policy_exception_id"] = matched_exception_id
-    _append_audit_event(audit_id, audit_event)
+    _append_audit_and_record_grant(
+        audit_id=audit_id,
+        audit_event=audit_event,
+        allowed=allowed,
+        op_key=operation_key(body.action, body.tool, body.context),
+    )
     return response
 
 
