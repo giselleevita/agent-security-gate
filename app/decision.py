@@ -94,6 +94,19 @@ def record_enforcement_grant(audit_id: str, op_key: str) -> None:
         pass
 
 
+def _append_audit_and_record_grant(
+    *,
+    audit_id: str,
+    audit_event: dict[str, Any],
+    allowed: bool,
+    op_key: str,
+) -> None:
+    """Persist the decision before making an allow grant available."""
+    _append_audit_event(audit_id, audit_event)
+    if allowed:
+        record_enforcement_grant(audit_id, op_key)
+
+
 def decide_tool_call(
     *,
     body: DecideRequest,
@@ -354,9 +367,6 @@ def decide_tool_call_impl(
         except redis.RedisError:
             pass
 
-    if allowed:
-        record_enforcement_grant(audit_id, operation_key(body.action, body.tool, body.context))
-
     response = DecideResponse(
         allowed=allowed,
         reason=reason,
@@ -367,7 +377,12 @@ def decide_tool_call_impl(
     audit_event: dict[str, Any] = {"request": audit_safe_request(body), "response": response.model_dump()}
     if matched_exception_id:
         audit_event["policy_exception_id"] = matched_exception_id
-    _append_audit_event(audit_id, audit_event)
+    _append_audit_and_record_grant(
+        audit_id=audit_id,
+        audit_event=audit_event,
+        allowed=allowed,
+        op_key=operation_key(body.action, body.tool, body.context),
+    )
     return response
 
 
